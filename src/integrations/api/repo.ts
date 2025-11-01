@@ -164,6 +164,31 @@ export const invoicesRepo = {
       body: JSON.stringify(input),
     });
   },
+  async getInvoiceDetails(invoiceId: string) {
+    return fetchJson<any>(`/api/invoices/${invoiceId}`);
+  },
+  async recordPayment(invoiceId: string, payment: { payment_amount: number; payment_method?: string; notes?: string }) {
+    return fetchJson<{ id: number; invoice_id: number; amount_paid: number; remaining_balance: number; payment_status: string }>(`/api/invoices/${invoiceId}/payments`, {
+      method: "POST",
+      body: JSON.stringify(payment),
+    });
+  },
+  async getInvoicePayments(invoiceId: string) {
+    return fetchJson<any[]>(`/api/invoices/${invoiceId}/payments`);
+  },
+  async updateInvoice(invoiceId: string, input: {
+    invoice_type: "buy" | "sell";
+    customer_id: string | null;
+    supplier_id: string | null;
+    total_amount: number;
+    is_paid: boolean;
+    items: InvoiceCreateItem[];
+  }) {
+    return fetchJson<{ id: string; invoice_date: string }>(`/api/invoices/${invoiceId}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
+  },
 };
 
 export const inventoryRepo = {

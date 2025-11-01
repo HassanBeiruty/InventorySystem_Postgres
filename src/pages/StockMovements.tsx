@@ -36,7 +36,7 @@ const StockMovements = () => {
       const data = await stockRepo.recent(100);
       setMovements((data as any[]) || []);
     } catch (error) {
-      console.error("Error fetching stock movements:", error);
+      // Silently handle error
     } finally {
       setLoading(false);
     }
@@ -105,7 +105,7 @@ const StockMovements = () => {
                           {format(new Date(movement.invoice_date), "MMM dd, yyyy HH:mm")}
                         </TableCell>
                         <TableCell className="font-semibold">
-                          {movement.products?.name || "Unknown Product"}
+                          <span className="text-muted-foreground text-sm">#{movement.product_id}</span> {movement.products?.name || "Unknown Product"}
                         </TableCell>
                         <TableCell className="text-center font-medium text-muted-foreground">
                           {movement.quantity_before}
@@ -130,7 +130,7 @@ const StockMovements = () => {
                           </span>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground font-mono">
-                          {movement.invoice_id.substring(0, 8)}...
+                          INV-{movement.invoice_id}
                         </TableCell>
                       </TableRow>
                     ))}

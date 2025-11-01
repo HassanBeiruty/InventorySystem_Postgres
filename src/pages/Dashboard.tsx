@@ -17,6 +17,10 @@ const Dashboard = () => {
     customersCount: 0,
     suppliersCount: 0,
     revenue: 0,
+    todayInvoicesCount: 0,
+    todayProductsCount: 0,
+    todayRevenue: 0,
+    todayTotalQuantity: 0,
   });
   const [recentInvoices, setRecentInvoices] = useState<any[]>([]);
 
@@ -45,38 +49,38 @@ const Dashboard = () => {
 
   const statsDisplay = [
     {
-      title: "Total Invoices",
-      value: stats.invoicesCount.toString(),
+      title: "Today's Invoices",
+      value: (stats.todayInvoicesCount ?? 0).toString(),
       icon: Receipt,
-      description: "All time",
+      description: "Created today",
       color: "text-primary",
     },
     {
-      title: "Products",
-      value: stats.productsCount.toString(),
+      title: "Live Inventory",
+      value: (stats.todayProductsCount ?? 0).toString(),
       icon: Package,
-      description: "In inventory",
+      description: `Products with stock (${(stats.todayTotalQuantity ?? 0).toLocaleString()} total qty)`,
       color: "text-success",
     },
     {
       title: "Customers",
       value: stats.customersCount.toString(),
       icon: Users,
-      description: "Active customers",
+      description: "Total customers",
       color: "text-warning",
     },
     {
       title: "Suppliers",
       value: stats.suppliersCount.toString(),
       icon: UserPlus,
-      description: "Active suppliers",
+      description: "Total suppliers",
       color: "text-destructive",
     },
     {
-      title: "Revenue",
-      value: `$${stats.revenue.toFixed(2)}`,
+      title: "Today's Revenue",
+      value: `$${(stats.todayRevenue ?? 0).toFixed(2)}`,
       icon: DollarSign,
-      description: "Total sell invoices",
+      description: "Sales today",
       color: "text-primary",
     },
   ];

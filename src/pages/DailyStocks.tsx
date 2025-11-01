@@ -39,7 +39,7 @@ const DailyStocks = () => {
       const data = await inventoryRepo.dailyHistory();
       setDailyStocks((data as any[]) || []);
     } catch (error) {
-      console.error("Error fetching daily stocks:", error);
+      // Silently handle error
     } finally {
       setLoading(false);
     }
@@ -145,7 +145,7 @@ const DailyStocks = () => {
                                   className="hover:bg-accent/5 transition-colors"
                                 >
                                   <TableCell className="font-semibold">
-                                    {item.products?.name || "Unknown Product"}
+                                    <span className="text-muted-foreground text-sm">#{item.product_id}</span> {item.products?.name || "Unknown Product"}
                                   </TableCell>
                                   <TableCell className="font-mono text-sm text-muted-foreground">
                                     {item.products?.barcode || "N/A"}

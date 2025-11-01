@@ -12,6 +12,14 @@ export default defineConfig(({ mode }) => ({
       '/api': {
         target: 'http://localhost:5050',
         changeOrigin: true,
+        configure: (proxy, _options) => {
+          proxy.on('proxyRes', (proxyRes, req, res) => {
+            // Force no-cache for all API responses
+            proxyRes.headers['cache-control'] = 'no-store, no-cache, must-revalidate';
+            proxyRes.headers['pragma'] = 'no-cache';
+            proxyRes.headers['expires'] = '0';
+          });
+        },
       },
     },
   },

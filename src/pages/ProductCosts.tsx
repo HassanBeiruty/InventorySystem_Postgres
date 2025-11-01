@@ -146,7 +146,7 @@ const ProductCosts = () => {
                     <SelectItem value="all">All products</SelectItem>
                     {products.map((product) => (
                       <SelectItem key={product.id} value={product.id}>
-                        {product.name}
+                        <span className="text-muted-foreground text-xs">#{product.id}</span> {product.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -266,7 +266,7 @@ const ProductCosts = () => {
                         className="hover:bg-warning/5 transition-colors animate-fade-in"
                         style={{ animationDelay: `${idx * 0.02}s` }}
                       >
-                        <TableCell className="font-semibold">{item.product_name}</TableCell>
+                        <TableCell className="font-semibold"><span className="text-muted-foreground text-sm">#{item.product_id}</span> {item.product_name}</TableCell>
                         <TableCell className="text-center font-bold text-lg">{item.total_quantity}</TableCell>
                         <TableCell className="text-right font-bold text-warning text-lg">
                           ${item.average_cost.toFixed(2)}

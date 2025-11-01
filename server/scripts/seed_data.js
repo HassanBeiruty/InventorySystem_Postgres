@@ -16,20 +16,20 @@ async function seedData() {
 	try {
 		// Check if tables exist (verify migration was run)
 		console.log('🔍 Verifying database schema...');
-		const tables = ['users', 'products', 'customers', 'suppliers', 'invoices', 'invoice_items', 'daily_stock', 'stock_movements', 'product_prices'];
+		const tables = ['users', 'products', 'customers', 'suppliers', 'invoices', 'invoice_items', 'daily_stock', 'stock_movements', 'product_prices', 'invoice_payments'];
 		for (const table of tables) {
 			try {
-				const result = await query(`SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = @tableName`, [{ tableName: table }]);
+				const result = await query(`SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = '${table}'`, []);
 				if (result.recordset[0].cnt === 0) {
 					console.error(`\n❌ ERROR: Table '${table}' does not exist!`);
-					console.error('   Please run the migration script first:');
-					console.error('   node server/scripts/migrate_to_int_ids.js\n');
+					console.error('   Please ensure the database schema is initialized.');
+					console.error('   The schema initializes automatically on server startup.\n');
 					process.exit(1);
 				}
 			} catch (err) {
 				console.error(`\n❌ ERROR: Could not verify table '${table}':`, err.message);
-				console.error('   Please run the migration script first:');
-				console.error('   node server/scripts/migrate_to_int_ids.js\n');
+				console.error('   Please ensure the database schema is initialized.');
+				console.error('   The schema initializes automatically on server startup.\n');
 				process.exit(1);
 			}
 		}
@@ -39,6 +39,7 @@ async function seedData() {
 		console.log('🗑️  Clearing existing data...');
 		await query('DELETE FROM stock_movements', []);
 		await query('DELETE FROM daily_stock', []);
+		await query('DELETE FROM invoice_payments', []);
 		await query('DELETE FROM invoice_items', []);
 		await query('DELETE FROM invoices', []);
 		await query('DELETE FROM product_prices', []);

@@ -54,43 +54,56 @@ npm run dev
 
 This project is built with:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+**Frontend:**
+- React 18 with TypeScript
+- Vite - Fast build tool
+- Tailwind CSS - Utility-first CSS
+- shadcn/ui - UI components
+- React Router - Navigation
+- TanStack Query - Data fetching
+- date-fns - Date utilities
+- Lucide React - Icons
 
-## Local-only mode (no cloud backend)
+**Backend:**
+- Node.js with Express
+- SQL Server - Database
+- msnodesqlv8 - Native SQL Server driver
 
-This app has been converted to use a local database via IndexedDB (Dexie). No network or cloud services are required.
+**Features:**
+- Complete invoice management (buy/sell)
+- Partial and complete payment tracking
+- Product inventory with daily stock snapshots
+- Customer and supplier management
+- Product pricing management
+- Stock movement tracking
+- Low stock alerts
+- Comprehensive reporting and analytics
 
-Getting started:
+## SQL Server Backend
 
-1. Install dependencies
-   - `npm install`
-2. Start the app
-   - `npm run dev`
-
-Notes:
-- Data is stored in the browser (IndexedDB). Each browser/profile has its own data.
-- Authentication is local-only (email/password stored locally for demo purposes). Do not use real credentials.
-- You can clear app data by clearing the site storage in your browser.
-
-## SQL Server backend (local)
+This project uses a SQL Server database for data persistence. The backend is built with Node.js and Express.
 
 The project includes a minimal Node.js backend in `server/` to connect to a local SQL Server instance using Windows Authentication.
 
+### Prerequisites
+
+- SQL Server (local instance)
+- ODBC Driver 17 or 18 for SQL Server
+- Microsoft Visual C++ Redistributable (required by msnodesqlv8)
+
+### Setup
+
 Environment variables (copy `server/env.sample` to `server/.env` and adjust if needed):
 
-```
+```env
 PORT=5050
-SQL_SERVER=HASSANLAPTOP\\MSSQLSERVER01
+SQL_SERVER=HASSANLAPTOP\MSSQLSERVER01
 SQL_DATABASE=InvoiceSystem
 SQL_TRUST_SERVER_CERT=true
 SQL_TIMEOUT_MS=30000
 ```
 
-Run in development:
+### Running the Project
 
 ```sh
 # Terminal 1
@@ -108,15 +121,45 @@ Or start both with one command from the project root:
 npm run dev:all
 ```
 
-Available endpoints (proxied from Vite to `http://localhost:5050`):
+### Database Initialization
 
-- `GET /api/health` – checks DB connectivity (`GETDATE()`, `DB_NAME()`).
-- `GET /api/db-test` – returns top rows from `Invoices` if table exists; otherwise lists tables.
+The database schema is automatically initialized on server startup. To manually run initialization:
 
-Notes and prerequisites (Windows):
-- Ensure "ODBC Driver 18 for SQL Server" is installed. If not, the backend auto-retries with Driver 17. You can install either from Microsoft.
-- Install the latest Microsoft Visual C++ Redistributable (required by `msnodesqlv8`).
-- SQL Server should be running on `HASSANLAPTOP\\MSSQLSERVER01` with Windows Authentication enabled.
+```sh
+# From project root
+Invoke-WebRequest -Uri http://localhost:5050/api/admin/init -Method POST
+```
+
+### Available API Endpoints
+
+Main endpoints (proxied from Vite to `http://localhost:5050`):
+
+**Authentication:**
+- `POST /api/auth/signup` - Create new user account
+- `POST /api/auth/signin` - User login
+
+**Entities:**
+- `GET /api/customers` - List all customers
+- `GET /api/products` - List all products
+- `GET /api/suppliers` - List all suppliers
+
+**Invoices:**
+- `GET /api/invoices` - List all invoices with relations
+- `POST /api/invoices` - Create new invoice
+- `GET /api/invoices/:id` - Get invoice details with payments
+- `POST /api/invoices/:id/payments` - Record payment for invoice
+- `GET /api/invoices/stats` - Get invoice statistics
+
+**Inventory:**
+- `GET /api/inventory/today` - Today's inventory
+- `GET /api/inventory/low-stock/:threshold` - Low stock products
+- `GET /api/stock-movements/recent/:limit` - Recent stock movements
+
+**Admin:**
+- `GET /api/health` - Database connectivity check
+- `POST /api/admin/init` - Run database initialization
+
+For complete API documentation, see `server/routes/api.js`.
 
 ## How can I deploy this project?
 

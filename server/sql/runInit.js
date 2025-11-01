@@ -29,34 +29,19 @@ CREATE INDEX IX_products_name ON dbo.products(name);`
 	},
 	{
 		name: 'product_prices',
-		sql: `-- Drop table if exists with wrong schema (NVARCHAR id instead of INT)
-IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.product_prices') AND type = N'U')
-BEGIN
-	IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'product_prices' AND COLUMN_NAME = 'id' AND DATA_TYPE = 'nvarchar')
-	BEGIN
-		DROP TABLE dbo.product_prices;
-	END
-END
+		sql: `IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.product_prices') AND type = N'U')
+CREATE TABLE dbo.product_prices (
+	id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	product_id INT NOT NULL,
+	wholesale_price DECIMAL(18,2) NOT NULL,
+	retail_price DECIMAL(18,2) NOT NULL,
+	effective_date DATE NOT NULL DEFAULT(CONVERT(date, GETDATE())),
+	created_at DATETIME2 NOT NULL,
+	CONSTRAINT FK_product_prices_product FOREIGN KEY (product_id) REFERENCES dbo.products(id) ON DELETE CASCADE
+);
 
--- Create table with correct schema
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.product_prices') AND type = N'U')
-BEGIN
-	CREATE TABLE dbo.product_prices (
-		id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-		product_id INT NOT NULL,
-		wholesale_price DECIMAL(18,2) NOT NULL,
-		retail_price DECIMAL(18,2) NOT NULL,
-		effective_date DATE NOT NULL DEFAULT(CONVERT(date, GETDATE())),
-		created_at DATETIME2 NOT NULL,
-		CONSTRAINT FK_product_prices_product FOREIGN KEY (product_id) REFERENCES dbo.products(id) ON DELETE CASCADE
-	);
-END
-
--- Create index if not exists
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_product_prices_product_date' AND object_id = OBJECT_ID('dbo.product_prices'))
-BEGIN
-	CREATE INDEX IX_product_prices_product_date ON dbo.product_prices(product_id, effective_date);
-END`
+CREATE INDEX IX_product_prices_product_date ON dbo.product_prices(product_id, effective_date);`
 	},
 	{
 		name: 'customers',
@@ -165,6 +150,36 @@ CREATE TABLE dbo.stock_movements (
 
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_stock_movements_invoice_date' AND object_id = OBJECT_ID('dbo.stock_movements'))
 CREATE INDEX IX_stock_movements_invoice_date ON dbo.stock_movements(invoice_date);`
+	},
+	{
+		name: 'invoice_payments',
+		sql: `IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.invoice_payments') AND type = N'U')
+CREATE TABLE dbo.invoice_payments (
+	id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	invoice_id INT NOT NULL,
+	payment_amount DECIMAL(18,2) NOT NULL,
+	payment_date DATETIME2 NOT NULL,
+	payment_method NVARCHAR(50) NULL,
+	notes NVARCHAR(500) NULL,
+	created_at DATETIME2 NOT NULL,
+	CONSTRAINT FK_invoice_payments_invoice FOREIGN KEY (invoice_id) REFERENCES dbo.invoices(id) ON DELETE CASCADE
+);
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_invoice_payments_invoice' AND object_id = OBJECT_ID('dbo.invoice_payments'))
+CREATE INDEX IX_invoice_payments_invoice ON dbo.invoice_payments(invoice_id);`
+	},
+	{
+		name: 'invoice_payment_columns',
+		sql: `-- Add payment tracking columns to invoices table
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'invoices' AND COLUMN_NAME = 'amount_paid')
+BEGIN
+	ALTER TABLE dbo.invoices ADD amount_paid DECIMAL(18,2) NOT NULL DEFAULT 0;
+END
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'invoices' AND COLUMN_NAME = 'payment_status')
+BEGIN
+	ALTER TABLE dbo.invoices ADD payment_status NVARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (payment_status IN ('pending','partial','paid'));
+END`
 	}
 ];
 
@@ -180,21 +195,19 @@ async function runInit() {
 	for (let i = 0; i < tables.length; i++) {
 		const table = tables[i];
 		try {
-			// For product_prices, execute as single statement to avoid BEGIN/END splitting issues
-			if (table.name === 'product_prices') {
+			// For invoice_payment_columns, execute as single statement
+			if (table.name === 'invoice_payment_columns') {
 				try {
-					// Execute entire SQL block as one statement
 					await query(table.sql, []);
 					executed++;
-					console.log(`✓ Table '${table.name}' created/verified`);
+					console.log(`✓ Columns for '${table.name}' added/verified`);
 					continue;
 				} catch (err) {
 					const errMsg = err.message?.toLowerCase() || '';
-					// Ignore if table already exists with correct schema
-					if (errMsg.includes('already exists') || errMsg.includes('already an object named')) {
-						console.log(`⚠ Table '${table.name}' already exists (skipped)`);
-					executed++;
-					continue;
+					if (errMsg.includes('already exists') || errMsg.includes('already an object named') || errMsg.includes('duplicate')) {
+						console.log(`⚠ Columns for '${table.name}' already exist (skipped)`);
+						executed++;
+						continue;
 					}
 					throw err;
 				}

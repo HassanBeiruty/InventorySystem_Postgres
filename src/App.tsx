@@ -36,6 +36,7 @@ const App = () => (
           <Route path="/invoices" element={<InvoicesList />} />
           <Route path="/invoices/new/sell" element={<InvoiceForm />} />
           <Route path="/invoices/new/buy" element={<InvoiceForm />} />
+          <Route path="/invoices/edit/:id" element={<InvoiceForm />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/stock-movements" element={<StockMovements />} />
           <Route path="/inventory" element={<Inventory />} />

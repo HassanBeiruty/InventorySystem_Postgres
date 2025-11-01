@@ -162,7 +162,7 @@ const Products = () => {
                         className="hover:bg-primary/5 transition-colors animate-fade-in"
                         style={{ animationDelay: `${idx * 0.05}s` }}
                       >
-                        <TableCell className="font-medium">{product.name}</TableCell>
+                        <TableCell className="font-medium"><span className="text-muted-foreground text-sm">#{product.id}</span> {product.name}</TableCell>
                         <TableCell className="text-muted-foreground">{product.barcode || "-"}</TableCell>
                         
                         <TableCell>

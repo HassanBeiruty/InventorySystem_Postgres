@@ -205,7 +205,7 @@ const ProductPrices = () => {
                       <SelectContent>
                         {products.map((product) => (
                           <SelectItem key={product.id} value={product.id}>
-                            {product.name}
+                            <span className="text-muted-foreground text-xs">#{product.id}</span> {product.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -263,7 +263,7 @@ const ProductPrices = () => {
                     <SelectItem value="all">All products</SelectItem>
                     {products.map((product) => (
                       <SelectItem key={product.id} value={product.id}>
-                        {product.name}
+                        <span className="text-muted-foreground text-xs">#{product.id}</span> {product.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -339,7 +339,7 @@ const ProductPrices = () => {
                         className="hover:bg-primary/5 transition-colors animate-fade-in"
                         style={{ animationDelay: `${idx * 0.01}s` }}
                       >
-                        <TableCell className="font-semibold">{price.product_name}</TableCell>
+                        <TableCell className="font-semibold"><span className="text-muted-foreground text-sm">#{price.product_id}</span> {price.product_name}</TableCell>
                         <TableCell className="text-sm">
                           {format(new Date(price.effective_date), "MMM dd, yyyy")}
                         </TableCell>

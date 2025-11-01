@@ -6,7 +6,6 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
     "dev": "node index.js",
-    "migrate:costs": "node scripts/migrate_product_costs.js",
     "seed": "node scripts/seed_data.js"
   },
   "keywords": [],

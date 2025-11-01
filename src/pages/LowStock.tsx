@@ -137,7 +137,7 @@ const LowStock = () => {
                               {isCritical && (
                                 <AlertTriangle className="w-4 h-4 text-destructive animate-pulse" />
                               )}
-                              {item.products?.name || 'Unknown Product'}
+                              <span className="text-muted-foreground text-sm">#{item.product_id}</span> {item.products?.name || 'Unknown Product'}
                             </div>
                           </TableCell>
                           <TableCell className="text-muted-foreground">

@@ -42,7 +42,7 @@ const Reports = () => {
               costsMap.set(product.id, costData.average_cost);
             }
           } catch (e) {
-            console.warn(`Failed to fetch cost for product ${product.id}`);
+            // Silently handle error for individual product cost
           }
         })
       );

@@ -14,6 +14,10 @@ This document summarizes all files and code that were removed or cleaned up to o
 
 ### Server
 - ✅ `server/test-db.js` - Development test file, not needed in production
+- ✅ `server/sql/init.sql` - Legacy SQL schema file (NVARCHAR IDs, replaced by runInit.js)
+- ✅ `server/sql/create_tables_manual.sql` - Legacy SQL schema file (NVARCHAR IDs, replaced by runInit.js)
+- ✅ `server/scripts/migrate_to_int_ids.js` - Migration completed, script no longer needed
+- ✅ `server/scripts/migrate_product_costs.js` - Migration completed, product_costs table removed
 
 ### Integrations
 - ✅ `src/integrations/supabase/` - Entire folder (not used, project uses SQL Server)
@@ -76,6 +80,17 @@ This document summarizes all files and code that were removed or cleaned up to o
   - `--sidebar-accent-foreground`
   - `--sidebar-border`
   - `--sidebar-ring`
+
+---
+
+## API Routes Cleanup
+
+### Removed Deprecated Routes
+- ✅ `/api/products/:id/costs` - Product costs from legacy product_costs table
+- ✅ `/api/products/:id/average-cost` - Average cost from legacy product_costs table  
+- ✅ `/api/product-costs` - List all product costs from legacy table
+
+**Note**: Product cost tracking now uses `daily_stock.avg_cost` via `/api/daily-stock/avg-costs`
 
 ---
 
@@ -189,7 +204,23 @@ src/
 ---
 
 **Cleanup Date**: $(date)  
-**Total Files Removed**: 40+  
+**Total Files Removed**: 44+  
 **Project Health**: ✅ Excellent  
 **Build Status**: ✅ Clean  
+
+---
+
+## Recent Updates (2025-10-31)
+
+### Invoice Payment System
+- ✅ Added `invoice_payments` table for payment history tracking
+- ✅ Added `amount_paid` and `payment_status` fields to invoices
+- ✅ Implemented partial and complete payment functionality
+- ✅ Created PaymentDialog component with payment recording
+- ✅ Updated invoice list with payment status and Record Payment button
+
+### Additional Cleanup
+- ✅ Removed legacy product_costs routes from API
+- ✅ Removed obsolete SQL migration files
+- ✅ Cleaned up commented code and unused routes  
 

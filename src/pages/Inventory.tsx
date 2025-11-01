@@ -37,7 +37,7 @@ const Inventory = () => {
       const data = await inventoryRepo.today();
       setInventory((data as any[]) || []);
     } catch (error) {
-      console.error("Error fetching inventory:", error);
+      // Silently handle error
     } finally {
       setLoading(false);
     }
@@ -112,7 +112,7 @@ const Inventory = () => {
                           style={{ animationDelay: `${idx * 0.03}s` }}
                         >
                           <TableCell className="font-semibold">
-                            {item.products?.name || "Unknown Product"}
+                            <span className="text-muted-foreground text-sm">#{item.product_id}</span> {item.products?.name || "Unknown Product"}
                           </TableCell>
                           <TableCell className="font-mono text-sm text-muted-foreground">
                             {item.products?.barcode || "N/A"}
@@ -131,10 +131,10 @@ const Inventory = () => {
                             <Badge variant={status.variant} className="font-medium">{status.label}</Badge>
                           </TableCell>
                           <TableCell className="text-right font-semibold text-success">
-                            ${item.products?.wholesale_price.toFixed(2) || "0.00"}
+                            ${item.products?.wholesale_price ? item.products.wholesale_price.toFixed(2) : "0.00"}
                           </TableCell>
                           <TableCell className="text-right font-semibold text-primary">
-                            ${item.products?.retail_price.toFixed(2) || "0.00"}
+                            ${item.products?.retail_price ? item.products.retail_price.toFixed(2) : "0.00"}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {format(new Date(item.updated_at), "MMM dd, yyyy")}
