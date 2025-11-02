@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { invoicesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { formatDateTimeLebanon } from "@/utils/dateUtils";
 
 interface Payment {
   id: number;
@@ -228,7 +228,7 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
                             {invoice.payments.map((payment) => (
                               <TableRow key={payment.id}>
                                 <TableCell className="text-sm">
-                                  {format(new Date(payment.payment_date), "MM/dd/yyyy")}
+                                  {formatDateTimeLebanon(payment.payment_date, "MM/dd/yyyy")}
                                 </TableCell>
                                 <TableCell className="font-medium">${payment.payment_amount.toFixed(2)}</TableCell>
                                 <TableCell>{payment.payment_method || "-"}</TableCell>

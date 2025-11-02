@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { DollarSign, TrendingUp, TrendingDown, Filter, X } from "lucide-react";
-import { format } from "date-fns";
+import { formatDateTimeLebanon } from "@/utils/dateUtils";
 import { productCostsRepo, productsRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 
@@ -326,7 +326,7 @@ const ProductCosts = () => {
                           style={{ animationDelay: `${idx * 0.01}s` }}
                         >
                           <TableCell className="text-sm">
-                            {format(new Date(row.date), "MMM dd, yyyy")}
+                            {formatDateTimeLebanon(row.date, "MMM dd, yyyy")}
                           </TableCell>
                           <TableCell className="font-semibold">{row.product_name}</TableCell>
                           <TableCell className="text-center font-medium">{row.available_qty}</TableCell>

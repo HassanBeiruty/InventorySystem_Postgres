@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TrendingUp, TrendingDown, Package } from "lucide-react";
-import { format } from "date-fns";
+import { formatDateTimeLebanon } from "@/utils/dateUtils";
 
 interface StockMovement {
   id: string;
@@ -102,7 +102,7 @@ const StockMovements = () => {
                         style={{ animationDelay: `${idx * 0.02}s` }}
                       >
                         <TableCell className="text-sm">
-                          {format(new Date(movement.invoice_date), "MMM dd, yyyy HH:mm")}
+                          {formatDateTimeLebanon(movement.invoice_date, "MMM dd, yyyy HH:mm")}
                         </TableCell>
                         <TableCell className="font-semibold">
                           <span className="text-muted-foreground text-sm">#{movement.product_id}</span> {movement.products?.name || "Unknown Product"}

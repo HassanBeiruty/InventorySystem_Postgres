@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Filter, X, FileText, TrendingUp, TrendingDown, DollarSign, Plus, CreditCard, Eye, Pencil } from "lucide-react";
-import { format } from "date-fns";
+import { formatDateTimeLebanon } from "@/utils/dateUtils";
 import { invoicesRepo, productsRepo, customersRepo, suppliersRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 
@@ -446,7 +446,7 @@ const InvoicesList = () => {
                       #{invoice.id}
                     </TableCell>
                     <TableCell className="text-sm">
-                      {format(new Date(invoice.invoice_date), "MMM dd, yyyy")}
+                      {formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}
                     </TableCell>
                     <TableCell>
                       <Badge variant={invoice.invoice_type === 'sell' ? 'default' : 'secondary'}>

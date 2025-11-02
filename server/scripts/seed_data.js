@@ -2,8 +2,30 @@
 require('dotenv').config();
 const { query } = require('../db');
 
+// Helper to get current time in Lebanon timezone (Asia/Beirut)
 function nowIso() {
-	return new Date().toISOString();
+	const now = new Date();
+	const formatter = new Intl.DateTimeFormat('en-US', {
+		timeZone: 'Asia/Beirut',
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit',
+		hour12: false
+	});
+	
+	const parts = formatter.formatToParts(now);
+	const year = parseInt(parts.find(p => p.type === 'year')?.value || '0');
+	const month = parseInt(parts.find(p => p.type === 'month')?.value || '0');
+	const day = parseInt(parts.find(p => p.type === 'day')?.value || '0');
+	const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+	const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
+	const second = parseInt(parts.find(p => p.type === 'second')?.value || '0');
+	
+	// Return as ISO string (without Z, as it's local Lebanon time)
+	return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}.000`;
 }
 
 function randomDate(start, end) {
@@ -162,7 +184,16 @@ async function seedData() {
 
 		// 6. Create BUY Invoices (purchases from suppliers)
 		console.log('📥 Creating buy invoices...');
-		const today = new Date();
+		// Get today in Lebanon timezone
+		const now = new Date();
+		const formatter = new Intl.DateTimeFormat('en-CA', {
+			timeZone: 'Asia/Beirut',
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit'
+		});
+		const todayStr = formatter.format(now);
+		const today = new Date(todayStr + 'T00:00:00'); // Create date from Lebanon date string
 		const buyInvoices = [];
 		const stockByProduct = new Map();
 

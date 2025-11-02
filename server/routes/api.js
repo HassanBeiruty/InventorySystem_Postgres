@@ -4,27 +4,71 @@ const router = express.Router();
 
 // generateId() removed - using auto-increment INT IDs now
 
-function nowIso() {
-	return new Date().toISOString();
+// Helper function to get current datetime in Lebanon timezone (ISO string)
+// Lebanon timezone: Asia/Beirut (GMT+2 in winter, GMT+3 in summer with DST)
+// Returns ISO string representing current time in Lebanon timezone
+// Note: SQL Server DATETIME2 doesn't store timezone, so we store Lebanon local time directly
+function nowLebanonIso() {
+	const now = new Date();
+	
+	// Get current time components in Lebanon timezone
+	const lebanonParts = new Intl.DateTimeFormat('en-US', {
+		timeZone: 'Asia/Beirut',
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit',
+		hour12: false
+	}).formatToParts(now);
+	
+	const year = parseInt(lebanonParts.find(p => p.type === 'year')?.value || '0');
+	const month = parseInt(lebanonParts.find(p => p.type === 'month')?.value || '0');
+	const day = parseInt(lebanonParts.find(p => p.type === 'day')?.value || '0');
+	const hour = parseInt(lebanonParts.find(p => p.type === 'hour')?.value || '0');
+	const minute = parseInt(lebanonParts.find(p => p.type === 'minute')?.value || '0');
+	const second = parseInt(lebanonParts.find(p => p.type === 'second')?.value || '0');
+	const ms = now.getMilliseconds();
+	
+	// Create ISO string with Lebanon time components
+	// Since DATETIME2 doesn't store timezone, we store the Lebanon local time directly
+	// Format: YYYY-MM-DDTHH:mm:ss.sss (no Z suffix, as it's local time)
+	const isoStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
+	
+	return isoStr;
 }
 
-// Helper function to get today's date in local timezone (YYYY-MM-DD format)
+function nowIso() {
+	// Return current time in Lebanon timezone (Asia/Beirut) as ISO string
+	return nowLebanonIso();
+}
+
+// Helper function to get today's date in Lebanon timezone (Asia/Beirut - GMT+2/GMT+3)
+// Lebanon uses EET (GMT+2) in winter and EEST (GMT+3) in summer (with DST)
 function getTodayLocal() {
 	const now = new Date();
-	// Use local date methods to avoid timezone conversion issues
-	const year = now.getFullYear();
-	const month = String(now.getMonth() + 1).padStart(2, '0');
-	const day = String(now.getDate()).padStart(2, '0');
-	return `${year}-${month}-${day}`;
+	// Use Intl.DateTimeFormat for reliable timezone conversion to Asia/Beirut
+	const formatter = new Intl.DateTimeFormat('en-CA', {
+		timeZone: 'Asia/Beirut',
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit'
+	});
+	return formatter.format(now);
 }
 
-// Helper function to convert a date to local timezone date string (YYYY-MM-DD format)
+// Helper function to convert a date to Lebanon timezone date string (YYYY-MM-DD format)
 function toLocalDateString(date) {
 	const d = new Date(date);
-	const year = d.getFullYear();
-	const month = String(d.getMonth() + 1).padStart(2, '0');
-	const day = String(d.getDate()).padStart(2, '0');
-	return `${year}-${month}-${day}`;
+	// Convert to Lebanon timezone (Asia/Beirut)
+	const formatter = new Intl.DateTimeFormat('en-CA', {
+		timeZone: 'Asia/Beirut',
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit'
+	});
+	return formatter.format(d);
 }
 
 // ===== AUTH =====
@@ -507,7 +551,7 @@ router.put('/invoices/:id', async (req, res) => {
 			// Get the quantity before the invoice date (day before invoice date)
 			const dayBeforeInvoice = new Date(invoiceDate);
 			dayBeforeInvoice.setDate(dayBeforeInvoice.getDate() - 1);
-			const dayBeforeStr = dayBeforeInvoice.toISOString().split('T')[0];
+			const dayBeforeStr = toLocalDateString(dayBeforeInvoice);
 			
 			const beforeResult = await query(
 				'SELECT TOP 1 available_qty, avg_cost FROM daily_stock WHERE product_id = @product_id AND date <= @date ORDER BY date DESC, updated_at DESC',
@@ -565,7 +609,7 @@ router.put('/invoices/:id', async (req, res) => {
 			});
 			
 			while (currentDate.getTime() <= todayDate.getTime()) {
-				const dateStr = currentDate.toISOString().split('T')[0];
+				const dateStr = toLocalDateString(currentDate);
 				allDates.push(dateStr);
 				console.log(`  Adding date to process: ${dateStr}`);
 				currentDate.setUTCDate(currentDate.getUTCDate() + 1);

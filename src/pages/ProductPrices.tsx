@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DollarSign, TrendingUp, Filter, X, Plus, Pencil, Trash2 } from "lucide-react";
-import { format } from "date-fns";
+import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { productPricesRepo, productsRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 
@@ -237,7 +237,7 @@ const ProductPrices = () => {
                     <Input 
                       type="date" 
                       name="effective_date" 
-                      defaultValue={new Date().toISOString().split('T')[0]}
+                      defaultValue={getTodayLebanon()}
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={formLoading}>
@@ -341,7 +341,7 @@ const ProductPrices = () => {
                       >
                         <TableCell className="font-semibold"><span className="text-muted-foreground text-sm">#{price.product_id}</span> {price.product_name}</TableCell>
                         <TableCell className="text-sm">
-                          {format(new Date(price.effective_date), "MMM dd, yyyy")}
+                          {formatDateTimeLebanon(price.effective_date, "MMM dd, yyyy")}
                         </TableCell>
                         <TableCell className="text-right font-semibold text-warning">
                           ${parseFloat(price.wholesale_price).toFixed(2)}
@@ -419,7 +419,7 @@ const ProductPrices = () => {
                   <Input 
                     type="date" 
                     name="effective_date" 
-                    defaultValue={editingPrice.effective_date?.split('T')[0] || new Date().toISOString().split('T')[0]}
+                    defaultValue={editingPrice.effective_date?.split('T')[0] || getTodayLebanon()}
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={formLoading}>

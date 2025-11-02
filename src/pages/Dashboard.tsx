@@ -5,7 +5,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { invoicesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { format } from "date-fns";
+import { formatDateTimeLebanon } from "@/utils/dateUtils";
 
 const Dashboard = () => {
   const { toast } = useToast();
@@ -168,7 +168,7 @@ const Dashboard = () => {
                         </p>
                         <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                           <span className="w-1 h-1 rounded-full bg-muted-foreground" />
-                          {format(new Date(invoice.invoice_date), "MMM dd, yyyy")}
+                          {formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}
                         </p>
                       </div>
                       <div className="text-right">

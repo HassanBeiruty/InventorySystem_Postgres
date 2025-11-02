@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { invoicesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { formatDateTimeLebanon } from "@/utils/dateUtils";
 
 interface InvoiceItem {
   id: number;
@@ -146,7 +146,7 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                     </div>
                     <div>
                       <span className="text-muted-foreground">Date:</span>
-                      <span className="ml-2 font-medium">{format(new Date(invoice.invoice_date), "MMM dd, yyyy")}</span>
+                      <span className="ml-2 font-medium">{formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}</span>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Type:</span>

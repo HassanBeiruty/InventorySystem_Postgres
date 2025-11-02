@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar, Package } from "lucide-react";
-import { format } from "date-fns";
+import { formatDateTimeLebanon, formatDateLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { Input } from "@/components/ui/input";
 import { useTranslation } from "react-i18next";
 
@@ -47,7 +47,7 @@ const DailyStocks = () => {
 
   // Group stocks by date
   const groupedByDate = dailyStocks.reduce((acc, item) => {
-    const date = format(new Date(item.date), "yyyy-MM-dd");
+    const date = formatDateLebanon(item.date);
     if (!acc[date]) acc[date] = [];
     acc[date].push(item);
     return acc;
@@ -108,7 +108,7 @@ const DailyStocks = () => {
               <div className="space-y-4">
                 {sortedDates.map((date, dateIdx) => {
                   const items = filteredGroups[date];
-                  const isToday = date === format(new Date(), "yyyy-MM-dd");
+                  const isToday = date === getTodayLebanon();
                   
                   return (
                     <div 
@@ -119,7 +119,7 @@ const DailyStocks = () => {
                       <div className="flex items-center gap-3 sticky top-0 bg-background py-2 z-10">
                         <Calendar className="w-5 h-5 text-accent" />
                         <h3 className="text-lg font-bold">
-                          {format(new Date(date), "EEEE, MMMM dd, yyyy")}
+                          {formatDateTimeLebanon(date, "EEEE, MMMM dd, yyyy")}
                         </h3>
                         {isToday && (
                           <Badge className="bg-success text-success-foreground">{t('inventory.todayPosition')}</Badge>
@@ -159,7 +159,7 @@ const DailyStocks = () => {
                                     {Number(item.avg_cost || 0).toFixed(2)}
                                   </TableCell>
                                   <TableCell className="text-sm text-muted-foreground">
-                                    {format(new Date(item.updated_at), "HH:mm:ss")}
+                                    {formatDateTimeLebanon(item.updated_at, "HH:mm:ss")}
                                   </TableCell>
                                 </TableRow>
                               );

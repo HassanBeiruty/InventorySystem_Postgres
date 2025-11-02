@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Package, AlertTriangle } from "lucide-react";
-import { format } from "date-fns";
+import { formatDateTimeLebanon } from "@/utils/dateUtils";
 
 interface InventoryItem {
   id: string;
@@ -57,7 +57,7 @@ const Inventory = () => {
             <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
               Inventory - Today's Position
             </h1>
-            <p className="text-muted-foreground text-lg">Current stock levels as of {format(new Date(), "MMMM dd, yyyy")}</p>
+            <p className="text-muted-foreground text-lg">Current stock levels as of {formatDateTimeLebanon(new Date(), "MMMM dd, yyyy")}</p>
           </div>
         </div>
 
@@ -137,7 +137,7 @@ const Inventory = () => {
                             ${item.products?.retail_price ? item.products.retail_price.toFixed(2) : "0.00"}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
-                            {format(new Date(item.updated_at), "MMM dd, yyyy")}
+                            {formatDateTimeLebanon(item.updated_at, "MMM dd, yyyy")}
                           </TableCell>
                         </TableRow>
                       );

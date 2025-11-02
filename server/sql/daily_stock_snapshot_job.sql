@@ -4,10 +4,15 @@
 -- This script creates a stored procedure and SQL Server Agent job to
 -- capture daily opening stock quantities for all products every morning.
 -- 
--- The job runs daily at 6:00 AM and:
+-- The job runs daily at 6:00 AM (Lebanon timezone - Asia/Beirut) and:
 -- 1. Takes yesterday's ending stock quantity for each product
 -- 2. Inserts a NEW record for TODAY's date with that quantity as opening stock
 -- 3. Leaves all old records intact (does not update existing records)
+-- 
+-- NOTE: This procedure uses Lebanon timezone (GMT+2/GMT+3 with DST).
+-- For SQL Server 2016+, AT TIME ZONE is used. For older versions,
+-- the server timezone should be set to Lebanon timezone, or use
+-- GETUTCDATE() with manual offset calculation.
 -- ============================================================================
 
 USE [YourDatabaseName]  -- Replace with your actual database name
@@ -30,11 +35,39 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
-    DECLARE @Yesterday DATE = CAST(DATEADD(DAY, -1, GETDATE()) AS DATE);
-    DECLARE @Today DATE = CAST(GETDATE() AS DATE);
-    DECLARE @Now DATETIME2 = GETDATE();
+    -- Get current date/time in Lebanon timezone (Asia/Beirut)
+    -- Lebanon is GMT+2 in winter (EET) and GMT+3 in summer (EEST with DST)
+    -- 
+    -- IMPORTANT: SQL Server timezone functions have limitations.
+    -- The best approach is to:
+    -- 1. Set SQL Server's system timezone to Lebanon (Asia/Beirut) if possible, OR
+    -- 2. Use GETUTCDATE() and manually calculate Lebanon offset (UTC+2 or UTC+3 with DST)
+    -- 3. For SQL Server 2016+, AT TIME ZONE can be used but requires Windows timezone ID
+    --
+    -- This implementation uses UTC+3 as default (summer time). 
+    -- Adjust based on DST or use server timezone setting.
+    -- For accurate DST handling, consider using a UDF or setting server timezone.
+    
+    DECLARE @LebanonNow DATETIME2;
+    DECLARE @Yesterday DATE;
+    DECLARE @Today DATE;
+    DECLARE @Now DATETIME2;
     DECLARE @SuccessCount INT = 0;
     DECLARE @SkippedCount INT = 0;
+    
+    -- Calculate Lebanon time from UTC
+    -- Lebanon is UTC+2 in winter (EET), UTC+3 in summer (EEST)
+    -- Default to UTC+3 (summer time). For winter, change to DATEADD(HOUR, 2, GETUTCDATE())
+    -- For automatic DST handling, consider setting SQL Server system timezone to Lebanon
+    SET @LebanonNow = DATEADD(HOUR, 3, GETUTCDATE());
+    
+    -- Alternative for SQL Server 2016+ (if Windows timezone is configured correctly):
+    -- SET @LebanonNow = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'Arab Standard Time' AS DATETIME2);
+    -- Note: Timezone names vary; verify with: SELECT * FROM sys.time_zone_info;
+    
+    SET @Yesterday = CAST(DATEADD(DAY, -1, @LebanonNow) AS DATE);
+    SET @Today = CAST(@LebanonNow AS DATE);
+    SET @Now = @LebanonNow;
     
     BEGIN TRY
         BEGIN TRANSACTION;
