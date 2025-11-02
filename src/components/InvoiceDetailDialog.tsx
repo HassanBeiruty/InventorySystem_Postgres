@@ -6,12 +6,14 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { invoicesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
+import { Printer } from "lucide-react";
 
 interface InvoiceItem {
   id: number;
@@ -76,14 +78,195 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
     }
   };
 
+  const handlePrint = () => {
+    if (!invoice) return;
+    
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const entityName = invoice.customers?.name || invoice.suppliers?.name || "N/A";
+    const entityPhone = invoice.customers?.phone || invoice.suppliers?.phone || "N/A";
+    const entityAddress = invoice.customers?.address || invoice.suppliers?.address || "N/A";
+    const remainingBalance = invoice.total_amount - invoice.amount_paid;
+
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Invoice #${invoice.id}</title>
+          <style>
+            @media print {
+              @page { margin: 1cm; }
+            }
+            body {
+              font-family: Arial, sans-serif;
+              padding: 20px;
+              max-width: 800px;
+              margin: 0 auto;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 30px;
+              border-bottom: 2px solid #000;
+              padding-bottom: 20px;
+            }
+            .invoice-info {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 20px;
+              margin-bottom: 30px;
+            }
+            .entity-details {
+              border: 1px solid #ddd;
+              padding: 15px;
+              margin-bottom: 30px;
+            }
+            .entity-details h3 {
+              margin-top: 0;
+              border-bottom: 1px solid #ddd;
+              padding-bottom: 10px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 30px;
+            }
+            th, td {
+              border: 1px solid #ddd;
+              padding: 10px;
+              text-align: left;
+            }
+            th {
+              background-color: #f5f5f5;
+              font-weight: bold;
+            }
+            .summary {
+              display: grid;
+              grid-template-columns: 1fr 1fr 1fr;
+              gap: 20px;
+              border: 1px solid #ddd;
+              padding: 20px;
+              margin-top: 30px;
+            }
+            .summary-item {
+              text-align: center;
+            }
+            .summary-label {
+              font-size: 12px;
+              color: #666;
+              margin-bottom: 5px;
+            }
+            .summary-value {
+              font-size: 24px;
+              font-weight: bold;
+            }
+            .badge {
+              display: inline-block;
+              padding: 4px 8px;
+              border-radius: 4px;
+              font-size: 12px;
+              font-weight: bold;
+            }
+            .badge-sell { background-color: #4CAF50; color: white; }
+            .badge-buy { background-color: #2196F3; color: white; }
+            .badge-paid { background-color: #4CAF50; color: white; }
+            .badge-partial { background-color: #FF9800; color: white; }
+            .badge-pending { background-color: #f44336; color: white; }
+            @media print {
+              body { padding: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Invoice System</h1>
+            <h2>Invoice #${invoice.id}</h2>
+          </div>
+          
+          <div class="invoice-info">
+            <div>
+              <strong>Date:</strong> ${formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}<br>
+              <strong>Type:</strong> <span class="badge badge-${invoice.invoice_type}">${invoice.invoice_type.toUpperCase()}</span>
+            </div>
+            <div>
+              <strong>Status:</strong> <span class="badge badge-${invoice.payment_status}">${invoice.payment_status === 'paid' ? 'Paid' : invoice.payment_status === 'partial' ? 'Partial' : 'Pending'}</span>
+            </div>
+          </div>
+
+          <div class="entity-details">
+            <h3>${invoice.invoice_type === 'sell' ? 'Customer' : 'Supplier'} Details</h3>
+            <strong>Name:</strong> ${entityName}<br>
+            <strong>Phone:</strong> ${entityPhone}<br>
+            <strong>Address:</strong> ${entityAddress}
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Quantity</th>
+                <th>Unit Price</th>
+                <th>Price Type</th>
+                <th style="text-align: right;">Total Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${invoice.invoice_items.map((item: InvoiceItem) => `
+                <tr>
+                  <td>#${item.product_id} ${item.product_name || 'Product'}</td>
+                  <td>${item.quantity}</td>
+                  <td>$${item.unit_price.toFixed(2)}</td>
+                  <td>${item.price_type}</td>
+                  <td style="text-align: right;">$${item.total_price.toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="summary">
+            <div class="summary-item">
+              <div class="summary-label">Total Amount</div>
+              <div class="summary-value">$${invoice.total_amount.toFixed(2)}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Amount Paid</div>
+              <div class="summary-value" style="color: #4CAF50;">$${invoice.amount_paid.toFixed(2)}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Remaining Balance</div>
+              <div class="summary-value" style="color: #FF9800;">$${remainingBalance.toFixed(2)}</div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.onload = () => {
+      printWindow.print();
+    };
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {loading || !invoice ? `Loading Invoice...` : `Invoice #${invoice.id}`}
-          </DialogTitle>
-          <DialogDescription>View complete invoice details and items</DialogDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <DialogTitle>
+                {loading || !invoice ? `Loading Invoice...` : `Invoice #${invoice.id}`}
+              </DialogTitle>
+              <DialogDescription>View complete invoice details and items</DialogDescription>
+            </div>
+            {!loading && invoice && (
+              <Button onClick={handlePrint} variant="outline" size="sm">
+                <Printer className="w-4 h-4 mr-2" />
+                Print
+              </Button>
+            )}
+          </div>
         </DialogHeader>
 
         {loading || !invoice ? (

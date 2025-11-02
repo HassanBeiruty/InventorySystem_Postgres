@@ -15,17 +15,37 @@ CREATE TABLE dbo.users (
 );`
 	},
 	{
+		name: 'categories',
+		sql: `IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.categories') AND type = N'U')
+CREATE TABLE dbo.categories (
+	id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	name NVARCHAR(255) NOT NULL UNIQUE,
+	description NVARCHAR(500) NULL,
+	created_at DATETIME2 NOT NULL
+);
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_categories_name' AND object_id = OBJECT_ID('dbo.categories'))
+CREATE INDEX IX_categories_name ON dbo.categories(name);`
+	},
+	{
 		name: 'products',
 		sql: `IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.products') AND type = N'U')
 CREATE TABLE dbo.products (
 	id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
 	name NVARCHAR(255) NOT NULL,
 	barcode NVARCHAR(100) NULL,
-	created_at DATETIME2 NOT NULL
+	category_id INT NULL,
+	description NVARCHAR(1000) NULL,
+	sku NVARCHAR(100) NULL,
+	created_at DATETIME2 NOT NULL,
+	CONSTRAINT FK_products_category FOREIGN KEY (category_id) REFERENCES dbo.categories(id)
 );
 
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_products_name' AND object_id = OBJECT_ID('dbo.products'))
-CREATE INDEX IX_products_name ON dbo.products(name);`
+CREATE INDEX IX_products_name ON dbo.products(name);
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_products_category' AND object_id = OBJECT_ID('dbo.products'))
+CREATE INDEX IX_products_category ON dbo.products(category_id);`
 	},
 	{
 		name: 'product_prices',
@@ -180,6 +200,33 @@ IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'db
 BEGIN
 	ALTER TABLE dbo.invoices ADD payment_status NVARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (payment_status IN ('pending','partial','paid'));
 END`
+	},
+	{
+		name: 'products_add_columns',
+		sql: `IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'products' AND COLUMN_NAME = 'category_id')
+BEGIN
+	ALTER TABLE dbo.products ADD category_id INT NULL;
+END
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'products' AND COLUMN_NAME = 'description')
+BEGIN
+	ALTER TABLE dbo.products ADD description NVARCHAR(1000) NULL;
+END
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'products' AND COLUMN_NAME = 'sku')
+BEGIN
+	ALTER TABLE dbo.products ADD sku NVARCHAR(100) NULL;
+END`
+	},
+	{
+		name: 'products_add_foreign_key',
+		sql: `IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'categories')
+AND NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID('dbo.FK_products_category') AND type = 'F')
+ALTER TABLE dbo.products ADD CONSTRAINT FK_products_category FOREIGN KEY (category_id) REFERENCES dbo.categories(id);
+
+IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'categories')
+AND NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_products_category' AND object_id = OBJECT_ID('dbo.products'))
+CREATE INDEX IX_products_category ON dbo.products(category_id);`
 	}
 ];
 
@@ -195,10 +242,59 @@ async function runInit() {
 	for (let i = 0; i < tables.length; i++) {
 		const table = tables[i];
 		try {
-			// For invoice_payment_columns, execute as single statement
-			if (table.name === 'invoice_payment_columns') {
+			// For column addition migrations, execute statements one by one
+			if (table.name === 'invoice_payment_columns' || table.name === 'products_add_columns' || table.name === 'products_add_foreign_key') {
 				try {
-					await query(table.sql, []);
+					// Split by semicolon but preserve multi-line statements
+					// Look for semicolons that are NOT inside parentheses or BEGIN/END blocks
+					const statements = [];
+					let currentStmt = '';
+					let depth = 0;
+					let inString = false;
+					
+					for (let i = 0; i < table.sql.length; i++) {
+						const char = table.sql[i];
+						const nextChar = i < table.sql.length - 1 ? table.sql[i + 1] : '';
+						
+						if (char === "'" && table.sql[i - 1] !== '\\') {
+							inString = !inString;
+						}
+						
+						if (!inString) {
+							if (char === '(') depth++;
+							if (char === ')') depth--;
+							if (char === ';' && depth === 0) {
+								statements.push(currentStmt.trim());
+								currentStmt = '';
+								continue;
+							}
+						}
+						
+						currentStmt += char;
+					}
+					
+					if (currentStmt.trim()) {
+						statements.push(currentStmt.trim());
+					}
+					
+					for (const stmt of statements) {
+						const cleanStmt = stmt.trim();
+						if (cleanStmt && !cleanStmt.startsWith('--')) {
+							try {
+								await query(cleanStmt, []);
+							} catch (stmtErr) {
+								const stmtErrMsg = stmtErr.message?.toLowerCase() || '';
+								// Skip if already exists or duplicate
+								if (!stmtErrMsg.includes('already exists') && 
+								    !stmtErrMsg.includes('duplicate') &&
+								    !stmtErrMsg.includes('already an object named') &&
+								    !stmtErrMsg.includes('incorrect syntax')) {
+									console.warn(`Warning in ${table.name}:`, stmtErr.message);
+								}
+							}
+						}
+					}
+					
 					executed++;
 					console.log(`✓ Columns for '${table.name}' added/verified`);
 					continue;

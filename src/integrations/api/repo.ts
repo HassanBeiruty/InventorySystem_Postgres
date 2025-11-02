@@ -112,17 +112,40 @@ export const suppliersRepo = {
   },
 };
 
+export const categoriesRepo = {
+  async list(): Promise<Array<{ id: number; name: string; description: string | null; created_at: string }>> {
+    return fetchJson(`/api/categories`);
+  },
+  async add(input: { name: string; description: string | null }) {
+    await fetchJson<{ id: string }>(`/api/categories`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+  async update(id: string, input: Partial<{ name: string; description: string | null }>) {
+    await fetchJson<{ id: string }>(`/api/categories/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
+  },
+  async delete(id: string) {
+    await fetchJson<{ success: boolean }>(`/api/categories/${id}`, {
+      method: "DELETE",
+    });
+  },
+};
+
 export const productsRepo = {
   async list(): Promise<ProductEntity[]> {
     return fetchJson<ProductEntity[]>(`/api/products`);
   },
-  async add(input: { name: string; barcode: string | null }) {
+  async add(input: { name: string; barcode: string | null; category_id: number | null; description: string | null; sku: string | null }) {
     await fetchJson<{ id: string }>(`/api/products`, {
       method: "POST",
       body: JSON.stringify(input),
     });
   },
-  async update(id: string, input: Partial<{ name: string; barcode: string | null }>) {
+  async update(id: string, input: Partial<{ name: string; barcode: string | null; category_id: number | null; description: string | null; sku: string | null }>) {
     await fetchJson<{ id: string }>(`/api/products/${id}`, {
       method: "PUT",
       body: JSON.stringify(input),

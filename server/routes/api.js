@@ -231,10 +231,77 @@ router.put('/suppliers/:id', async (req, res) => {
 	}
 });
 
+// ===== CATEGORIES =====
+router.get('/categories', async (req, res) => {
+	try {
+		const result = await query('SELECT * FROM categories ORDER BY name ASC', []);
+		res.json(result.recordset);
+	} catch (err) {
+		console.error('List categories error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+router.post('/categories', async (req, res) => {
+	try {
+		const { name, description } = req.body;
+		const result = await query(
+			'INSERT INTO categories (name, description, created_at) OUTPUT INSERTED.id VALUES (@name, @description, @created_at)',
+			[{ name }, { description: description || null }, { created_at: nowIso() }]
+		);
+		const id = result.recordset[0].id;
+		res.json({ id });
+	} catch (err) {
+		console.error('Create category error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+router.put('/categories/:id', async (req, res) => {
+	try {
+		const id = parseInt(req.params.id);
+		const { name, description } = req.body;
+		const updates = [];
+		const params = [{ id }];
+		if (name !== undefined) {
+			updates.push('name = @name');
+			params.push({ name });
+		}
+		if (description !== undefined) {
+			updates.push('description = @description');
+			params.push({ description: description || null });
+		}
+		if (updates.length === 0) {
+			return res.json({ id });
+		}
+		await query(`UPDATE categories SET ${updates.join(', ')} WHERE id = @id`, params);
+		res.json({ id });
+	} catch (err) {
+		console.error('Update category error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+router.delete('/categories/:id', async (req, res) => {
+	try {
+		const id = parseInt(req.params.id);
+		// Check if any products are using this category
+		const productsResult = await query('SELECT COUNT(*) as count FROM products WHERE category_id = @id', [{ id }]);
+		if (productsResult.recordset[0].count > 0) {
+			return res.status(400).json({ error: 'Cannot delete category: products are still assigned to it' });
+		}
+		await query('DELETE FROM categories WHERE id = @id', [{ id }]);
+		res.json({ success: true });
+	} catch (err) {
+		console.error('Delete category error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
 // ===== PRODUCTS =====
 router.get('/products', async (req, res) => {
 	try {
-		const result = await query('SELECT * FROM products ORDER BY created_at DESC', []);
+		const result = await query('SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id ORDER BY p.created_at DESC', []);
 		res.json(result.recordset);
 	} catch (err) {
 		console.error('List products error:', err);
@@ -244,10 +311,17 @@ router.get('/products', async (req, res) => {
 
 router.post('/products', async (req, res) => {
 	try {
-		const { name, barcode } = req.body;
+		const { name, barcode, category_id, description, sku } = req.body;
 		const result = await query(
-			'INSERT INTO products (name, barcode, created_at) OUTPUT INSERTED.id VALUES (@name, @barcode, @created_at)',
-			[{ name }, { barcode: barcode || null }, { created_at: nowIso() }]
+			'INSERT INTO products (name, barcode, category_id, description, sku, created_at) OUTPUT INSERTED.id VALUES (@name, @barcode, @category_id, @description, @sku, @created_at)',
+			[
+				{ name }, 
+				{ barcode: barcode || null }, 
+				{ category_id: category_id ? parseInt(category_id) : null },
+				{ description: description || null },
+				{ sku: sku || null },
+				{ created_at: nowIso() }
+			]
 		);
 		const id = result.recordset[0].id;
 		// Ensure daily stock entry
@@ -268,7 +342,7 @@ router.post('/products', async (req, res) => {
 router.put('/products/:id', async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
-		const { name, barcode } = req.body;
+		const { name, barcode, category_id, description, sku } = req.body;
 		const updates = [];
 		const params = [{ id }];
 		if (name !== undefined) {
@@ -278,6 +352,18 @@ router.put('/products/:id', async (req, res) => {
 		if (barcode !== undefined) {
 			updates.push('barcode = @barcode');
 			params.push({ barcode: barcode || null });
+		}
+		if (category_id !== undefined) {
+			updates.push('category_id = @category_id');
+			params.push({ category_id: category_id ? parseInt(category_id) : null });
+		}
+		if (description !== undefined) {
+			updates.push('description = @description');
+			params.push({ description: description || null });
+		}
+		if (sku !== undefined) {
+			updates.push('sku = @sku');
+			params.push({ sku: sku || null });
 		}
 		if (updates.length === 0) {
 			return res.json({ id });
@@ -1308,6 +1394,140 @@ router.delete('/product-prices/:id', async (req, res) => {
 		res.json({ success: true });
 	} catch (err) {
 		console.error('Delete product price error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// ===== CSV EXPORT =====
+// Helper function to escape CSV values
+function escapeCsvValue(value) {
+	if (value === null || value === undefined) return '';
+	const str = String(value);
+	if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+		return `"${str.replace(/"/g, '""')}"`;
+	}
+	return str;
+}
+
+// Helper function to convert data to CSV
+function toCSV(data, headers) {
+	if (!data || data.length === 0) {
+		return headers.join(',') + '\n';
+	}
+	const rows = [headers.join(',')];
+	for (const row of data) {
+		const values = headers.map(h => escapeCsvValue(row[h] || ''));
+		rows.push(values.join(','));
+	}
+	return rows.join('\n');
+}
+
+// Export products
+router.get('/export/products', async (req, res) => {
+	try {
+		// Check if categories table exists, if not, query without join
+		let result;
+		try {
+			result = await query(
+				'SELECT p.id, p.name, p.sku, p.barcode, p.description, c.name as category_name, p.created_at FROM products p LEFT JOIN categories c ON p.category_id = c.id ORDER BY p.created_at DESC',
+				[]
+			);
+		} catch (joinErr) {
+			// If join fails (categories table doesn't exist), query without category
+			result = await query(
+				'SELECT p.id, p.name, p.sku, p.barcode, p.description, NULL as category_name, p.created_at FROM products p ORDER BY p.created_at DESC',
+				[]
+			);
+		}
+		const csv = toCSV(result.recordset, ['id', 'name', 'sku', 'barcode', 'description', 'category_name', 'created_at']);
+		res.setHeader('Content-Type', 'text/csv');
+		res.setHeader('Content-Disposition', 'attachment; filename="products.csv"');
+		res.send(csv);
+	} catch (err) {
+		console.error('Export products error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Export invoices
+router.get('/export/invoices', async (req, res) => {
+	try {
+		const invoices = await query('SELECT * FROM invoices ORDER BY invoice_date DESC', []);
+		const customers = await query('SELECT * FROM customers', []);
+		const suppliers = await query('SELECT * FROM suppliers', []);
+		const idToCustomer = new Map(customers.recordset.map((c) => [c.id, c]));
+		const idToSupplier = new Map(suppliers.recordset.map((s) => [s.id, s]));
+		
+		const data = invoices.recordset.map((inv) => ({
+			id: inv.id,
+			invoice_type: inv.invoice_type,
+			customer_name: inv.customer_id ? idToCustomer.get(inv.customer_id)?.name || '' : '',
+			supplier_name: inv.supplier_id ? idToSupplier.get(inv.supplier_id)?.name || '' : '',
+			total_amount: inv.total_amount,
+			amount_paid: inv.amount_paid || 0,
+			remaining_balance: (inv.total_amount || 0) - (inv.amount_paid || 0),
+			payment_status: inv.payment_status || 'pending',
+			invoice_date: inv.invoice_date,
+			created_at: inv.created_at
+		}));
+		
+		const csv = toCSV(data, ['id', 'invoice_type', 'customer_name', 'supplier_name', 'total_amount', 'amount_paid', 'remaining_balance', 'payment_status', 'invoice_date', 'created_at']);
+		res.setHeader('Content-Type', 'text/csv');
+		res.setHeader('Content-Disposition', 'attachment; filename="invoices.csv"');
+		res.send(csv);
+	} catch (err) {
+		console.error('Export invoices error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Export customers
+router.get('/export/customers', async (req, res) => {
+	try {
+		const result = await query('SELECT id, name, phone, address, credit_limit, created_at FROM customers ORDER BY created_at DESC', []);
+		const csv = toCSV(result.recordset, ['id', 'name', 'phone', 'address', 'credit_limit', 'created_at']);
+		res.setHeader('Content-Type', 'text/csv');
+		res.setHeader('Content-Disposition', 'attachment; filename="customers.csv"');
+		res.send(csv);
+	} catch (err) {
+		console.error('Export customers error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Export suppliers
+router.get('/export/suppliers', async (req, res) => {
+	try {
+		const result = await query('SELECT id, name, phone, address, created_at FROM suppliers ORDER BY created_at DESC', []);
+		const csv = toCSV(result.recordset, ['id', 'name', 'phone', 'address', 'created_at']);
+		res.setHeader('Content-Type', 'text/csv');
+		res.setHeader('Content-Disposition', 'attachment; filename="suppliers.csv"');
+		res.send(csv);
+	} catch (err) {
+		console.error('Export suppliers error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Export inventory/stock
+router.get('/export/inventory', async (req, res) => {
+	try {
+		const today = getTodayLocal();
+		const result = await query(
+			`SELECT p.id as product_id, p.name, p.sku, p.barcode, c.name as category_name, ds.available_qty, ds.avg_cost, ds.date
+			 FROM daily_stock ds
+			 LEFT JOIN products p ON ds.product_id = p.id
+			 LEFT JOIN categories c ON p.category_id = c.id
+			 WHERE ds.date = @today
+			 ORDER BY p.name`,
+			[{ today }]
+		);
+		const csv = toCSV(result.recordset, ['product_id', 'name', 'sku', 'barcode', 'category_name', 'available_qty', 'avg_cost', 'date']);
+		res.setHeader('Content-Type', 'text/csv');
+		res.setHeader('Content-Disposition', 'attachment; filename="inventory.csv"');
+		res.send(csv);
+	} catch (err) {
+		console.error('Export inventory error:', err);
 		res.status(500).json({ error: err.message });
 	}
 });

@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Receipt, Package, Users, UserPlus, FileText, TrendingUp, Home, History, Warehouse, ChevronDown, Database, BarChart3, Calendar, DollarSign, AlertTriangle } from "lucide-react";
+import { LogOut, Receipt, Package, Users, UserPlus, FileText, TrendingUp, Home, History, Warehouse, ChevronDown, Database, BarChart3, Calendar, DollarSign, AlertTriangle, FolderTree } from "lucide-react";
 import { toast } from "sonner";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useTranslation } from "react-i18next";
@@ -113,6 +113,12 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                   <Link to="/products" className="cursor-pointer flex items-center gap-2">
                     <Package className="w-4 h-4 text-primary" />
                     <span className="font-medium">{t('nav.products')}</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/categories" className="cursor-pointer flex items-center gap-2">
+                    <FolderTree className="w-4 h-4 text-accent" />
+                    <span className="font-medium">Categories</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
