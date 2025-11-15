@@ -9,6 +9,14 @@ const allowedOrigins = process.env.FRONTEND_URL
 	? process.env.FRONTEND_URL.split(',').map(url => url.trim())
 	: ['http://localhost:8080', 'http://localhost:3000'];
 
+// Add common Vercel patterns to allowed origins
+if (process.env.NODE_ENV === 'production') {
+	// Allow any Vercel deployment
+	allowedOrigins.push(/^https:\/\/.*\.vercel\.app$/);
+	// Allow any Render deployment (for testing)
+	allowedOrigins.push(/^https:\/\/.*\.onrender\.com$/);
+}
+
 app.use(cors({ 
 	origin: function (origin, callback) {
 		// Allow requests with no origin (like mobile apps or curl requests)
@@ -19,14 +27,27 @@ app.use(cors({
 			return callback(null, true);
 		}
 		
-		// In production, check against allowed origins
-		if (allowedOrigins.indexOf(origin) !== -1) {
-			callback(null, true);
-		} else {
-			callback(new Error('Not allowed by CORS'));
+		// Check if origin matches any allowed origin (string or regex)
+		for (const allowed of allowedOrigins) {
+			if (typeof allowed === 'string') {
+				if (origin === allowed) {
+					return callback(null, true);
+				}
+			} else if (allowed instanceof RegExp) {
+				if (allowed.test(origin)) {
+					return callback(null, true);
+				}
+			}
 		}
+		
+		// Log for debugging
+		console.log('CORS blocked origin:', origin);
+		console.log('Allowed origins:', allowedOrigins);
+		callback(new Error(`Not allowed by CORS. Origin: ${origin}`));
 	},
-	credentials: true 
+	credentials: true,
+	methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+	allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 
