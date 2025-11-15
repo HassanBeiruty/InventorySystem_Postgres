@@ -1,0 +1,45 @@
+services:
+  # PostgreSQL Database
+  - type: pg
+    name: invoicesystem-db
+    plan: free
+    databaseName: invoicesystem
+    user: invoicesystem_user
+
+  # Backend API
+  - type: web
+    name: invoicesystem-api
+    env: node
+    plan: free
+    buildCommand: cd server && npm install
+    startCommand: cd server && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: PG_HOST
+        fromDatabase:
+          name: invoicesystem-db
+          property: host
+      - key: PG_PORT
+        fromDatabase:
+          name: invoicesystem-db
+          property: port
+      - key: PG_DATABASE
+        fromDatabase:
+          name: invoicesystem-db
+          property: database
+      - key: PG_USER
+        fromDatabase:
+          name: invoicesystem-db
+          property: user
+      - key: PG_PASSWORD
+        fromDatabase:
+          name: invoicesystem-db
+          property: password
+      - key: PG_SSL
+        value: true
+      - key: JWT_SECRET
+        generateValue: true
+

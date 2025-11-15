@@ -3,8 +3,15 @@ const { query } = require('../db');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
 
-// JWT secret (in production, use environment variable)
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+// JWT secret - MUST be set in environment variables for production
+// For development, a default is provided with a warning
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-change-in-production-do-not-use-in-production';
+if (!process.env.JWT_SECRET) {
+	console.warn('⚠️  WARNING: JWT_SECRET environment variable is not set!');
+	console.warn('⚠️  Using default development secret. This is INSECURE for production!');
+	console.warn('⚠️  Please set JWT_SECRET in your server/.env file.');
+	console.warn('⚠️  Example: JWT_SECRET=your-strong-random-secret-key-here');
+}
 
 // generateId() removed - using auto-increment INT IDs now
 

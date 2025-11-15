@@ -67,6 +67,9 @@ function setSession(session: Session) {
 type AuthCallback = (event: "SIGNED_IN" | "SIGNED_OUT", session: Session) => void;
 const listeners = new Set<AuthCallback>();
 
+// Get API base URL from environment variable or use relative path for development
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+
 async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getToken();
   const headers: HeadersInit = { 
@@ -79,7 +82,10 @@ async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
     headers["Authorization"] = `Bearer ${token}`;
   }
   
-  const res = await fetch(path, {
+  // Use API_BASE_URL if set, otherwise use relative path (for Vercel proxy)
+  const url = API_BASE_URL ? `${API_BASE_URL}${path}` : path;
+  
+  const res = await fetch(url, {
     headers,
     credentials: "include",
     ...options,

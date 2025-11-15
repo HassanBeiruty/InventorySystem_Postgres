@@ -27,9 +27,31 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+.env.production
+.env.development
 server/.env
+server/.env.local
+server/.env.*.local
 
 # Database files
 *.mdf
 *.ldf
 *.bak
+
+# Sensitive files
+*.key
+*.pem
+*.cert
+*.crt
+secrets/
+*.secret
+
+# Build artifacts
+*.timestamp*
+vite.config.ts.timestamp-*.mjs
+
+# Logs and temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
