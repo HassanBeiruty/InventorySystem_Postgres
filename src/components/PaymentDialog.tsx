@@ -93,7 +93,9 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
       return;
     }
 
-    const remainingBalance = (invoice?.total_amount || 0) - (invoice?.amount_paid || 0);
+    const totalAmount = parseFloat(String(invoice?.total_amount || 0));
+    const amountPaid = parseFloat(String(invoice?.amount_paid || 0));
+    const remainingBalance = totalAmount - amountPaid;
     // Use epsilon for floating point comparison
     if (parseFloat(paymentAmount) > remainingBalance + 0.01) {
       toast({
@@ -176,7 +178,9 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
         ) : (
           <>
             {(() => {
-              const remainingBalance = invoice.total_amount - invoice.amount_paid;
+              const totalAmount = parseFloat(String(invoice.total_amount || 0));
+              const amountPaid = parseFloat(String(invoice.amount_paid || 0));
+              const remainingBalance = totalAmount - amountPaid;
               const entityName = invoice.customers?.name || invoice.suppliers?.name || "N/A";
               
               return (
@@ -197,11 +201,11 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
                     <div className="grid grid-cols-3 gap-4 pt-2">
                       <div className="border rounded-lg p-3">
                         <div className="text-xs text-muted-foreground">Total Amount</div>
-                        <div className="text-lg font-bold">${invoice.total_amount.toFixed(2)}</div>
+                        <div className="text-lg font-bold">${totalAmount.toFixed(2)}</div>
                       </div>
                       <div className="border rounded-lg p-3">
                         <div className="text-xs text-green-600">Total Paid</div>
-                        <div className="text-lg font-bold text-green-600">${invoice.amount_paid.toFixed(2)}</div>
+                        <div className="text-lg font-bold text-green-600">${amountPaid.toFixed(2)}</div>
                       </div>
                       <div className="border rounded-lg p-3">
                         <div className="text-xs text-orange-600">Remaining</div>
@@ -230,7 +234,7 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
                                 <TableCell className="text-sm">
                                   {formatDateTimeLebanon(payment.payment_date, "MM/dd/yyyy")}
                                 </TableCell>
-                                <TableCell className="font-medium">${payment.payment_amount.toFixed(2)}</TableCell>
+                                <TableCell className="font-medium">${parseFloat(String(payment.payment_amount || 0)).toFixed(2)}</TableCell>
                                 <TableCell>{payment.payment_method || "-"}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground">{payment.notes || "-"}</TableCell>
                               </TableRow>

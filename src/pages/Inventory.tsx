@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Package, AlertTriangle } from "lucide-react";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
+import { useTranslation } from "react-i18next";
 
 interface InventoryItem {
   id: string;
@@ -24,6 +25,7 @@ interface InventoryItem {
 }
 
 const Inventory = () => {
+  const { t } = useTranslation();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -45,7 +47,7 @@ const Inventory = () => {
 
   const getStockStatus = (qty: number) => {
     if (qty === 0) return { label: "Out of Stock", variant: "destructive" as const };
-    if (qty < 10) return { label: "Low Stock", variant: "secondary" as const };
+    if (qty < 10) return { label: t('dashboard.lowStock'), variant: "secondary" as const };
     return { label: "In Stock", variant: "default" as const };
   };
 
@@ -55,9 +57,9 @@ const Inventory = () => {
         <div className="flex items-center justify-between">
           <div className="space-y-2">
             <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              Inventory - Today's Position
+              {t('inventory.title')} - {t('inventory.todayPosition')}
             </h1>
-            <p className="text-muted-foreground text-lg">Current stock levels as of {formatDateTimeLebanon(new Date(), "MMMM dd, yyyy")}</p>
+            <p className="text-muted-foreground text-lg">{t('inventory.subtitle')}</p>
           </div>
         </div>
 
@@ -86,20 +88,20 @@ const Inventory = () => {
                 <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
                   <Package className="w-10 h-10 text-primary/50" />
                 </div>
-                <p className="text-muted-foreground text-lg">No inventory data available for today</p>
+                <p className="text-muted-foreground text-lg">{t('inventory.noStock')}</p>
               </div>
             ) : (
               <div className="overflow-x-auto rounded-xl border-2">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5 hover:from-primary/10 hover:to-accent/10">
-                      <TableHead className="font-bold">Product</TableHead>
-                      <TableHead className="font-bold">Barcode</TableHead>
-                      <TableHead className="text-center font-bold">Available Qty</TableHead>
-                      <TableHead className="text-center font-bold">Status</TableHead>
-                      <TableHead className="text-right font-bold">Wholesale Price</TableHead>
-                      <TableHead className="text-right font-bold">Retail Price</TableHead>
-                      <TableHead className="font-bold">Last Updated</TableHead>
+                      <TableHead className="font-bold">{t('invoiceForm.product')}</TableHead>
+                      <TableHead className="font-bold">{t('products.barcode')}</TableHead>
+                      <TableHead className="text-center font-bold">{t('inventory.availableQty')}</TableHead>
+                      <TableHead className="text-center font-bold">{t('invoices.status')}</TableHead>
+                      <TableHead className="text-right font-bold">{t('productPrices.wholesalePrice')}</TableHead>
+                      <TableHead className="text-right font-bold">{t('productPrices.retailPrice')}</TableHead>
+                      <TableHead className="font-bold">{t('inventory.lastUpdated')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -131,10 +133,10 @@ const Inventory = () => {
                             <Badge variant={status.variant} className="font-medium">{status.label}</Badge>
                           </TableCell>
                           <TableCell className="text-right font-semibold text-success">
-                            ${item.products?.wholesale_price ? item.products.wholesale_price.toFixed(2) : "0.00"}
+                            ${item.products?.wholesale_price ? parseFloat(String(item.products.wholesale_price || 0)).toFixed(2) : "0.00"}
                           </TableCell>
                           <TableCell className="text-right font-semibold text-primary">
-                            ${item.products?.retail_price ? item.products.retail_price.toFixed(2) : "0.00"}
+                            ${item.products?.retail_price ? parseFloat(String(item.products.retail_price || 0)).toFixed(2) : "0.00"}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {formatDateTimeLebanon(item.updated_at, "MMM dd, yyyy")}

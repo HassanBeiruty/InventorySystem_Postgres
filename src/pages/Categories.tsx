@@ -20,8 +20,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useTranslation } from "react-i18next";
 
 const Categories = () => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -127,33 +129,33 @@ const Categories = () => {
         <div className="flex items-center justify-between">
           <div className="space-y-2">
             <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              Categories
+              {t('categories.title')}
             </h2>
-            <p className="text-muted-foreground text-lg">Organize your products by categories</p>
+            <p className="text-muted-foreground text-lg">{t('categories.subtitle')}</p>
           </div>
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
               <Button className="gradient-primary hover:shadow-glow transition-all duration-300 hover:scale-105 font-semibold">
                 <Plus className="w-4 h-4 mr-2" />
-                Add Category
+                {t('categories.addCategory')}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Add New Category</DialogTitle>
-                <DialogDescription>Create a new product category</DialogDescription>
+                <DialogTitle>{t('categories.addCategory')}</DialogTitle>
+                <DialogDescription>{t('categories.subtitle')}</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Category Name</Label>
-                  <Input id="name" name="name" placeholder="Enter category name" required />
+                  <Label htmlFor="name">{t('categories.categoryName')}</Label>
+                  <Input id="name" name="name" placeholder={t('categories.categoryName')} required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea id="description" name="description" placeholder="Enter category description (optional)" rows={3} />
+                  <Label htmlFor="description">{t('categories.description')}</Label>
+                  <Textarea id="description" name="description" placeholder={t('categories.description')} rows={3} />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Saving..." : "Save Category"}
+                  {loading ? t('common.loading') : t('common.save')}
                 </Button>
               </form>
             </DialogContent>
@@ -174,15 +176,15 @@ const Categories = () => {
                 <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                   <FolderTree className="w-10 h-10 text-primary/50" />
                 </div>
-                <p className="text-muted-foreground text-lg">No categories yet. Add your first category to get started.</p>
+                <p className="text-muted-foreground text-lg">{t('categories.noCategories')}</p>
               </div>
             ) : (
               <div className="rounded-xl border-2 overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5 hover:from-primary/10 hover:to-accent/10">
-                      <TableHead className="font-bold">Name</TableHead>
-                      <TableHead className="font-bold">Description</TableHead>
+                      <TableHead className="font-bold">{t('categories.categoryName')}</TableHead>
+                      <TableHead className="font-bold">{t('categories.description')}</TableHead>
                       <TableHead className="font-bold">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -227,21 +229,21 @@ const Categories = () => {
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Edit Category</DialogTitle>
-              <DialogDescription>Update category information</DialogDescription>
+              <DialogTitle>{t('categories.editCategory')}</DialogTitle>
+              <DialogDescription>{t('categories.updateCategory')}</DialogDescription>
             </DialogHeader>
             {editingCategory && (
               <form onSubmit={handleUpdate} className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-name">Category Name</Label>
+                  <Label htmlFor="edit-name">{t('categories.categoryName')}</Label>
                   <Input id="edit-name" name="name" defaultValue={editingCategory.name} required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-description">Description</Label>
+                  <Label htmlFor="edit-description">{t('categories.description')}</Label>
                   <Textarea id="edit-description" name="description" defaultValue={editingCategory.description || ""} rows={3} />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Updating..." : "Update Category"}
+                  {loading ? t('categories.updating') : t('categories.updateCategory')}
                 </Button>
               </form>
             )}
@@ -251,16 +253,15 @@ const Categories = () => {
         <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogTitle>{t('categories.deleteCategory')}</AlertDialogTitle>
               <AlertDialogDescription>
-                This will delete the category "{deletingCategory?.name}". This action cannot be undone. 
-                Make sure no products are assigned to this category.
+                {t('categories.deleteConfirm')}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
               <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                Delete
+                {t('common.delete')}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

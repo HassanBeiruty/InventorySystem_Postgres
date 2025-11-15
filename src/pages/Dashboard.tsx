@@ -6,8 +6,10 @@ import { invoicesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
+import { useTranslation } from "react-i18next";
 
 const Dashboard = () => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -25,62 +27,75 @@ const Dashboard = () => {
   const [recentInvoices, setRecentInvoices] = useState<any[]>([]);
 
   useEffect(() => {
+    let cancelled = false;
+    
     const fetchStats = async () => {
       setLoading(true);
       try {
-        const stats = await invoicesRepo.stats();
-        const recent = await invoicesRepo.listRecent(3);
+        const [statsData, recentData] = await Promise.all([
+          invoicesRepo.stats(),
+          invoicesRepo.listRecent(3),
+        ]);
 
-        setStats(stats);
-        setRecentInvoices(recent || []);
+        if (cancelled) return;
+
+        setStats(statsData);
+        setRecentInvoices(recentData || []);
       } catch (error: any) {
+        if (cancelled) return;
         toast({
           title: "Error",
           description: error.message,
           variant: "destructive",
         });
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     fetchStats();
+    
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const statsDisplay = [
     {
-      title: "Today's Invoices",
+      title: t('dashboard.todayInvoices'),
       value: (stats.todayInvoicesCount ?? 0).toString(),
       icon: Receipt,
-      description: "Created today",
+      description: t('dashboard.todayInvoices'),
       color: "text-primary",
     },
     {
-      title: "Live Inventory",
+      title: t('inventory.title'),
       value: (stats.todayProductsCount ?? 0).toString(),
       icon: Package,
-      description: `Products with stock (${(stats.todayTotalQuantity ?? 0).toLocaleString()} total qty)`,
+      description: t('inventory.subtitle'),
       color: "text-success",
     },
     {
-      title: "Customers",
+      title: t('customers.title'),
       value: stats.customersCount.toString(),
       icon: Users,
-      description: "Total customers",
+      description: t('customers.subtitle'),
       color: "text-warning",
     },
     {
-      title: "Suppliers",
+      title: t('suppliers.title'),
       value: stats.suppliersCount.toString(),
       icon: UserPlus,
-      description: "Total suppliers",
+      description: t('suppliers.subtitle'),
       color: "text-destructive",
     },
     {
-      title: "Today's Revenue",
+      title: t('dashboard.totalSales'),
       value: `$${(stats.todayRevenue ?? 0).toFixed(2)}`,
       icon: DollarSign,
-      description: "Sales today",
+      description: t('dashboard.totalSales'),
       color: "text-primary",
     },
   ];
@@ -90,9 +105,9 @@ const Dashboard = () => {
       <div className="space-y-8 animate-fade-in">
         <div className="space-y-2">
           <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-            Dashboard
+            {t('dashboard.title')}
           </h2>
-          <p className="text-muted-foreground text-lg">Welcome to your invoice management system</p>
+          <p className="text-muted-foreground text-lg">{t('dashboard.subtitle')}</p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -149,9 +164,9 @@ const Dashboard = () => {
             <CardHeader className="relative">
               <CardTitle className="flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-primary" />
-                Recent Invoices
+                {t('dashboard.recentInvoices')}
               </CardTitle>
-              <CardDescription>Your latest transactions</CardDescription>
+              <CardDescription>{t('dashboard.recentInvoices')}</CardDescription>
             </CardHeader>
             <CardContent className="relative">
               {recentInvoices.length > 0 ? (
@@ -174,7 +189,7 @@ const Dashboard = () => {
                       <div className="text-right">
                         <p className="font-bold text-lg">${Number(invoice.total_amount).toFixed(2)}</p>
                         <p className={`text-xs px-2 py-1 rounded-full ${invoice.is_paid ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
-                          {invoice.is_paid ? '✓ Paid' : '○ Pending'}
+                          {invoice.is_paid ? `✓ ${t('dashboard.paid')}` : `○ ${t('dashboard.pending')}`}
                         </p>
                       </div>
                     </div>
@@ -183,7 +198,7 @@ const Dashboard = () => {
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
                   <Receipt className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                  <p>No invoices yet. Create your first invoice to get started.</p>
+                  <p>{t('common.noData')}</p>
                 </div>
               )}
             </CardContent>

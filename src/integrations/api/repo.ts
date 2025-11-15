@@ -9,33 +9,89 @@ import type {
 
 type Json = Record<string, any>;
 
-const SESSION_KEY = "local_auth_session";
-type Session = { userId: string; email: string } | null;
+const TOKEN_KEY = "auth_token";
+type Session = { userId: string; email: string; token: string } | null;
+
+function getToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function setToken(token: string | null) {
+  if (!token) {
+    localStorage.removeItem(TOKEN_KEY);
+  } else {
+    localStorage.setItem(TOKEN_KEY, token);
+  }
+}
 
 function getSession(): Session {
   try {
-    const raw = localStorage.getItem(SESSION_KEY);
-    return raw ? JSON.parse(raw) : null;
+    const token = getToken();
+    if (!token) return null;
+    
+    // Decode JWT to get user info (without verification - verification happens on backend)
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    
+    const payload = JSON.parse(atob(parts[1]));
+    const now = Math.floor(Date.now() / 1000);
+    
+    // Check if token is expired (basic check)
+    if (payload.exp && payload.exp < now) {
+      localStorage.removeItem(TOKEN_KEY);
+      return null;
+    }
+    
+    return {
+      userId: payload.userId?.toString() || payload.id?.toString() || '',
+      email: payload.email || '',
+      token: token
+    };
   } catch {
     return null;
   }
 }
 
 function setSession(session: Session) {
-  if (!session) localStorage.removeItem(SESSION_KEY);
-  else localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  if (!session || !session.token) {
+    setToken(null);
+  } else {
+    setToken(session.token);
+  }
 }
 
 type AuthCallback = (event: "SIGNED_IN" | "SIGNED_OUT", session: Session) => void;
 const listeners = new Set<AuthCallback>();
 
 async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getToken();
+  const headers: HeadersInit = { 
+    "Content-Type": "application/json",
+    ...(options?.headers || {})
+  };
+  
+  // Add Authorization header if token exists
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  
   const res = await fetch(path, {
-    headers: { "Content-Type": "application/json", ...(options?.headers || {}) },
+    headers,
     credentials: "include",
     ...options,
   });
+  
   if (!res.ok) {
+    // If unauthorized, clear token and session
+    if (res.status === 401) {
+      setToken(null);
+      listeners.forEach((cb) => cb("SIGNED_OUT", null));
+    }
+    
     let msg = `${res.status} ${res.statusText}`;
     try {
       const body = await res.json();
@@ -48,22 +104,31 @@ async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const auth = {
   async signUp(email: string, password: string) {
-    const result = await fetchJson<{ id: string; email: string }>(`/api/auth/signup`, {
+    const result = await fetchJson<{ id: string; email: string; token: string }>(`/api/auth/signup`, {
       method: "POST",
       body: JSON.stringify({ email, password }),
     });
-    setSession({ userId: result.id, email: result.email });
+    setSession({ userId: result.id, email: result.email, token: result.token });
     listeners.forEach((cb) => cb("SIGNED_IN", getSession()));
   },
   async signIn(email: string, password: string) {
-    const result = await fetchJson<{ id: string; email: string }>(`/api/auth/signin`, {
+    const result = await fetchJson<{ id: string; email: string; token: string }>(`/api/auth/signin`, {
       method: "POST",
       body: JSON.stringify({ email, password }),
     });
-    setSession({ userId: result.id, email: result.email });
+    setSession({ userId: result.id, email: result.email, token: result.token });
     listeners.forEach((cb) => cb("SIGNED_IN", getSession()));
   },
   async signOut() {
+    try {
+      // Call logout endpoint to clear server-side session
+      await fetchJson(`/api/auth/logout`, {
+        method: "POST",
+      });
+    } catch (err) {
+      // Continue even if logout endpoint fails
+      console.error('Logout error:', err);
+    }
     setSession(null);
     listeners.forEach((cb) => cb("SIGNED_OUT", null));
   },
@@ -139,16 +204,21 @@ export const productsRepo = {
   async list(): Promise<ProductEntity[]> {
     return fetchJson<ProductEntity[]>(`/api/products`);
   },
-  async add(input: { name: string; barcode: string | null; category_id: number | null; description: string | null; sku: string | null }) {
+  async add(input: { name: string; barcode: string | null; category_id: number | null; description: string | null; sku: string | null; shelf: string | null }) {
     await fetchJson<{ id: string }>(`/api/products`, {
       method: "POST",
       body: JSON.stringify(input),
     });
   },
-  async update(id: string, input: Partial<{ name: string; barcode: string | null; category_id: number | null; description: string | null; sku: string | null }>) {
+  async update(id: string, input: Partial<{ name: string; barcode: string | null; category_id: number | null; description: string | null; sku: string | null; shelf: string | null }>) {
     await fetchJson<{ id: string }>(`/api/products/${id}`, {
       method: "PUT",
       body: JSON.stringify(input),
+    });
+  },
+  async delete(id: string) {
+    return fetchJson<{ success: boolean; id: string }>(`/api/products/${id}`, {
+      method: "DELETE",
     });
   },
 };
@@ -180,6 +250,7 @@ export const invoicesRepo = {
     supplier_id: string | null;
     total_amount: number;
     is_paid: boolean;
+    due_date?: string | null;
     items: InvoiceCreateItem[];
   }) {
     return fetchJson<{ id: string; invoice_date: string }>(`/api/invoices`, {
@@ -205,12 +276,21 @@ export const invoicesRepo = {
     supplier_id: string | null;
     total_amount: number;
     is_paid: boolean;
+    due_date?: string | null;
     items: InvoiceCreateItem[];
   }) {
     return fetchJson<{ id: string; invoice_date: string }>(`/api/invoices/${invoiceId}`, {
       method: "PUT",
       body: JSON.stringify(input),
     });
+  },
+  async deleteInvoice(invoiceId: string) {
+    return fetchJson<{ success: boolean; id: string }>(`/api/invoices/${invoiceId}`, {
+      method: "DELETE",
+    });
+  },
+  async getOverdueInvoices() {
+    return fetchJson<(InvoiceEntity & { customers?: CustomerEntity; suppliers?: SupplierEntity })[]>(`/api/invoices/overdue`);
   },
 };
 
@@ -239,6 +319,9 @@ export const stockRepo = {
 };
 
 export const productCostsRepo = {
+  async getAllAverageCosts(): Promise<Record<string, number>> {
+    return fetchJson<Record<string, number>>("/api/daily-stock/avg-costs/all");
+  },
   async getProductCosts(productId: string): Promise<any[]> {
     // Deprecated: product_costs table removed. Use daily_stock snapshots instead.
     return fetchJson(`/api/daily-stock/avg-costs?product_id=${encodeURIComponent(productId)}`);

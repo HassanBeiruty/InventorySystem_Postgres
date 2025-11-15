@@ -1,79 +1,79 @@
-const sql = require('mssql/msnodesqlv8');
+const { Pool } = require('pg');
 
-const buildConnectionString = () => {
-    const server = process.env.SQL_SERVER || 'HASSANLAPTOP,1433';
-    const database = process.env.SQL_DATABASE || 'InvoiceSystem';
-    const trustServerCert = (process.env.SQL_TRUST_SERVER_CERT || 'true') === 'true';
-    const odbcDriver = process.env.SQL_ODBC_DRIVER || 'ODBC Driver 17 for SQL Server';
-    const useWindowsAuth = (process.env.SQL_USE_WINDOWS_AUTH || 'true') === 'true';
+const pool = new Pool({
+	host: process.env.PG_HOST || 'localhost',
+	port: parseInt(process.env.PG_PORT || '5432'),
+	database: process.env.PG_DATABASE || 'invoicesystem',
+	user: process.env.PG_USER || 'postgres',
+	password: process.env.PG_PASSWORD || '',
+	ssl: process.env.PG_SSL === 'true' ? { rejectUnauthorized: false } : false,
+	max: 20,
+	idleTimeoutMillis: 30000,
+	connectionTimeoutMillis: 30000,
+});
 
-    let connString;
+pool.on('error', (err) => {
+	console.error('[DB] Unexpected error on idle client', err);
+});
 
-    if (useWindowsAuth) {
-        connString = `Driver={${odbcDriver}};Server=${server};Database=${database};Trusted_Connection=Yes;Encrypt=No;TrustServerCertificate=${trustServerCert ? 'Yes' : 'No'};`;
-    } else {
-        const user = process.env.SQL_USER || 'sa';
-        const password = process.env.SQL_PASSWORD || '';
-        connString = `Driver={${odbcDriver}};Server=${server};Database=${database};Uid=${user};Pwd=${password};Encrypt=No;TrustServerCertificate=${trustServerCert ? 'Yes' : 'No'};`;
-    }
+// Test connection on startup
+(async () => {
+	try {
+		const result = await pool.query('SELECT NOW()');
+		console.log('[DB] ✅ Connected to PostgreSQL successfully!');
+		console.log('[DB] Server time:', result.rows[0].now);
+	} catch (err) {
+		console.error('[DB] ❌ Connection failed:', err.message);
+	}
+})();
 
-    console.log('[DB] Attempting connection to:', server);
-    console.log('[DB] Database:', database);
-    console.log('[DB] Driver:', odbcDriver);
-    return connString;
-};
+/**
+ * Execute a query with parameters
+ * @param {string} text - SQL query with $1, $2, etc. placeholders
+ * @param {Array} params - Array of parameter values (not objects)
+ * @returns {Promise} Query result with rows property
+ */
+async function query(text, params = []) {
+	// Convert params array of objects to array of values
+	// SQL Server used [{name: value}, {name2: value2}] or [{name1: value1, name2: value2}]
+	// PostgreSQL uses [value1, value2]
+	let paramValues = params;
+	
+	if (Array.isArray(params) && params.length > 0 && typeof params[0] === 'object') {
+		// Check if it's an array of single-property objects or a single multi-property object
+		if (params.length === 1 && Object.keys(params[0]).length > 1) {
+			// Single object with multiple properties: {email: '...', passwordHash: '...', created_at: '...'}
+			// Extract all values in order
+			paramValues = Object.values(params[0]);
+		} else {
+			// Array of single-property objects: [{email: '...'}, {passwordHash: '...'}]
+			// Extract first value from each object
+			paramValues = params.map(p => Object.values(p)[0]);
+		}
+	}
 
-let poolPromise;
-
-function getPool() {
-    if (!poolPromise) {
-        const tryConnect = async () => {
-            const connString = buildConnectionString();
-            try {
-                const pool = new sql.ConnectionPool({
-                    connectionString: connString,
-                    driver: 'msnodesqlv8',
-                    options: {
-                        encrypt: false,
-                        trustServerCertificate: true,
-                    },
-                    requestTimeout: Number(process.env.SQL_TIMEOUT_MS || 30000),
-                });
-                await pool.connect();
-                console.log('[DB] ✅ Connected successfully!');
-                return pool;
-            } catch (err) {
-                console.error('[DB] ❌ Connection failed:');
-                console.error('[DB] Full error:', JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
-                throw err;
-            }
-        };
-
-        poolPromise = tryConnect();
-    }
-
-    return poolPromise;
+	try {
+		const result = await pool.query(text, paramValues);
+		// Return in a format similar to SQL Server (with recordset property for compatibility)
+		return {
+			rows: result.rows,
+			recordset: result.rows, // For backward compatibility
+			rowCount: result.rowCount,
+		};
+	} catch (err) {
+		console.error('[DB] Query error:', err.message);
+		console.error('[DB] Query:', text);
+		console.error('[DB] Params:', paramValues);
+		throw err;
+	}
 }
 
-async function query(text, params = []) {
-    const pool = await getPool();
-    const request = pool.request();
-
-    if (Array.isArray(params)) {
-        params.forEach((param) => {
-            if (param && typeof param === 'object') {
-                for (const [key, value] of Object.entries(param)) {
-                    request.input(key, value);
-                }
-            }
-        });
-    }
-
-    return request.query(text);
+function getPool() {
+	return pool;
 }
 
 module.exports = {
-    sql,
-    getPool,
-    query,
+	pool,
+	getPool,
+	query,
 };

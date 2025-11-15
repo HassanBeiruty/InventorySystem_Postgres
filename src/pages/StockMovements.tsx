@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TrendingUp, TrendingDown, Package } from "lucide-react";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
+import { useTranslation } from "react-i18next";
 
 interface StockMovement {
   id: string;
@@ -23,6 +24,7 @@ interface StockMovement {
 }
 
 const StockMovements = () => {
+  const { t } = useTranslation();
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -48,9 +50,9 @@ const StockMovements = () => {
         <div className="flex items-center justify-between">
           <div className="space-y-2">
             <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              Stock Movements
+              {t('stockMovements.title')}
             </h1>
-            <p className="text-muted-foreground text-lg">Historical inventory changes from invoice transactions</p>
+            <p className="text-muted-foreground text-lg">{t('stockMovements.subtitle')}</p>
           </div>
         </div>
 
@@ -79,19 +81,19 @@ const StockMovements = () => {
                 <div className="w-20 h-20 rounded-full bg-warning/10 flex items-center justify-center mx-auto mb-4">
                   <Package className="w-10 h-10 text-warning/50" />
                 </div>
-                <p className="text-muted-foreground text-lg">No stock movements recorded yet</p>
+                <p className="text-muted-foreground text-lg">{t('stockMovements.noMovements')}</p>
               </div>
             ) : (
               <div className="overflow-x-auto rounded-xl border-2">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-warning/5 to-accent/5 hover:from-warning/10 hover:to-accent/10">
-                      <TableHead className="font-bold">Date & Time</TableHead>
-                      <TableHead className="font-bold">Product</TableHead>
-                      <TableHead className="text-center font-bold">Before</TableHead>
-                      <TableHead className="text-center font-bold">Change</TableHead>
-                      <TableHead className="text-center font-bold">After</TableHead>
-                      <TableHead className="font-bold">Invoice ID</TableHead>
+                      <TableHead className="font-bold">{t('stockMovements.date')}</TableHead>
+                      <TableHead className="font-bold">{t('stockMovements.product')}</TableHead>
+                      <TableHead className="text-center font-bold">{t('stockMovements.quantityBefore')}</TableHead>
+                      <TableHead className="text-center font-bold">{t('stockMovements.change')}</TableHead>
+                      <TableHead className="text-center font-bold">{t('stockMovements.quantityAfter')}</TableHead>
+                      <TableHead className="font-bold">{t('stockMovements.invoice')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

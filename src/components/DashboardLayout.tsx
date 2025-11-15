@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Receipt, Package, Users, UserPlus, FileText, TrendingUp, Home, History, Warehouse, ChevronDown, Database, BarChart3, Calendar, DollarSign, AlertTriangle, FolderTree } from "lucide-react";
+import { LogOut, Receipt, Package, Users, UserPlus, FileText, TrendingUp, Home, History, Warehouse, ChevronDown, Database, BarChart3, Calendar, DollarSign, AlertTriangle, FolderTree, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useTranslation } from "react-i18next";
@@ -88,7 +88,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-primary/10 rounded-xl font-semibold pointer-events-auto"
+                className="gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-primary/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto"
               >
                 <Home className="w-4 h-4" />
                 {t('nav.dashboard')}
@@ -101,7 +101,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-accent/10 rounded-xl font-semibold pointer-events-auto"
+                  className="gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-accent/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto"
                 >
                   <Database className="w-4 h-4" />
                   {t('nav.masterData')}
@@ -137,16 +137,33 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             </DropdownMenu>
 
             {/* Invoices */}
-            <Link to="/invoices" className="no-underline inline-block">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-success/10 rounded-xl font-semibold pointer-events-auto"
-              >
-                <FileText className="w-4 h-4" />
-                {t('nav.invoices')}
-              </Button>
-            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-success/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto"
+                >
+                  <FileText className="w-4 h-4" />
+                  {t('nav.invoices')}
+                  <ChevronDown className="w-3 h-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-48 border-2">
+                <DropdownMenuItem asChild>
+                  <Link to="/invoices" className="cursor-pointer flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-primary" />
+                    <span className="font-medium">All Invoices</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/invoices/overdue" className="cursor-pointer flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-600" />
+                    <span className="font-medium">Overdue Invoices</span>
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* Stock Tracking Menu */}
             <DropdownMenu>
@@ -154,7 +171,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-warning/10 rounded-xl font-semibold pointer-events-auto"
+                  className="gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-warning/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto"
                 >
                   <Warehouse className="w-4 h-4" />
                   {t('nav.stockTracking')}
@@ -207,29 +224,29 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-success/10 rounded-xl font-semibold pointer-events-auto"
+                  className="gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-success/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto"
                 >
                   <DollarSign className="w-4 h-4" />
-                  Pricing Costs
+                  Prices & Costs
                   <ChevronDown className="w-3 h-3" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56 border-2">
-                <DropdownMenuItem asChild>
-                  <Link to="/product-prices" className="cursor-pointer flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-primary" />
-                    <div className="flex flex-col">
-                      <span className="font-medium">Product Prices</span>
-                      <span className="text-xs text-muted-foreground">Wholesale & retail pricing</span>
-                    </div>
-                  </Link>
-                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to="/product-costs" className="cursor-pointer flex items-center gap-2">
                     <DollarSign className="w-4 h-4 text-success" />
                     <div className="flex flex-col">
                       <span className="font-medium">{t('nav.productCosts')}</span>
                       <span className="text-xs text-muted-foreground">{t('productCosts.purchaseCosts')}</span>
+                    </div>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/product-prices" className="cursor-pointer flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-primary" />
+                    <div className="flex flex-col">
+                      <span className="font-medium">Product Prices</span>
+                      <span className="text-xs text-muted-foreground">Wholesale & retail pricing</span>
                     </div>
                   </Link>
                 </DropdownMenuItem>
@@ -241,7 +258,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-accent/10 rounded-xl font-semibold pointer-events-auto"
+                className="gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-accent/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto"
               >
                 <BarChart3 className="w-4 h-4" />
                 {t('nav.reports')}

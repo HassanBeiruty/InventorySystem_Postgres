@@ -1,6 +1,10 @@
 const express = require('express');
 const { query } = require('../db');
+const jwt = require('jsonwebtoken');
 const router = express.Router();
+
+// JWT secret (in production, use environment variable)
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 // generateId() removed - using auto-increment INT IDs now
 
@@ -83,17 +87,19 @@ function hashPassword(pw) {
 router.post('/auth/signup', async (req, res) => {
 	try {
 		const { email, password } = req.body;
-		const result = await query('SELECT id FROM users WHERE email = @email', [{ email }]);
+		const result = await query('SELECT id FROM users WHERE email = $1', [{ email }]);
 		if (result.recordset.length > 0) {
 			return res.status(400).json({ error: 'User already exists' });
 		}
 		const passwordHash = hashPassword(password);
 		const insertResult = await query(
-			'INSERT INTO users (email, passwordHash, created_at) OUTPUT INSERTED.id VALUES (@email, @passwordHash, @created_at)',
+			'INSERT INTO users (email, passwordHash, created_at) VALUES ($1, $2, $3) RETURNING id',
 			[{ email, passwordHash, created_at: nowIso() }]
 		);
 		const id = insertResult.recordset[0].id;
-		res.json({ id, email });
+		// Generate JWT token
+		const token = jwt.sign({ userId: id, email }, JWT_SECRET, { expiresIn: '7d' });
+		res.json({ id, email, token });
 	} catch (err) {
 		console.error('Signup error:', err);
 		res.status(500).json({ error: err.message });
@@ -104,17 +110,26 @@ router.post('/auth/signin', async (req, res) => {
 	try {
 		const { email, password } = req.body;
 		const passwordHash = hashPassword(password);
-		const result = await query('SELECT id, email FROM users WHERE email = @email AND passwordHash = @passwordHash', [
+		const result = await query('SELECT id, email FROM users WHERE email = $1 AND passwordHash = $2', [
 			{ email, passwordHash },
 		]);
 		if (result.recordset.length === 0) {
 			return res.status(401).json({ error: 'Invalid credentials' });
 		}
-		res.json(result.recordset[0]);
+		const user = result.recordset[0];
+		// Generate JWT token
+		const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+		res.json({ id: user.id, email: user.email, token });
 	} catch (err) {
 		console.error('Signin error:', err);
 		res.status(500).json({ error: err.message });
 	}
+});
+
+router.post('/auth/logout', async (req, res) => {
+	// For JWT, logout is handled client-side by removing the token
+	// This endpoint exists for compatibility
+	res.json({ success: true });
 });
 
 // ===== CUSTOMERS =====
@@ -132,7 +147,7 @@ router.post('/customers', async (req, res) => {
 	try {
 		const { name, phone, address, credit_limit } = req.body;
 		const result = await query(
-			'INSERT INTO customers (name, phone, address, credit_limit, created_at) OUTPUT INSERTED.id VALUES (@name, @phone, @address, @credit_limit, @created_at)',
+			'INSERT INTO customers (name, phone, address, credit_limit, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING id',
 			[{ name, phone: phone || null, address: address || null, credit_limit: credit_limit || 0, created_at: nowIso() }]
 		);
 		const id = result.recordset[0].id;
@@ -149,26 +164,27 @@ router.put('/customers/:id', async (req, res) => {
 		const { name, phone, address, credit_limit } = req.body;
 		const updates = [];
 		const params = [{ id }];
+		let paramIndex = 1;
 		if (name !== undefined) {
-			updates.push('name = @name');
+			updates.push(`name = $${++paramIndex}`);
 			params.push({ name });
 		}
 		if (phone !== undefined) {
-			updates.push('phone = @phone');
+			updates.push(`phone = $${++paramIndex}`);
 			params.push({ phone: phone || null });
 		}
 		if (address !== undefined) {
-			updates.push('address = @address');
+			updates.push(`address = $${++paramIndex}`);
 			params.push({ address: address || null });
 		}
 		if (credit_limit !== undefined) {
-			updates.push('credit_limit = @credit_limit');
+			updates.push(`credit_limit = $${++paramIndex}`);
 			params.push({ credit_limit });
 		}
 		if (updates.length === 0) {
 			return res.json({ id });
 		}
-		await query(`UPDATE customers SET ${updates.join(', ')} WHERE id = @id`, params);
+		await query(`UPDATE customers SET ${updates.join(', ')} WHERE id = $1`, params);
 		res.json({ id });
 	} catch (err) {
 		console.error('Update customer error:', err);
@@ -191,7 +207,7 @@ router.post('/suppliers', async (req, res) => {
 	try {
 		const { name, phone, address } = req.body;
 		const result = await query(
-			'INSERT INTO suppliers (name, phone, address, created_at) OUTPUT INSERTED.id VALUES (@name, @phone, @address, @created_at)',
+			'INSERT INTO suppliers (name, phone, address, created_at) VALUES ($1, $2, $3, $4) RETURNING id',
 			[{ name }, { phone: phone || null }, { address: address || null }, { created_at: nowIso() }]
 		);
 		const id = result.recordset[0].id;
@@ -208,22 +224,23 @@ router.put('/suppliers/:id', async (req, res) => {
 		const { name, phone, address } = req.body;
 		const updates = [];
 		const params = [{ id }];
+		let paramIndex = 1;
 		if (name !== undefined) {
-			updates.push('name = @name');
+			updates.push(`name = $${++paramIndex}`);
 			params.push({ name });
 		}
 		if (phone !== undefined) {
-			updates.push('phone = @phone');
+			updates.push(`phone = $${++paramIndex}`);
 			params.push({ phone: phone || null });
 		}
 		if (address !== undefined) {
-			updates.push('address = @address');
+			updates.push(`address = $${++paramIndex}`);
 			params.push({ address: address || null });
 		}
 		if (updates.length === 0) {
 			return res.json({ id });
 		}
-		await query(`UPDATE suppliers SET ${updates.join(', ')} WHERE id = @id`, params);
+		await query(`UPDATE suppliers SET ${updates.join(', ')} WHERE id = $1`, params);
 		res.json({ id });
 	} catch (err) {
 		console.error('Update supplier error:', err);
@@ -246,7 +263,7 @@ router.post('/categories', async (req, res) => {
 	try {
 		const { name, description } = req.body;
 		const result = await query(
-			'INSERT INTO categories (name, description, created_at) OUTPUT INSERTED.id VALUES (@name, @description, @created_at)',
+			'INSERT INTO categories (name, description, created_at) VALUES ($1, $2, $3) RETURNING id',
 			[{ name }, { description: description || null }, { created_at: nowIso() }]
 		);
 		const id = result.recordset[0].id;
@@ -263,18 +280,19 @@ router.put('/categories/:id', async (req, res) => {
 		const { name, description } = req.body;
 		const updates = [];
 		const params = [{ id }];
+		let paramIndex = 1;
 		if (name !== undefined) {
-			updates.push('name = @name');
+			updates.push(`name = $${++paramIndex}`);
 			params.push({ name });
 		}
 		if (description !== undefined) {
-			updates.push('description = @description');
+			updates.push(`description = $${++paramIndex}`);
 			params.push({ description: description || null });
 		}
 		if (updates.length === 0) {
 			return res.json({ id });
 		}
-		await query(`UPDATE categories SET ${updates.join(', ')} WHERE id = @id`, params);
+		await query(`UPDATE categories SET ${updates.join(', ')} WHERE id = $1`, params);
 		res.json({ id });
 	} catch (err) {
 		console.error('Update category error:', err);
@@ -286,11 +304,11 @@ router.delete('/categories/:id', async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
 		// Check if any products are using this category
-		const productsResult = await query('SELECT COUNT(*) as count FROM products WHERE category_id = @id', [{ id }]);
+		const productsResult = await query('SELECT COUNT(*) as count FROM products WHERE category_id = $1', [{ id }]);
 		if (productsResult.recordset[0].count > 0) {
 			return res.status(400).json({ error: 'Cannot delete category: products are still assigned to it' });
 		}
-		await query('DELETE FROM categories WHERE id = @id', [{ id }]);
+		await query('DELETE FROM categories WHERE id = $1', [{ id }]);
 		res.json({ success: true });
 	} catch (err) {
 		console.error('Delete category error:', err);
@@ -301,7 +319,10 @@ router.delete('/categories/:id', async (req, res) => {
 // ===== PRODUCTS =====
 router.get('/products', async (req, res) => {
 	try {
-		const result = await query('SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id ORDER BY p.created_at DESC', []);
+		const result = await query(
+			'SELECT p.id, p.name, p.barcode, p.category_id, p.description, p.sku, p.shelf, p.created_at, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id ORDER BY p.created_at DESC',
+			[]
+		);
 		res.json(result.recordset);
 	} catch (err) {
 		console.error('List products error:', err);
@@ -311,15 +332,16 @@ router.get('/products', async (req, res) => {
 
 router.post('/products', async (req, res) => {
 	try {
-		const { name, barcode, category_id, description, sku } = req.body;
+		const { name, barcode, category_id, description, sku, shelf } = req.body;
 		const result = await query(
-			'INSERT INTO products (name, barcode, category_id, description, sku, created_at) OUTPUT INSERTED.id VALUES (@name, @barcode, @category_id, @description, @sku, @created_at)',
+			'INSERT INTO products (name, barcode, category_id, description, sku, shelf, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
 			[
 				{ name }, 
 				{ barcode: barcode || null }, 
 				{ category_id: category_id ? parseInt(category_id) : null },
 				{ description: description || null },
 				{ sku: sku || null },
+				{ shelf: shelf || null },
 				{ created_at: nowIso() }
 			]
 		);
@@ -327,9 +349,9 @@ router.post('/products', async (req, res) => {
 		// Ensure daily stock entry
 		const today = getTodayLocal();
 		await query(
-			`IF NOT EXISTS (SELECT 1 FROM daily_stock WHERE product_id = @product_id AND date = @date)
-			 INSERT INTO daily_stock (product_id, available_qty, avg_cost, date, created_at, updated_at) 
-			 VALUES (@product_id, 0, 0, @date, @created_at, @created_at)`,
+			`INSERT INTO daily_stock (product_id, available_qty, avg_cost, date, created_at, updated_at) 
+			 VALUES ($1, 0, 0, $2, $3, $3)
+			 ON CONFLICT (product_id, date) DO NOTHING`,
 			[{ product_id: id }, { date: today }, { created_at: nowIso() }]
 		);
 		res.json({ id });
@@ -342,36 +364,58 @@ router.post('/products', async (req, res) => {
 router.put('/products/:id', async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
-		const { name, barcode, category_id, description, sku } = req.body;
+		const { name, barcode, category_id, description, sku, shelf } = req.body;
 		const updates = [];
 		const params = [{ id }];
+		let paramIndex = 1;
 		if (name !== undefined) {
-			updates.push('name = @name');
+			updates.push(`name = $${++paramIndex}`);
 			params.push({ name });
 		}
 		if (barcode !== undefined) {
-			updates.push('barcode = @barcode');
+			updates.push(`barcode = $${++paramIndex}`);
 			params.push({ barcode: barcode || null });
 		}
 		if (category_id !== undefined) {
-			updates.push('category_id = @category_id');
+			updates.push(`category_id = $${++paramIndex}`);
 			params.push({ category_id: category_id ? parseInt(category_id) : null });
 		}
 		if (description !== undefined) {
-			updates.push('description = @description');
+			updates.push(`description = $${++paramIndex}`);
 			params.push({ description: description || null });
 		}
 		if (sku !== undefined) {
-			updates.push('sku = @sku');
+			updates.push(`sku = $${++paramIndex}`);
 			params.push({ sku: sku || null });
+		}
+		if (shelf !== undefined) {
+			updates.push(`shelf = $${++paramIndex}`);
+			params.push({ shelf: shelf || null });
 		}
 		if (updates.length === 0) {
 			return res.json({ id });
 		}
-		await query(`UPDATE products SET ${updates.join(', ')} WHERE id = @id`, params);
+		await query(`UPDATE products SET ${updates.join(', ')} WHERE id = $1`, params);
 		res.json({ id });
 	} catch (err) {
 		console.error('Update product error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+router.delete('/products/:id', async (req, res) => {
+	try {
+		const id = parseInt(req.params.id);
+		// Check if product exists
+		const checkResult = await query('SELECT id FROM products WHERE id = $1', [{ id }]);
+		if (checkResult.recordset.length === 0) {
+			return res.status(404).json({ error: 'Product not found' });
+		}
+		// Delete product (cascade will handle related records)
+		await query('DELETE FROM products WHERE id = $1', [{ id }]);
+		res.json({ success: true, id });
+	} catch (err) {
+		console.error('Delete product error:', err);
 		res.status(500).json({ error: err.message });
 	}
 });
@@ -426,7 +470,7 @@ router.get('/invoices', async (req, res) => {
 router.get('/invoices/recent/:limit', async (req, res) => {
 	try {
 		const limit = parseInt(req.params.limit) || 10;
-		const invoices = await query(`SELECT TOP ${limit} * FROM invoices ORDER BY invoice_date DESC`, []);
+		const invoices = await query(`SELECT * FROM invoices ORDER BY invoice_date DESC LIMIT $1`, [{ limit }]);
 		const customers = await query('SELECT * FROM customers', []);
 		const suppliers = await query('SELECT * FROM suppliers', []);
 		const invoiceItems = await query('SELECT * FROM invoice_items', []);
@@ -478,13 +522,13 @@ router.get('/invoices/stats', async (req, res) => {
 		
 		// Today's invoices - READ FROM INVOICES TABLE (not daily_stock)
 		const todayInvoices = await query(
-			'SELECT * FROM invoices WHERE CAST(invoice_date AS DATE) = @today', 
+			'SELECT * FROM invoices WHERE CAST(invoice_date AS DATE) = $1', 
 			[{ today }]
 		);
 		
 		// Today's inventory - READ FROM DAILY_STOCK TABLE (today's records only)
 		const todayStock = await query(
-			'SELECT COUNT(DISTINCT product_id) as product_count, SUM(available_qty) as total_qty FROM daily_stock WHERE date = @today', 
+			'SELECT COUNT(DISTINCT product_id) as product_count, SUM(available_qty) as total_qty FROM daily_stock WHERE date = $1', 
 			[{ today }]
 		);
 		
@@ -546,11 +590,11 @@ router.put('/invoices/:id', async (req, res) => {
 			return res.status(400).json({ error: `Invalid invoice ID: ${req.params.id}` });
 		}
 		
-		const { invoice_type, customer_id, supplier_id, total_amount, is_paid, items } = req.body;
+		const { invoice_type, customer_id, supplier_id, total_amount, is_paid, due_date, items } = req.body;
 		const today = getTodayLocal();
 
 		// Get existing invoice with its date
-		const existingInvoice = await query('SELECT * FROM invoices WHERE id = @id', [{ id }]);
+		const existingInvoice = await query('SELECT * FROM invoices WHERE id = $1', [{ id }]);
 		console.log('Invoice lookup result:', { 
 			id, 
 			found: existingInvoice.recordset.length > 0,
@@ -572,7 +616,7 @@ router.put('/invoices/:id', async (req, res) => {
 		console.log('Date comparison:', { invoiceDate, today, isToday: invoiceDate === today });
 
 		// Get existing invoice items
-		const oldItemsResult = await query('SELECT * FROM invoice_items WHERE invoice_id = @invoice_id', [{ invoice_id: id }]);
+		const oldItemsResult = await query('SELECT * FROM invoice_items WHERE invoice_id = $1', [{ invoice_id: id }]);
 		const oldItems = oldItemsResult.recordset;
 
 		// Collect all affected products (from both old and new items)
@@ -580,27 +624,27 @@ router.put('/invoices/:id', async (req, res) => {
 		oldItems.forEach(item => affectedProducts.add(item.product_id));
 		items.forEach(item => affectedProducts.add(parseInt(item.product_id)));
 
-		// Delete old invoice items and stock movements
-		await query('DELETE FROM stock_movements WHERE invoice_id = @invoice_id', [{ invoice_id: id }]);
-		await query('DELETE FROM invoice_items WHERE invoice_id = @invoice_id', [{ invoice_id: id }]);
+		// Delete old invoice items (stock movements will be updated by the function, not deleted)
+		await query('DELETE FROM invoice_items WHERE invoice_id = $1', [{ invoice_id: id }]);
 
 		// Update invoice
 		await query(
-			'UPDATE invoices SET invoice_type = @invoice_type, customer_id = @customer_id, supplier_id = @supplier_id, total_amount = @total_amount, is_paid = @is_paid WHERE id = @id',
+			'UPDATE invoices SET invoice_type = $1, customer_id = $2, supplier_id = $3, total_amount = $4, is_paid = $5, due_date = $6 WHERE id = $7',
 			[
 				{ invoice_type },
 				{ customer_id: customer_id ? parseInt(customer_id) : null },
 				{ supplier_id: supplier_id ? parseInt(supplier_id) : null },
 				{ total_amount },
 				{ is_paid: is_paid ? 1 : 0 },
+				{ due_date: due_date || null },
 				{ id }
 			]
 		);
 
-		// Create new invoice items and stock movements (we'll recalculate stock later)
+		// Create new invoice items (stock movements already exist and will be updated by the function)
 		for (const item of items) {
 			await query(
-				'INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) OUTPUT INSERTED.id VALUES (@invoice_id, @product_id, @quantity, @unit_price, @total_price, @price_type, @is_private_price, @private_price_amount, @private_price_note)',
+				'INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
 				[
 					{ invoice_id: id },
 					{ product_id: parseInt(item.product_id) },
@@ -613,159 +657,31 @@ router.put('/invoices/:id', async (req, res) => {
 					{ private_price_note: item.is_private_price ? item.private_price_note : null }
 				]
 			);
-			
-			// Create stock movement with placeholder quantities (will be recalculated)
-			const change = invoice_type === 'sell' ? -item.quantity : item.quantity;
-			await query(
-				'INSERT INTO stock_movements (product_id, invoice_id, invoice_date, quantity_before, quantity_change, quantity_after, created_at) VALUES (@product_id, @invoice_id, @invoice_date, @quantity_before, @quantity_change, @quantity_after, @created_at)',
-				[
-					{ product_id: parseInt(item.product_id) },
-					{ invoice_id: id },
-					{ invoice_date: oldInvoice.invoice_date },
-					{ quantity_before: 0 }, // Will be recalculated
-					{ quantity_change: change },
-					{ quantity_after: 0 }, // Will be recalculated
-					{ created_at: nowIso() }
-				]
-			);
 		}
 
-		// Now recalculate stock for all affected products from invoiceDate to today
-		console.log('Recalculating stock for products:', Array.from(affectedProducts), 'from', invoiceDate, 'to', today);
+		// Call the function to recalculate stock for each affected product
+		// The function will update existing stock movements and recalculate all later movements
+		console.log('Recalculating stock for products using function:', Array.from(affectedProducts));
 		
 		for (const productId of affectedProducts) {
-			// Get the quantity before the invoice date (day before invoice date)
-			const dayBeforeInvoice = new Date(invoiceDate);
-			dayBeforeInvoice.setDate(dayBeforeInvoice.getDate() - 1);
-			const dayBeforeStr = toLocalDateString(dayBeforeInvoice);
-			
-			const beforeResult = await query(
-				'SELECT TOP 1 available_qty, avg_cost FROM daily_stock WHERE product_id = @product_id AND date <= @date ORDER BY date DESC, updated_at DESC',
-				[{ product_id: productId }, { date: dayBeforeStr }]
-			);
-			
-			let runningQty = beforeResult.recordset[0]?.available_qty || 0;
-			let runningAvgCost = beforeResult.recordset[0]?.avg_cost || 0;
-			
-			console.log(`Product ${productId}: Starting qty from ${dayBeforeStr}:`, runningQty);
-
-			// Get all stock movements for this product from invoiceDate to today (ordered chronologically)
-			const movementsResult = await query(
-				`SELECT sm.*, i.invoice_type, ii.unit_price, ii.quantity
-				 FROM stock_movements sm
-				 JOIN invoices i ON sm.invoice_id = i.id
-				 LEFT JOIN invoice_items ii ON sm.invoice_id = ii.invoice_id AND sm.product_id = ii.product_id
-				 WHERE sm.product_id = @product_id 
-				 AND CAST(i.invoice_date AS DATE) >= @startDate 
-				 AND CAST(i.invoice_date AS DATE) <= @endDate
-				 ORDER BY i.invoice_date ASC, sm.created_at ASC`,
-				[
-					{ product_id: productId },
-					{ startDate: invoiceDate },
-					{ endDate: today }
-				]
-			);
-
-			const movements = movementsResult.recordset;
-			console.log(`Product ${productId}: Found ${movements.length} movements from ${invoiceDate} to ${today}`);
-
-			// Group movements by date
-			const movementsByDate = {};
-			for (const movement of movements) {
-				const movementDate = toLocalDateString(movement.invoice_date);
-				if (!movementsByDate[movementDate]) {
-					movementsByDate[movementDate] = [];
-				}
-				movementsByDate[movementDate].push(movement);
-			}
-
-			// Get all dates from invoiceDate to today (including both endpoints)
-			const allDates = [];
-			let currentDate = new Date(invoiceDate + 'T00:00:00Z'); // Parse as UTC to avoid timezone issues
-			const todayDate = new Date(today + 'T00:00:00Z');
-			
-			console.log(`Product ${productId} date range setup:`, {
-				invoiceDate,
-				today,
-				currentDate: currentDate.toISOString(),
-				todayDate: todayDate.toISOString(),
-				currentDateMs: currentDate.getTime(),
-				todayDateMs: todayDate.getTime(),
-				willLoop: currentDate.getTime() <= todayDate.getTime()
-			});
-			
-			while (currentDate.getTime() <= todayDate.getTime()) {
-				const dateStr = toLocalDateString(currentDate);
-				allDates.push(dateStr);
-				console.log(`  Adding date to process: ${dateStr}`);
-				currentDate.setUTCDate(currentDate.getUTCDate() + 1);
-			}
-			
-			console.log(`Product ${productId}: Processing ${allDates.length} dates total:`, allDates);
-
-			// Process each date and update daily_stock
-			for (const dateStr of allDates) {
-				const dayMovements = movementsByDate[dateStr] || [];
-				let dayStartQty = runningQty;
-				let dayStartCost = runningAvgCost;
-
-				console.log(`  Date ${dateStr}: ${dayMovements.length} movements, starting qty=${runningQty}`);
-
-				// Apply all movements for this day
-				for (const movement of dayMovements) {
-					const change = movement.quantity_change;
-					
-					// Update average cost for BUY transactions
-					if (movement.invoice_type === 'buy' && movement.unit_price) {
-						const buyQty = movement.quantity;
-						const buyCost = movement.unit_price;
-						const denominator = runningQty + buyQty;
-						if (denominator > 0) {
-							runningAvgCost = ((runningAvgCost * runningQty) + (buyCost * buyQty)) / denominator;
-						} else {
-							runningAvgCost = buyCost;
-						}
-					}
-					
-					runningQty += change;
-					
-					// Update the stock_movement record with correct quantities
-					await query(
-						'UPDATE stock_movements SET quantity_before = @qtyBefore, quantity_after = @qtyAfter WHERE id = @movementId',
-						[
-							{ qtyBefore: dayStartQty },
-							{ qtyAfter: runningQty },
-							{ movementId: movement.id }
-						]
-					);
-					
-					console.log(`    Movement ID ${movement.id}: change=${change}, before=${dayStartQty}, after=${runningQty}`);
-					dayStartQty = runningQty; // Next movement in same day starts from this quantity
-				}
-
-				// Update or insert daily_stock for this date
-				const updateResult = await query(
-					`IF EXISTS (SELECT 1 FROM daily_stock WHERE product_id = @product_id AND date = @date)
-					 BEGIN
-					   UPDATE daily_stock SET available_qty = @qty, avg_cost = @avgCost, updated_at = @updated_at WHERE product_id = @product_id AND date = @date
-					   SELECT 'UPDATED' as action
-					 END
-					 ELSE
-					 BEGIN
-					   INSERT INTO daily_stock (product_id, available_qty, avg_cost, date, created_at, updated_at) VALUES (@product_id, @qty, @avgCost, @date, @created_at, @updated_at)
-					   SELECT 'INSERTED' as action
-					 END`,
+			const item = items.find(item => parseInt(item.product_id) === productId);
+			if (item) {
+				const change = invoice_type === 'sell' ? -item.quantity : item.quantity;
+				const unitCost = parseFloat(item.unit_price);
+				
+				// Call the function to recalculate - it will update the stock movement we just created
+				await query(
+					'SELECT recalculate_stock_after_invoice($1, $2, $3, $4, $5)',
 					[
+						{ invoice_id: id },
 						{ product_id: productId },
-						{ date: dateStr },
-						{ qty: runningQty },
-						{ avgCost: runningAvgCost },
-						{ updated_at: nowIso() },
-						{ created_at: nowIso() }
+						{ action_type: 'EDIT' },
+						{ new_qty: change },
+						{ new_unit_cost: unitCost }
 					]
 				);
 				
-				console.log(`  Daily stock ${dateStr}: action=${updateResult.recordset[0]?.action}, qty=${runningQty}, avgCost=${runningAvgCost}`);
+				console.log(`  Recalculated stock for product ${productId} using function`);
 			}
 		}
 
@@ -776,9 +692,79 @@ router.put('/invoices/:id', async (req, res) => {
 	}
 });
 
+router.delete('/invoices/:id', async (req, res) => {
+	try {
+		const id = parseInt(req.params.id);
+		
+		// Check if invoice exists and get its items
+		const checkResult = await query('SELECT id FROM invoices WHERE id = $1', [{ id }]);
+		if (checkResult.recordset.length === 0) {
+			return res.status(404).json({ error: 'Invoice not found' });
+		}
+		
+		// Get invoice items to know which products are affected
+		const itemsResult = await query('SELECT DISTINCT product_id FROM invoice_items WHERE invoice_id = $1', [{ invoice_id: id }]);
+		const affectedProducts = itemsResult.recordset.map(row => row.product_id);
+		
+		// Call the function for each affected product with DELETE action
+		for (const productId of affectedProducts) {
+			await query(
+				'SELECT recalculate_stock_after_invoice($1, $2, $3, NULL, NULL)',
+				[
+					{ invoice_id: id },
+					{ product_id: productId },
+					{ action_type: 'DELETE' }
+				]
+			);
+			console.log(`  Recalculated stock for product ${productId} after DELETE using function`);
+		}
+		
+		// Delete related records (function already deleted stock_movements)
+		await query('DELETE FROM invoice_items WHERE invoice_id = $1', [{ invoice_id: id }]);
+		await query('DELETE FROM invoice_payments WHERE invoice_id = $1', [{ invoice_id: id }]);
+		
+		// Delete invoice
+		await query('DELETE FROM invoices WHERE id = $1', [{ id }]);
+		
+		res.json({ success: true, id });
+	} catch (err) {
+		console.error('Delete invoice error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+router.get('/invoices/overdue', async (req, res) => {
+	try {
+		const today = getTodayLocal();
+		const invoices = await query(
+			`SELECT i.*, c.name as customer_name, c.phone as customer_phone, s.name as supplier_name, s.phone as supplier_phone
+			 FROM invoices i
+			 LEFT JOIN customers c ON i.customer_id = c.id
+			 LEFT JOIN suppliers s ON i.supplier_id = s.id
+			 WHERE i.due_date IS NOT NULL 
+			   AND CAST(i.due_date AS DATE) < CAST($1 AS DATE)
+			   AND i.payment_status != 'paid'
+			 ORDER BY i.due_date ASC`,
+			[{ today }]
+		);
+		
+		// Format the response to match frontend expectations
+		const result = invoices.recordset.map(inv => ({
+			...inv,
+			customers: inv.customer_id ? { name: inv.customer_name, phone: inv.customer_phone } : undefined,
+			suppliers: inv.supplier_id ? { name: inv.supplier_name, phone: inv.supplier_phone } : undefined,
+		}));
+		
+		res.json(result);
+	} catch (err) {
+		console.error('Get overdue invoices error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
 router.post('/invoices', async (req, res) => {
 	try {
-		const { invoice_type, customer_id, supplier_id, total_amount, is_paid, items } = req.body;
+		const { invoice_type, customer_id, supplier_id, total_amount, is_paid, due_date, items } = req.body;
 		const invoice_date = nowIso();
 		const today = getTodayLocal();
 
@@ -791,7 +777,7 @@ router.post('/invoices', async (req, res) => {
 
 		// Create invoice
 		const invoiceResult = await query(
-			'INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, is_paid, invoice_date, created_at) OUTPUT INSERTED.id VALUES (@invoice_type, @customer_id, @supplier_id, @total_amount, @is_paid, @invoice_date, @created_at)',
+			'INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, is_paid, invoice_date, due_date, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
 			[
 				{ invoice_type },
 				{ customer_id: customer_id ? parseInt(customer_id) : null },
@@ -799,6 +785,7 @@ router.post('/invoices', async (req, res) => {
 				{ total_amount },
 				{ is_paid: is_paid ? 1 : 0 },
 				{ invoice_date },
+				{ due_date: due_date || null },
 				{ created_at: nowIso() },
 			]
 		);
@@ -810,7 +797,7 @@ router.post('/invoices', async (req, res) => {
 			console.log(`Processing item: product_id=${item.product_id}, quantity=${item.quantity}`);
 			
 			await query(
-				'INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) OUTPUT INSERTED.id VALUES (@invoice_id, @product_id, @quantity, @unit_price, @total_price, @price_type, @is_private_price, @private_price_amount, @private_price_note)',
+				'INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
 				[
 					{ invoice_id: invoiceId },
 					{ product_id: parseInt(item.product_id) },
@@ -826,7 +813,7 @@ router.post('/invoices', async (req, res) => {
 
 			// Get the quantity before this transaction (from today or last available)
 			let stockBefore = await query(
-				'SELECT TOP 1 available_qty, avg_cost FROM daily_stock WHERE product_id = @product_id AND date <= @date ORDER BY date DESC, updated_at DESC', 
+				'SELECT available_qty, avg_cost FROM daily_stock WHERE product_id = $1 AND date <= $2 ORDER BY date DESC, updated_at DESC LIMIT 1', 
 				[
 					{ product_id: parseInt(item.product_id) },
 					{ date: today },
@@ -852,27 +839,13 @@ router.post('/invoices', async (req, res) => {
 
 			console.log(`  Calculated: change=${change}, qtyAfter=${qtyAfter}, newAvgCost=${newAvgCost}`);
 
-			// Update or insert daily_stock for today
-			await query(
-				`IF EXISTS (SELECT 1 FROM daily_stock WHERE product_id = @product_id AND date = @date)
-				 UPDATE daily_stock SET available_qty = @qtyAfter, avg_cost = CASE WHEN @is_buy = 1 THEN @newAvgCost ELSE avg_cost END, updated_at = @updated_at WHERE product_id = @product_id AND date = @date
-				 ELSE
-				 INSERT INTO daily_stock (product_id, available_qty, avg_cost, date, created_at, updated_at) VALUES (@product_id, @qtyAfter, @initialAvgCost, @date, @created_at, @updated_at)`,
-				[
-					{ product_id: parseInt(item.product_id) },
-					{ date: today },
-					{ qtyAfter },
-					{ is_buy: invoice_type === 'buy' ? 1 : 0 },
-					{ newAvgCost },
-					{ updated_at: nowIso() },
-					{ initialAvgCost: invoice_type === 'buy' ? newAvgCost : (prevAvgCost || 0) },
-					{ created_at: nowIso() },
-				]
-			);
-
-			// Record stock movement with today's date
+			// Calculate unit_cost and avg_cost_after
+			const unitCost = parseFloat(item.unit_price);
+			const avgCostAfter = newAvgCost;
+			
+			// Record stock movement with today's date, including unit_cost and avg_cost_after
 			const movementResult = await query(
-				'INSERT INTO stock_movements (product_id, invoice_id, invoice_date, quantity_before, quantity_change, quantity_after, created_at) OUTPUT INSERTED.id VALUES (@product_id, @invoice_id, @invoice_date, @qtyBefore, @change, @qtyAfter, @created_at)',
+				'INSERT INTO stock_movements (product_id, invoice_id, invoice_date, quantity_before, quantity_change, quantity_after, unit_cost, avg_cost_after, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
 				[
 					{ product_id: parseInt(item.product_id) },
 					{ invoice_id: invoiceId },
@@ -880,15 +853,30 @@ router.post('/invoices', async (req, res) => {
 					{ qtyBefore },
 					{ change },
 					{ qtyAfter },
+					{ unit_cost: unitCost },
+					{ avg_cost_after: avgCostAfter },
 					{ created_at: nowIso() },
 				]
 			);
 			
 			const movementId = movementResult.recordset[0]?.id;
-			console.log(`  Created stock_movement ID=${movementId}, invoice_date=${invoice_date}, qtyBefore=${qtyBefore}, change=${change}, qtyAfter=${qtyAfter}`);
+			console.log(`  Created stock_movement ID=${movementId}, invoice_date=${invoice_date}, qtyBefore=${qtyBefore}, change=${change}, qtyAfter=${qtyAfter}, unit_cost=${unitCost}, avg_cost_after=${avgCostAfter}`);
 
-			// For BUY invoices, record product cost
-			// Note: product_costs table removed; avg_cost is maintained in daily_stock
+			// Update daily_stock with quantity_after and avg_cost_after
+			await query(
+				`INSERT INTO daily_stock (product_id, available_qty, avg_cost, date, created_at, updated_at) 
+				 VALUES ($1, $2, $3, $4, $5, $6)
+				 ON CONFLICT (product_id, date) 
+				 DO UPDATE SET available_qty = $2, avg_cost = $3, updated_at = $6`,
+				[
+					{ product_id: parseInt(item.product_id) },
+					{ qty: qtyAfter },
+					{ avgCost: avgCostAfter },
+					{ date: today },
+					{ created_at: nowIso() },
+					{ updated_at: nowIso() }
+				]
+			);
 		}
 
 		console.log('=== INVOICE CREATION COMPLETE ===');
@@ -906,7 +894,7 @@ router.get('/invoices/:id', async (req, res) => {
 		const id = parseInt(req.params.id);
 		
 		// Get invoice
-		const invoiceResult = await query('SELECT * FROM invoices WHERE id = @id', [{ id }]);
+		const invoiceResult = await query('SELECT * FROM invoices WHERE id = $1', [{ id }]);
 		if (invoiceResult.recordset.length === 0) {
 			return res.status(404).json({ error: 'Invoice not found' });
 		}
@@ -915,7 +903,7 @@ router.get('/invoices/:id', async (req, res) => {
 		
 		// Get payments
 		const paymentsResult = await query(
-			'SELECT * FROM invoice_payments WHERE invoice_id = @invoice_id ORDER BY payment_date DESC',
+			'SELECT * FROM invoice_payments WHERE invoice_id = $1 ORDER BY payment_date DESC',
 			[{ invoice_id: id }]
 		);
 		const payments = paymentsResult.recordset;
@@ -925,18 +913,19 @@ router.get('/invoices/:id', async (req, res) => {
 			`SELECT ii.*, p.name as product_name, p.barcode as product_barcode
 			 FROM invoice_items ii
 			 LEFT JOIN products p ON ii.product_id = p.id
-			 WHERE ii.invoice_id = @invoice_id
+			 WHERE ii.invoice_id = $1
 			 ORDER BY ii.id`,
 			[{ invoice_id: id }]
 		);
 		const invoice_items = itemsResult.recordset;
 		
 		// Get customer/supplier details
-		const customersResult = await query('SELECT * FROM customers WHERE id = @id', [{ id: invoice.customer_id || 0 }]);
-		const suppliersResult = await query('SELECT * FROM suppliers WHERE id = @id', [{ id: invoice.supplier_id || 0 }]);
+		const customersResult = await query('SELECT * FROM customers WHERE id = $1', [{ id: invoice.customer_id || 0 }]);
+		const suppliersResult = await query('SELECT * FROM suppliers WHERE id = $1', [{ id: invoice.supplier_id || 0 }]);
 		
-		const amountPaid = invoice.amount_paid || 0;
-		const totalAmount = invoice.total_amount || 0;
+		// Convert DECIMAL strings to numbers
+		const amountPaid = parseFloat(String(invoice.amount_paid || 0));
+		const totalAmount = parseFloat(String(invoice.total_amount || 0));
 		const remainingBalance = totalAmount - amountPaid;
 		// Calculate payment status based on amount_paid (always recalculate for consistency)
 		let paymentStatus;
@@ -972,7 +961,7 @@ router.get('/invoices/:id/payments', async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
 		const result = await query(
-			'SELECT * FROM invoice_payments WHERE invoice_id = @invoice_id ORDER BY payment_date DESC',
+			'SELECT * FROM invoice_payments WHERE invoice_id = $1 ORDER BY payment_date DESC',
 			[{ invoice_id: id }]
 		);
 		res.json(result.recordset);
@@ -993,14 +982,15 @@ router.post('/invoices/:id/payments', async (req, res) => {
 		}
 		
 		// Get invoice details
-		const invoiceResult = await query('SELECT * FROM invoices WHERE id = @id', [{ id }]);
+		const invoiceResult = await query('SELECT * FROM invoices WHERE id = $1', [{ id }]);
 		if (invoiceResult.recordset.length === 0) {
 			return res.status(404).json({ error: 'Invoice not found' });
 		}
 		
 		const invoice = invoiceResult.recordset[0];
-		const currentAmountPaid = invoice.amount_paid || 0;
-		const totalAmount = invoice.total_amount || 0;
+		// Convert DECIMAL strings to numbers
+		const currentAmountPaid = parseFloat(String(invoice.amount_paid || 0));
+		const totalAmount = parseFloat(String(invoice.total_amount || 0));
 		const remainingBalance = totalAmount - currentAmountPaid;
 		
 		// Validate payment doesn't exceed remaining balance (use epsilon for floating point comparison)
@@ -1011,8 +1001,9 @@ router.post('/invoices/:id/payments', async (req, res) => {
 			});
 		}
 		
+		// Use current date/time for payment_date (not the invoice creation date)
 		const payment_date = nowIso();
-		const newAmountPaid = currentAmountPaid + payment_amount;
+		const newAmountPaid = currentAmountPaid + parseFloat(String(payment_amount));
 		
 		// Determine new payment status
 		let newPaymentStatus = 'pending';
@@ -1024,7 +1015,7 @@ router.post('/invoices/:id/payments', async (req, res) => {
 		
 		// Insert payment record
 		const paymentResult = await query(
-			'INSERT INTO invoice_payments (invoice_id, payment_amount, payment_date, payment_method, notes, created_at) OUTPUT INSERTED.id VALUES (@invoice_id, @payment_amount, @payment_date, @payment_method, @notes, @created_at)',
+			'INSERT INTO invoice_payments (invoice_id, payment_amount, payment_date, payment_method, notes, created_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
 			[
 				{ invoice_id: id },
 				{ payment_amount },
@@ -1038,7 +1029,7 @@ router.post('/invoices/:id/payments', async (req, res) => {
 		
 		// Update invoice amounts
 		await query(
-			'UPDATE invoices SET amount_paid = @amount_paid, payment_status = @payment_status, is_paid = @is_paid WHERE id = @id',
+			'UPDATE invoices SET amount_paid = $1, payment_status = $2, is_paid = $3 WHERE id = $4',
 			[
 				{ amount_paid: newAmountPaid },
 				{ payment_status: newPaymentStatus },
@@ -1068,7 +1059,7 @@ router.get('/inventory/low-stock/:threshold', async (req, res) => {
 		
 		// Only get today's records (live quantities)
 		const stock = await query(
-			'SELECT * FROM daily_stock WHERE date = @today AND available_qty < @threshold ORDER BY available_qty ASC', 
+			'SELECT * FROM daily_stock WHERE date = $1 AND available_qty < $2 ORDER BY available_qty ASC', 
 			[{ today }, { threshold }]
 		);
 		
@@ -1108,7 +1099,7 @@ router.get('/inventory/today', async (req, res) => {
 		const today = getTodayLocal();
 		console.log(`Inventory Today: Fetching live quantities for date: ${today}`);
 		
-		const stock = await query('SELECT * FROM daily_stock WHERE date = @date ORDER BY updated_at DESC', [{ date: today }]);
+		const stock = await query('SELECT * FROM daily_stock WHERE date = $1 ORDER BY updated_at DESC', [{ date: today }]);
 		const products = await query('SELECT * FROM products', []);
 		
 		// Get latest prices for all products
@@ -1166,7 +1157,7 @@ router.get('/inventory/daily-history', async (req, res) => {
 router.get('/stock-movements/recent/:limit', async (req, res) => {
 	try {
 		const limit = parseInt(req.params.limit) || 20;
-		const movements = await query(`SELECT TOP ${limit} * FROM stock_movements ORDER BY invoice_date DESC`, []);
+		const movements = await query(`SELECT * FROM stock_movements ORDER BY invoice_date DESC LIMIT $1`, [{ limit }]);
 		const products = await query('SELECT * FROM products', []);
 		const idToProduct = new Map(products.recordset.map((p) => [p.id, p]));
 		const result = movements.recordset.map((m) => ({
@@ -1181,6 +1172,48 @@ router.get('/stock-movements/recent/:limit', async (req, res) => {
 });
 
 // ===== AVG COSTS FROM DAILY_STOCK =====
+// Get today's average costs for all products
+router.get('/daily-stock/today/avg-cost', async (req, res) => {
+	try {
+		const today = getTodayLocal();
+		const result = await query(
+			`SELECT product_id, available_qty, avg_cost
+			 FROM daily_stock
+			 WHERE date = $1
+			 ORDER BY product_id`,
+			[{ date: today }]
+		);
+		res.json(result.recordset);
+	} catch (err) {
+		console.error('Get today avg cost error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Get all average costs (latest for each product)
+router.get('/daily-stock/avg-costs/all', async (req, res) => {
+	try {
+		const today = getTodayLocal();
+		const result = await query(
+			`SELECT product_id, available_qty, avg_cost
+			 FROM daily_stock
+			 WHERE date = $1
+			 ORDER BY product_id`,
+			[{ date: today }]
+		);
+		
+		// Convert to Record<string, number> format (product_id -> avg_cost)
+		const costs = {};
+		result.recordset.forEach(row => {
+			costs[row.product_id.toString()] = parseFloat(row.avg_cost || 0);
+		});
+		res.json(costs);
+	} catch (err) {
+		console.error('Get all avg costs error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
 // List avg costs snapshots from daily_stock with optional filters
 // By default returns only today's records (current/live costs), unless date filters are provided
 router.get('/daily-stock/avg-costs', async (req, res) => {
@@ -1202,24 +1235,29 @@ router.get('/daily-stock/avg-costs', async (req, res) => {
             WHERE 1=1
         `;
         const params = [];
+        let paramIndex = 0;
 
         if (product_id) { 
-            sql += ' AND ds.product_id = @product_id'; 
+            paramIndex++;
+            sql += ` AND ds.product_id = $${paramIndex}`; 
             params.push({ product_id: parseInt(product_id) }); 
         }
         
         // If no date filters provided, default to today only (live/current costs)
         if (!start_date && !end_date) {
-            sql += ' AND ds.date = @today';
+            paramIndex++;
+            sql += ` AND ds.date = $${paramIndex}`;
             params.push({ today });
         } else {
             // If date filters are provided, use them
             if (start_date) { 
-                sql += ' AND ds.date >= @start_date'; 
+                paramIndex++;
+                sql += ` AND ds.date >= $${paramIndex}`; 
                 params.push({ start_date }); 
             }
             if (end_date) { 
-                sql += ' AND ds.date <= @end_date'; 
+                paramIndex++;
+                sql += ` AND ds.date <= $${paramIndex}`; 
                 params.push({ end_date }); 
             }
         }
@@ -1248,17 +1286,21 @@ router.get('/product-prices', async (req, res) => {
 			WHERE 1=1
 		`;
 		const params = [];
+		let paramIndex = 0;
 		
 		if (product_id) {
-			sql += ' AND pp.product_id = @product_id';
+			paramIndex++;
+			sql += ` AND pp.product_id = $${paramIndex}`;
 			params.push({ product_id });
 		}
 		if (start_date) {
-			sql += ' AND pp.effective_date >= @start_date';
+			paramIndex++;
+			sql += ` AND pp.effective_date >= $${paramIndex}`;
 			params.push({ start_date });
 		}
 		if (end_date) {
-			sql += ' AND pp.effective_date <= @end_date';
+			paramIndex++;
+			sql += ` AND pp.effective_date <= $${paramIndex}`;
 			params.push({ end_date });
 		}
 		
@@ -1280,7 +1322,7 @@ router.get('/products/:id/prices', async (req, res) => {
 			`SELECT pp.*, p.name as product_name, p.barcode
 			 FROM product_prices pp
 			 LEFT JOIN products p ON pp.product_id = p.id
-			 WHERE pp.product_id = @productId
+			 WHERE pp.product_id = $1
 			 ORDER BY pp.effective_date DESC`,
 			[{ productId: id }]
 		);
@@ -1296,10 +1338,11 @@ router.get('/products/:id/price-latest', async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
 		const result = await query(
-			`SELECT TOP 1 pp.*
+			`SELECT pp.*
 			 FROM product_prices pp
-			 WHERE pp.product_id = @productId
-			 ORDER BY pp.effective_date DESC, pp.created_at DESC`,
+			 WHERE pp.product_id = $1
+			 ORDER BY pp.effective_date DESC, pp.created_at DESC
+			 LIMIT 1`,
 			[{ productId: id }]
 		);
 		res.json(result.recordset[0] || null);
@@ -1336,7 +1379,7 @@ router.post('/product-prices', async (req, res) => {
 		const { product_id, wholesale_price, retail_price, effective_date } = req.body;
 		const result = await query(
 			`INSERT INTO product_prices (product_id, wholesale_price, retail_price, effective_date, created_at)
-			 OUTPUT INSERTED.id VALUES (@product_id, @wholesale_price, @retail_price, @effective_date, @created_at)`,
+			 VALUES ($1, $2, $3, $4, $5) RETURNING id`,
 			[
 				{ product_id: parseInt(product_id) },
 				{ wholesale_price },
@@ -1360,17 +1403,18 @@ router.put('/product-prices/:id', async (req, res) => {
 		const { wholesale_price, retail_price, effective_date } = req.body;
 		const updates = [];
 		const params = [{ id }];
+		let paramIndex = 1;
 		
 		if (wholesale_price !== undefined) {
-			updates.push('wholesale_price = @wholesale_price');
+			updates.push(`wholesale_price = $${++paramIndex}`);
 			params.push({ wholesale_price });
 		}
 		if (retail_price !== undefined) {
-			updates.push('retail_price = @retail_price');
+			updates.push(`retail_price = $${++paramIndex}`);
 			params.push({ retail_price });
 		}
 		if (effective_date !== undefined) {
-			updates.push('effective_date = @effective_date');
+			updates.push(`effective_date = $${++paramIndex}`);
 			params.push({ effective_date });
 		}
 		
@@ -1378,7 +1422,7 @@ router.put('/product-prices/:id', async (req, res) => {
 			return res.json({ id });
 		}
 		
-		await query(`UPDATE product_prices SET ${updates.join(', ')} WHERE id = @id`, params);
+		await query(`UPDATE product_prices SET ${updates.join(', ')} WHERE id = $1`, params);
 		res.json({ id });
 	} catch (err) {
 		console.error('Update product price error:', err);
@@ -1390,7 +1434,7 @@ router.put('/product-prices/:id', async (req, res) => {
 router.delete('/product-prices/:id', async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
-		await query('DELETE FROM product_prices WHERE id = @id', [{ id }]);
+		await query('DELETE FROM product_prices WHERE id = $1', [{ id }]);
 		res.json({ success: true });
 	} catch (err) {
 		console.error('Delete product price error:', err);
@@ -1429,17 +1473,17 @@ router.get('/export/products', async (req, res) => {
 		let result;
 		try {
 			result = await query(
-				'SELECT p.id, p.name, p.sku, p.barcode, p.description, c.name as category_name, p.created_at FROM products p LEFT JOIN categories c ON p.category_id = c.id ORDER BY p.created_at DESC',
+				'SELECT p.id, p.name, p.sku, p.barcode, p.shelf, p.description, c.name as category_name, p.created_at FROM products p LEFT JOIN categories c ON p.category_id = c.id ORDER BY p.created_at DESC',
 				[]
 			);
 		} catch (joinErr) {
 			// If join fails (categories table doesn't exist), query without category
 			result = await query(
-				'SELECT p.id, p.name, p.sku, p.barcode, p.description, NULL as category_name, p.created_at FROM products p ORDER BY p.created_at DESC',
+				'SELECT p.id, p.name, p.sku, p.barcode, p.shelf, p.description, NULL as category_name, p.created_at FROM products p ORDER BY p.created_at DESC',
 				[]
 			);
 		}
-		const csv = toCSV(result.recordset, ['id', 'name', 'sku', 'barcode', 'description', 'category_name', 'created_at']);
+		const csv = toCSV(result.recordset, ['id', 'name', 'sku', 'barcode', 'shelf', 'description', 'category_name', 'created_at']);
 		res.setHeader('Content-Type', 'text/csv');
 		res.setHeader('Content-Disposition', 'attachment; filename="products.csv"');
 		res.send(csv);
@@ -1518,7 +1562,7 @@ router.get('/export/inventory', async (req, res) => {
 			 FROM daily_stock ds
 			 LEFT JOIN products p ON ds.product_id = p.id
 			 LEFT JOIN categories c ON p.category_id = c.id
-			 WHERE ds.date = @today
+			 WHERE ds.date = $1
 			 ORDER BY p.name`,
 			[{ today }]
 		);

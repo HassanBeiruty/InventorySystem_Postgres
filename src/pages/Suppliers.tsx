@@ -9,8 +9,10 @@ import { Plus, UserPlus, Pencil } from "lucide-react";
 import { suppliersRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useTranslation } from "react-i18next";
 
 const Suppliers = () => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -92,37 +94,37 @@ const Suppliers = () => {
         <div className="flex items-center justify-between">
           <div className="space-y-2">
             <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              Suppliers
+              {t('suppliers.title')}
             </h2>
-            <p className="text-muted-foreground text-lg">Manage your supplier relationships</p>
+            <p className="text-muted-foreground text-lg">{t('suppliers.subtitle')}</p>
           </div>
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
               <Button className="gradient-secondary hover:shadow-glow-pink transition-all duration-300 hover:scale-105 font-semibold">
                 <Plus className="w-4 h-4 mr-2" />
-                Add Supplier
+                {t('suppliers.addSupplier')}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Add New Supplier</DialogTitle>
-                <DialogDescription>Create a new supplier profile</DialogDescription>
+                <DialogTitle>{t('suppliers.addSupplier')}</DialogTitle>
+                <DialogDescription>{t('suppliers.subtitle')}</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Supplier Name</Label>
-                  <Input id="name" name="name" placeholder="Enter supplier name" required />
+                  <Label htmlFor="name">{t('suppliers.supplierName')}</Label>
+                  <Input id="name" name="name" placeholder={t('suppliers.supplierName')} required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input id="phone" name="phone" placeholder="Enter phone number" />
+                  <Label htmlFor="phone">{t('suppliers.phone')}</Label>
+                  <Input id="phone" name="phone" placeholder={t('suppliers.phone')} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="address">Address</Label>
-                  <Input id="address" name="address" placeholder="Enter address" />
+                  <Label htmlFor="address">{t('suppliers.address')}</Label>
+                  <Input id="address" name="address" placeholder={t('suppliers.address')} />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Saving..." : "Save Supplier"}
+                  {loading ? t('common.loading') : t('common.save')}
                 </Button>
               </form>
             </DialogContent>
@@ -143,16 +145,16 @@ const Suppliers = () => {
                 <div className="w-20 h-20 rounded-full bg-secondary/10 flex items-center justify-center mb-4">
                   <UserPlus className="w-10 h-10 text-secondary/50" />
                 </div>
-                <p className="text-muted-foreground text-lg">No suppliers yet. Add your first supplier to get started.</p>
+                <p className="text-muted-foreground text-lg">{t('suppliers.noSuppliers')}</p>
               </div>
             ) : (
               <div className="rounded-xl border-2 overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-secondary/5 to-accent/5 hover:from-secondary/10 hover:to-accent/10">
-                      <TableHead className="font-bold">Name</TableHead>
-                      <TableHead className="font-bold">Phone</TableHead>
-                      <TableHead className="font-bold">Address</TableHead>
+                      <TableHead className="font-bold">{t('suppliers.supplierName')}</TableHead>
+                      <TableHead className="font-bold">{t('suppliers.phone')}</TableHead>
+                      <TableHead className="font-bold">{t('suppliers.address')}</TableHead>
                       <TableHead className="font-bold">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -188,25 +190,25 @@ const Suppliers = () => {
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Edit Supplier</DialogTitle>
-              <DialogDescription>Update supplier information</DialogDescription>
+              <DialogTitle>{t('suppliers.editSupplier')}</DialogTitle>
+              <DialogDescription>{t('suppliers.subtitle')}</DialogDescription>
             </DialogHeader>
             {editingSupplier && (
               <form onSubmit={handleUpdate} className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-name">Supplier Name</Label>
+                  <Label htmlFor="edit-name">{t('suppliers.supplierName')}</Label>
                   <Input id="edit-name" name="name" defaultValue={editingSupplier.name} required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-phone">Phone</Label>
+                  <Label htmlFor="edit-phone">{t('suppliers.phone')}</Label>
                   <Input id="edit-phone" name="phone" defaultValue={editingSupplier.phone} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-address">Address</Label>
+                  <Label htmlFor="edit-address">{t('suppliers.address')}</Label>
                   <Input id="edit-address" name="address" defaultValue={editingSupplier.address} />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Updating..." : "Update Supplier"}
+                  {loading ? t('common.loading') : t('common.save')}
                 </Button>
               </form>
             )}

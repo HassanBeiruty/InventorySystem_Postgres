@@ -36,6 +36,7 @@ interface InvoiceDetails {
   amount_paid: number;
   payment_status: string;
   invoice_date: string;
+  due_date?: string | null;
   customers?: { name: string; phone: string; address: string };
   suppliers?: { name: string; phone: string; address: string };
   invoice_items: InvoiceItem[];
@@ -330,6 +331,23 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                     <div>
                       <span className="text-muted-foreground">Date:</span>
                       <span className="ml-2 font-medium">{formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Due Date:</span>
+                      {invoice.due_date ? (
+                        <span className={`ml-2 font-medium ${
+                          new Date(invoice.due_date) < new Date() && invoice.payment_status !== 'paid' 
+                            ? 'text-red-600 font-semibold' 
+                            : ''
+                        }`}>
+                          {formatDateTimeLebanon(invoice.due_date, "MMM dd, yyyy")}
+                          {new Date(invoice.due_date) < new Date() && invoice.payment_status !== 'paid' && (
+                            <Badge variant="destructive" className="ml-2">Overdue</Badge>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="ml-2 text-muted-foreground italic">No due date</span>
+                      )}
                     </div>
                     <div>
                       <span className="text-muted-foreground">Type:</span>

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Package, AlertTriangle } from "lucide-react";
 import { inventoryRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 interface LowStockItem {
   id: string;
@@ -21,6 +22,7 @@ interface LowStockItem {
 }
 
 const LowStock = () => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [lowStockProducts, setLowStockProducts] = useState<LowStockItem[]>([]);
@@ -64,13 +66,13 @@ const LowStock = () => {
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-destructive via-warning to-secondary bg-clip-text text-transparent">
-              Low Stock Alerts
+              {t('lowStock.title')}
             </h1>
-            <p className="text-muted-foreground">Products with quantity at or below threshold</p>
+            <p className="text-muted-foreground">{t('lowStock.subtitle')}</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <Label htmlFor="threshold" className="text-sm font-medium whitespace-nowrap">Threshold:</Label>
+              <Label htmlFor="threshold" className="text-sm font-medium whitespace-nowrap">{t('lowStock.threshold')}:</Label>
               <Input
                 id="threshold"
                 type="number"
@@ -103,10 +105,7 @@ const LowStock = () => {
                   <Package className="w-10 h-10 text-success/50" />
                 </div>
                 <p className="text-muted-foreground text-lg">
-                  All products are well stocked! 🎉
-                </p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  No products with quantity ≤ {threshold}
+                  {t('lowStock.noLowStock')}
                 </p>
               </div>
             ) : (
@@ -114,10 +113,10 @@ const LowStock = () => {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-destructive/5 to-warning/5">
-                      <TableHead className="font-bold">Product</TableHead>
-                      <TableHead className="font-bold">Barcode</TableHead>
-                      <TableHead className="text-center font-bold">Available Qty</TableHead>
-                      <TableHead className="text-center font-bold">Status</TableHead>
+                      <TableHead className="font-bold">{t('lowStock.product')}</TableHead>
+                      <TableHead className="font-bold">{t('products.barcode')}</TableHead>
+                      <TableHead className="text-center font-bold">{t('lowStock.availableQty')}</TableHead>
+                      <TableHead className="text-center font-bold">{t('invoices.status')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

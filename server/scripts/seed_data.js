@@ -23,8 +23,45 @@ function nowIso() {
 	const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
 	const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
 	const second = parseInt(parts.find(p => p.type === 'second')?.value || '0');
+	const ms = now.getMilliseconds();
 	
 	// Return as ISO string (without Z, as it's local Lebanon time)
+	return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
+}
+
+// Helper to get today's date in Lebanon timezone (YYYY-MM-DD)
+function getTodayLocal() {
+	const now = new Date();
+	const formatter = new Intl.DateTimeFormat('en-CA', {
+		timeZone: 'Asia/Beirut',
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit'
+	});
+	return formatter.format(now);
+}
+
+// Helper to format date as ISO string for PostgreSQL TIMESTAMP
+function dateToIso(date) {
+	const formatter = new Intl.DateTimeFormat('en-US', {
+		timeZone: 'Asia/Beirut',
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit',
+		hour12: false
+	});
+	
+	const parts = formatter.formatToParts(date);
+	const year = parseInt(parts.find(p => p.type === 'year')?.value || '0');
+	const month = parseInt(parts.find(p => p.type === 'month')?.value || '0');
+	const day = parseInt(parts.find(p => p.type === 'day')?.value || '0');
+	const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+	const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
+	const second = parseInt(parts.find(p => p.type === 'second')?.value || '0');
+	
 	return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}.000`;
 }
 
@@ -41,8 +78,8 @@ async function seedData() {
 		const tables = ['users', 'products', 'customers', 'suppliers', 'invoices', 'invoice_items', 'daily_stock', 'stock_movements', 'product_prices', 'invoice_payments'];
 		for (const table of tables) {
 			try {
-				const result = await query(`SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = '${table}'`, []);
-				if (result.recordset[0].cnt === 0) {
+				const result = await query(`SELECT COUNT(*) as cnt FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1`, [{ table_name: table }]);
+				if (parseInt(result.recordset[0].cnt) === 0) {
 					console.error(`\n❌ ERROR: Table '${table}' does not exist!`);
 					console.error('   Please ensure the database schema is initialized.');
 					console.error('   The schema initializes automatically on server startup.\n');
@@ -68,16 +105,19 @@ async function seedData() {
 		await query('DELETE FROM products', []);
 		await query('DELETE FROM customers', []);
 		await query('DELETE FROM suppliers', []);
-		await query('DELETE FROM users WHERE email != @demo_email', [{ demo_email: 'demo@example.com' }]);
+		await query('DELETE FROM users WHERE email != $1', [{ email: 'demo@example.com' }]);
 		console.log('✅ Existing data cleared\n');
 
 		// 1. Create Demo User
 		console.log('👤 Creating demo user...');
 		const passwordHash = '123456'; // simple hash for demo
-		await query(
-			'IF NOT EXISTS (SELECT 1 FROM users WHERE email = @email) INSERT INTO users (email, passwordHash, created_at) VALUES (@email, @passwordHash, @created_at)',
-			[{ email: 'demo@example.com' }, { passwordHash }, { created_at: nowIso() }]
-		);
+		const userCheck = await query('SELECT id FROM users WHERE email = $1', [{ email: 'demo@example.com' }]);
+		if (userCheck.recordset.length === 0) {
+			await query(
+				'INSERT INTO users (email, passwordHash, created_at) VALUES ($1, $2, $3)',
+				[{ email: 'demo@example.com', passwordHash, created_at: nowIso() }]
+			);
+		}
 		console.log('✅ Demo user created\n');
 
 		// 2. Create Products
@@ -100,8 +140,8 @@ async function seedData() {
 		const productIds = [];
 		for (const p of products) {
 			const result = await query(
-				'INSERT INTO products (name, barcode, created_at) OUTPUT INSERTED.id VALUES (@name, @barcode, @created_at)',
-				[{ name: p.name }, { barcode: p.barcode }, { created_at: nowIso() }]
+				'INSERT INTO products (name, barcode, created_at) VALUES ($1, $2, $3) RETURNING id',
+				[{ name: p.name, barcode: p.barcode, created_at: nowIso() }]
 			);
 			const productId = result.recordset[0].id;
 			productIds.push({ id: productId, ...p });
@@ -129,13 +169,9 @@ async function seedData() {
 			const product = productIds.find(p => p.name === price.product_name);
 			if (product) {
 				await query(
-					'INSERT INTO product_prices (product_id, wholesale_price, retail_price, effective_date, created_at) VALUES (@product_id, @wholesale_price, @retail_price, @effective_date, @created_at)',
+					'INSERT INTO product_prices (product_id, wholesale_price, retail_price, effective_date, created_at) VALUES ($1, $2, $3, $4, $5)',
 					[
-						{ product_id: product.id },
-						{ wholesale_price: price.wholesale },
-						{ retail_price: price.retail },
-						{ effective_date: new Date().toISOString().split('T')[0] },
-						{ created_at: nowIso() }
+						{ product_id: product.id, wholesale_price: price.wholesale, retail_price: price.retail, effective_date: getTodayLocal(), created_at: nowIso() }
 					]
 				);
 			}
@@ -156,8 +192,8 @@ async function seedData() {
 		const customerIds = [];
 		for (const c of customers) {
 			const result = await query(
-				'INSERT INTO customers (name, phone, address, credit_limit, created_at) OUTPUT INSERTED.id VALUES (@name, @phone, @address, @credit_limit, @created_at)',
-				[{ name: c.name }, { phone: c.phone }, { address: c.address }, { credit_limit: c.credit }, { created_at: nowIso() }]
+				'INSERT INTO customers (name, phone, address, credit_limit, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+				[{ name: c.name, phone: c.phone, address: c.address, credit_limit: c.credit, created_at: nowIso() }]
 			);
 			customerIds.push({ id: result.recordset[0].id, ...c });
 		}
@@ -175,8 +211,8 @@ async function seedData() {
 		const supplierIds = [];
 		for (const s of suppliers) {
 			const result = await query(
-				'INSERT INTO suppliers (name, phone, address, created_at) OUTPUT INSERTED.id VALUES (@name, @phone, @address, @created_at)',
-				[{ name: s.name }, { phone: s.phone }, { address: s.address }, { created_at: nowIso() }]
+				'INSERT INTO suppliers (name, phone, address, created_at) VALUES ($1, $2, $3, $4) RETURNING id',
+				[{ name: s.name, phone: s.phone, address: s.address, created_at: nowIso() }]
 			);
 			supplierIds.push({ id: result.recordset[0].id, ...s });
 		}
@@ -185,21 +221,25 @@ async function seedData() {
 		// 6. Create BUY Invoices (purchases from suppliers)
 		console.log('📥 Creating buy invoices...');
 		// Get today in Lebanon timezone
-		const now = new Date();
-		const formatter = new Intl.DateTimeFormat('en-CA', {
-			timeZone: 'Asia/Beirut',
-			year: 'numeric',
-			month: '2-digit',
-			day: '2-digit'
-		});
-		const todayStr = formatter.format(now);
-		const today = new Date(todayStr + 'T00:00:00'); // Create date from Lebanon date string
+		const todayStr = getTodayLocal();
+		const today = new Date(todayStr + 'T00:00:00');
 		const buyInvoices = [];
 		const stockByProduct = new Map();
 
-		// Create 8 buy invoices over the past 30 days
+		// Create buy invoice dates: 8 invoices over the past 30 days (earlier dates first)
+		const buyInvoiceDates = [];
 		for (let i = 0; i < 8; i++) {
-			const invoiceDate = randomDate(new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000), today);
+			// Start from 30 days ago and work forward
+			const daysAgo = 30 - (i * 4); // Spread over 30 days
+			const invoiceDate = new Date(today.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+			buyInvoiceDates.push(invoiceDate);
+		}
+		// Sort by date to ensure chronological order
+		buyInvoiceDates.sort((a, b) => a.getTime() - b.getTime());
+
+		// Create 8 buy invoices with dates before sell invoices
+		for (let i = 0; i < 8; i++) {
+			const invoiceDate = buyInvoiceDates[i];
 			const supplier = supplierIds[Math.floor(Math.random() * supplierIds.length)];
 			
 			// Random 2-4 items per invoice
@@ -232,14 +272,9 @@ async function seedData() {
 
 			// Create invoice
 			const invResult = await query(
-				'INSERT INTO invoices (invoice_type, supplier_id, total_amount, is_paid, invoice_date, created_at) OUTPUT INSERTED.id VALUES (@invoice_type, @supplier_id, @total_amount, @is_paid, @invoice_date, @created_at)',
+				'INSERT INTO invoices (invoice_type, supplier_id, total_amount, is_paid, invoice_date, created_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
 				[
-					{ invoice_type: 'buy' },
-					{ supplier_id: supplier.id },
-					{ total_amount: parseFloat(totalAmount.toFixed(2)) },
-					{ is_paid: Math.random() > 0.3 ? 1 : 0 },
-					{ invoice_date: invoiceDate.toISOString() },
-					{ created_at: nowIso() }
+					{ invoice_type: 'buy', supplier_id: supplier.id, total_amount: parseFloat(totalAmount.toFixed(2)), is_paid: Math.random() > 0.3 ? 1 : 0, invoice_date: dateToIso(invoiceDate), created_at: nowIso() }
 				]
 			);
 			const invoiceId = invResult.recordset[0].id;
@@ -247,51 +282,57 @@ async function seedData() {
 			// Create invoice items
 			for (const item of items) {
 				await query(
-					'INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) OUTPUT INSERTED.id VALUES (@invoice_id, @product_id, @quantity, @unit_price, @total_price, @price_type, @is_private_price, @private_price_amount, @private_price_note)',
+					'INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
 					[
-						{ invoice_id: invoiceId },
-						{ product_id: item.product_id },
-						{ quantity: item.quantity },
-						{ unit_price: item.cost },
-						{ total_price: item.total },
-						{ price_type: 'wholesale' },
-						{ is_private_price: 0 },
-						{ private_price_amount: null },
-						{ private_price_note: null }
+						{ invoice_id: invoiceId, product_id: item.product_id, quantity: item.quantity, unit_price: item.cost, total_price: item.total, price_type: 'wholesale', is_private_price: 0, private_price_amount: null, private_price_note: null }
 					]
 				);
 			}
 
-			buyInvoices.push({ id: invoiceId, items });
+			buyInvoices.push({ id: invoiceId, date: invoiceDate, items });
 		}
 		console.log(`✅ Created ${buyInvoices.length} buy invoices\n`);
 
 		// 7. Initialize Daily Stock from buy invoices
 		console.log('📊 Initializing daily stock...');
-		const todayStr = today.toISOString().split('T')[0];
 		for (const [productId, stock] of stockByProduct) {
 			const avgCost = stock.totalCost / stock.qty;
 			await query(
-				'INSERT INTO daily_stock (product_id, available_qty, avg_cost, date, created_at, updated_at) VALUES (@product_id, @available_qty, @avg_cost, @date, @created_at, @updated_at)',
+				'INSERT INTO daily_stock (product_id, available_qty, avg_cost, date, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)',
 				[
-					{ product_id: productId },
-					{ available_qty: stock.qty },
-					{ avg_cost: parseFloat(avgCost.toFixed(2)) },
-					{ date: todayStr },
-					{ created_at: nowIso() },
-					{ updated_at: nowIso() }
+					{ product_id: productId, available_qty: stock.qty, avg_cost: parseFloat(avgCost.toFixed(2)), date: todayStr, created_at: nowIso(), updated_at: nowIso() }
 				]
 			);
 		}
 		console.log(`✅ Initialized stock for ${stockByProduct.size} products\n`);
 
 		// 8. Create SELL Invoices (sales to customers)
+		// IMPORTANT: Sell invoices must be created AFTER buy invoices chronologically
 		console.log('💰 Creating sell invoices...');
 		const sellInvoices = [];
-
-		// Create 15 sell invoices
+		
+		// Get the latest buy invoice date to ensure sell invoices come after
+		const latestBuyDate = buyInvoices.length > 0 
+			? Math.max(...buyInvoices.map(inv => inv.date.getTime()))
+			: new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).getTime();
+		
+		// Create sell invoice dates: 15 invoices, all AFTER the latest buy invoice
+		const sellInvoiceDates = [];
 		for (let i = 0; i < 15; i++) {
-			const invoiceDate = randomDate(new Date(today.getTime() - 25 * 24 * 60 * 60 * 1000), today);
+			// Start from 1 day after the latest buy invoice, up to today
+			const daysAfterLatestBuy = 1 + (i * 2); // Spread over ~30 days
+			const invoiceDate = new Date(latestBuyDate + daysAfterLatestBuy * 24 * 60 * 60 * 1000);
+			// Don't go beyond today
+			if (invoiceDate.getTime() <= today.getTime()) {
+				sellInvoiceDates.push(invoiceDate);
+			}
+		}
+		// Sort by date
+		sellInvoiceDates.sort((a, b) => a.getTime() - b.getTime());
+
+		// Create sell invoices with dates after buy invoices
+		for (let i = 0; i < Math.min(15, sellInvoiceDates.length); i++) {
+			const invoiceDate = sellInvoiceDates[i];
 			const customer = customerIds[Math.floor(Math.random() * customerIds.length)];
 			
 			const itemCount = 1 + Math.floor(Math.random() * 4); // 1-4 items
@@ -352,14 +393,9 @@ async function seedData() {
 			if (items.length > 0) {
 				// Create invoice
 				const invResult = await query(
-					'INSERT INTO invoices (invoice_type, customer_id, total_amount, is_paid, invoice_date, created_at) OUTPUT INSERTED.id VALUES (@invoice_type, @customer_id, @total_amount, @is_paid, @invoice_date, @created_at)',
+					'INSERT INTO invoices (invoice_type, customer_id, total_amount, is_paid, invoice_date, created_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
 					[
-						{ invoice_type: 'sell' },
-						{ customer_id: customer.id },
-						{ total_amount: parseFloat(totalAmount.toFixed(2)) },
-						{ is_paid: Math.random() > 0.2 ? 1 : 0 },
-						{ invoice_date: invoiceDate.toISOString() },
-						{ created_at: nowIso() }
+						{ invoice_type: 'sell', customer_id: customer.id, total_amount: parseFloat(totalAmount.toFixed(2)), is_paid: Math.random() > 0.2 ? 1 : 0, invoice_date: dateToIso(invoiceDate), created_at: nowIso() }
 					]
 				);
 				const invoiceId = invResult.recordset[0].id;
@@ -367,17 +403,9 @@ async function seedData() {
 				// Create invoice items
 				for (const item of items) {
 					await query(
-						'INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) OUTPUT INSERTED.id VALUES (@invoice_id, @product_id, @quantity, @unit_price, @total_price, @price_type, @is_private_price, @private_price_amount, @private_price_note)',
+						'INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
 						[
-							{ invoice_id: invoiceId },
-							{ product_id: item.product_id },
-							{ quantity: item.quantity },
-							{ unit_price: item.unit_price },
-							{ total_price: item.total },
-							{ price_type: item.price_type },
-							{ is_private_price: item.is_private ? 1 : 0 },
-							{ private_price_amount: item.is_private ? item.unit_price : null },
-							{ private_price_note: item.is_private ? item.private_note : null }
+							{ invoice_id: invoiceId, product_id: item.product_id, quantity: item.quantity, unit_price: item.unit_price, total_price: item.total, price_type: item.price_type, is_private_price: item.is_private ? 1 : 0, private_price_amount: item.is_private ? item.unit_price : null, private_price_note: item.is_private ? item.private_note : null }
 						]
 					);
 
@@ -386,15 +414,9 @@ async function seedData() {
 					const qtyBefore = stock.qty + item.quantity;
 					const qtyAfter = stock.qty;
 					await query(
-						'INSERT INTO stock_movements (product_id, invoice_id, invoice_date, quantity_before, quantity_change, quantity_after, created_at) VALUES (@product_id, @invoice_id, @invoice_date, @quantity_before, @quantity_change, @quantity_after, @created_at)',
+						'INSERT INTO stock_movements (product_id, invoice_id, invoice_date, quantity_before, quantity_change, quantity_after, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)',
 						[
-							{ product_id: item.product_id },
-							{ invoice_id: invoiceId },
-							{ invoice_date: invoiceDate.toISOString() },
-							{ quantity_before: qtyBefore },
-							{ quantity_change: -item.quantity },
-							{ quantity_after: qtyAfter },
-							{ created_at: nowIso() }
+							{ product_id: item.product_id, invoice_id: invoiceId, invoice_date: dateToIso(invoiceDate), quantity_before: qtyBefore, quantity_change: -item.quantity, quantity_after: qtyAfter, created_at: nowIso() }
 						]
 					);
 				}
@@ -407,39 +429,32 @@ async function seedData() {
 		// 9. Update final daily stock
 		console.log('📊 Updating final stock positions...');
 		for (const [productId, stock] of stockByProduct) {
-			const avgCost = stock.totalCost / (stock.qty + buyInvoices.reduce((sum, inv) => {
+			const totalQty = stock.qty + buyInvoices.reduce((sum, inv) => {
 				return sum + inv.items.filter(it => it.product_id === productId).reduce((s, i) => s + i.quantity, 0);
-			}, 0));
+			}, 0);
+			const avgCost = totalQty > 0 ? stock.totalCost / totalQty : 0;
 			await query(
-				'UPDATE daily_stock SET available_qty = @qty, avg_cost = @avg_cost, updated_at = @updated_at WHERE product_id = @product_id AND date = @date',
+				'UPDATE daily_stock SET available_qty = $1, avg_cost = $2, updated_at = $3 WHERE product_id = $4 AND date = $5',
 				[
-					{ qty: stock.qty },
-					{ avg_cost: parseFloat(avgCost.toFixed(2)) },
-					{ updated_at: nowIso() },
-					{ product_id: productId },
-					{ date: todayStr }
+					{ qty: stock.qty, avg_cost: parseFloat(avgCost.toFixed(2)), updated_at: nowIso(), product_id: productId, date: todayStr }
 				]
 			);
 		}
 		console.log(`✅ Updated stock positions\n`);
 
-		// 10. Create stock movements for buy invoices
+		// 10. Create stock movements for buy invoices (in chronological order)
 		console.log('📝 Creating stock movements for buy invoices...');
 		let movementCount = 0;
-		for (const inv of buyInvoices) {
+		// Sort buy invoices by date to process them chronologically
+		const sortedBuyInvoices = [...buyInvoices].sort((a, b) => a.date.getTime() - b.date.getTime());
+		for (const inv of sortedBuyInvoices) {
 			for (const item of inv.items) {
 				const stock = stockByProduct.get(item.product_id);
 				const qtyBefore = (stock.qty || 0) - item.quantity;
 				await query(
-					'INSERT INTO stock_movements (product_id, invoice_id, invoice_date, quantity_before, quantity_change, quantity_after, created_at) VALUES (@product_id, @invoice_id, @invoice_date, @quantity_before, @quantity_change, @quantity_after, @created_at)',
+					'INSERT INTO stock_movements (product_id, invoice_id, invoice_date, quantity_before, quantity_change, quantity_after, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)',
 					[
-						{ product_id: item.product_id },
-						{ invoice_id: inv.id },
-						{ invoice_date: new Date().toISOString() },
-						{ quantity_before: qtyBefore },
-						{ quantity_change: item.quantity },
-						{ quantity_after: stock.qty },
-						{ created_at: nowIso() }
+						{ product_id: item.product_id, invoice_id: inv.id, invoice_date: dateToIso(inv.date), quantity_before: qtyBefore, quantity_change: item.quantity, quantity_after: stock.qty, created_at: nowIso() }
 					]
 				);
 				movementCount++;

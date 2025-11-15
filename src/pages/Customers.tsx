@@ -9,8 +9,10 @@ import { Plus, Users, Pencil } from "lucide-react";
 import { customersRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useTranslation } from "react-i18next";
 
 const Customers = () => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -100,41 +102,41 @@ const Customers = () => {
         <div className="flex items-center justify-between">
           <div className="space-y-2">
             <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              Customers
+              {t('customers.title')}
             </h2>
-            <p className="text-muted-foreground text-lg">Manage your customer relationships</p>
+            <p className="text-muted-foreground text-lg">{t('customers.subtitle')}</p>
           </div>
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
               <Button className="gradient-primary hover:shadow-glow transition-all duration-300 hover:scale-105 font-semibold">
                 <Plus className="w-4 h-4 mr-2" />
-                Add Customer
+                {t('customers.addCustomer')}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Add New Customer</DialogTitle>
-                <DialogDescription>Create a new customer profile</DialogDescription>
+                <DialogTitle>{t('customers.addCustomer')}</DialogTitle>
+                <DialogDescription>{t('customers.subtitle')}</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Customer Name</Label>
-                  <Input id="name" name="name" placeholder="Enter customer name" required />
+                  <Label htmlFor="name">{t('customers.customerName')}</Label>
+                  <Input id="name" name="name" placeholder={t('customers.customerName')} required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input id="phone" name="phone" placeholder="Enter phone number" />
+                  <Label htmlFor="phone">{t('customers.phone')}</Label>
+                  <Input id="phone" name="phone" placeholder={t('customers.phone')} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="address">Address</Label>
-                  <Input id="address" name="address" placeholder="Enter address" />
+                  <Label htmlFor="address">{t('customers.address')}</Label>
+                  <Input id="address" name="address" placeholder={t('customers.address')} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="credit">Credit Limit</Label>
+                  <Label htmlFor="credit">{t('customers.creditLimit')}</Label>
                   <Input id="credit" name="credit" type="number" step="0.01" placeholder="0.00" />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Saving..." : "Save Customer"}
+                  {loading ? t('common.loading') : t('common.save')}
                 </Button>
               </form>
             </DialogContent>
@@ -155,17 +157,17 @@ const Customers = () => {
                 <div className="w-20 h-20 rounded-full bg-success/10 flex items-center justify-center mb-4">
                   <Users className="w-10 h-10 text-success/50" />
                 </div>
-                <p className="text-muted-foreground text-lg">No customers yet. Add your first customer to get started.</p>
+                <p className="text-muted-foreground text-lg">{t('customers.noCustomers')}</p>
               </div>
             ) : (
               <div className="rounded-xl border-2 overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-success/5 to-accent/5 hover:from-success/10 hover:to-accent/10">
-                      <TableHead className="font-bold">Name</TableHead>
-                      <TableHead className="font-bold">Phone</TableHead>
-                      <TableHead className="font-bold">Address</TableHead>
-                      <TableHead className="font-bold">Credit Limit</TableHead>
+                      <TableHead className="font-bold">{t('customers.customerName')}</TableHead>
+                      <TableHead className="font-bold">{t('customers.phone')}</TableHead>
+                      <TableHead className="font-bold">{t('customers.address')}</TableHead>
+                      <TableHead className="font-bold">{t('customers.creditLimit')}</TableHead>
                       <TableHead className="font-bold">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -202,29 +204,29 @@ const Customers = () => {
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Edit Customer</DialogTitle>
-              <DialogDescription>Update customer information</DialogDescription>
+              <DialogTitle>{t('customers.editCustomer')}</DialogTitle>
+              <DialogDescription>{t('customers.subtitle')}</DialogDescription>
             </DialogHeader>
             {editingCustomer && (
               <form onSubmit={handleUpdate} className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-name">Customer Name</Label>
+                  <Label htmlFor="edit-name">{t('customers.customerName')}</Label>
                   <Input id="edit-name" name="name" defaultValue={editingCustomer.name} required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-phone">Phone</Label>
+                  <Label htmlFor="edit-phone">{t('customers.phone')}</Label>
                   <Input id="edit-phone" name="phone" defaultValue={editingCustomer.phone} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-address">Address</Label>
+                  <Label htmlFor="edit-address">{t('customers.address')}</Label>
                   <Input id="edit-address" name="address" defaultValue={editingCustomer.address} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-credit">Credit Limit</Label>
+                  <Label htmlFor="edit-credit">{t('customers.creditLimit')}</Label>
                   <Input id="edit-credit" name="credit" type="number" step="0.01" defaultValue={editingCustomer.credit_limit} />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Updating..." : "Update Customer"}
+                  {loading ? t('common.loading') : t('common.save')}
                 </Button>
               </form>
             )}

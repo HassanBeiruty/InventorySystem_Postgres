@@ -11,8 +11,10 @@ import { DollarSign, TrendingUp, Filter, X, Plus, Pencil, Trash2 } from "lucide-
 import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { productPricesRepo, productsRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 const ProductPrices = () => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [prices, setPrices] = useState<any[]>([]);
@@ -170,9 +172,9 @@ const ProductPrices = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              Product Prices
+              {t('productPrices.title')}
             </h1>
-            <p className="text-muted-foreground">Manage wholesale and retail prices for products</p>
+            <p className="text-muted-foreground">{t('productPrices.subtitle')}</p>
           </div>
           <div className="flex gap-2">
             <Button
@@ -181,26 +183,26 @@ const ProductPrices = () => {
               className="gap-2"
             >
               <Filter className="w-4 h-4" />
-              {showFilters ? "Hide Filters" : "Show Filters"}
+              {showFilters ? t('common.hideFilters') : t('common.showFilters')}
             </Button>
             <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
               <DialogTrigger asChild>
                 <Button className="gap-2">
                   <Plus className="w-4 h-4" />
-                  Add Price
+                  {t('productPrices.addPrice')}
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Add Product Price</DialogTitle>
-                  <DialogDescription>Create a new price record for a product</DialogDescription>
+                  <DialogTitle>{t('productPrices.addPrice')}</DialogTitle>
+                  <DialogDescription>{t('productPrices.subtitle')}</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleAdd} className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label>Product</Label>
+                    <Label>{t('invoiceForm.product')}</Label>
                     <Select value={addProductId} onValueChange={setAddProductId} required>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select product" />
+                        <SelectValue placeholder={t('invoiceForm.selectProduct')} />
                       </SelectTrigger>
                       <SelectContent>
                         {products.map((product) => (
@@ -213,7 +215,7 @@ const ProductPrices = () => {
                     <input type="hidden" name="product_id" value={addProductId} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Wholesale Price</Label>
+                    <Label>{t('productPrices.wholesalePrice')}</Label>
                     <Input 
                       type="number" 
                       step="0.01" 
@@ -223,7 +225,7 @@ const ProductPrices = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Retail Price</Label>
+                    <Label>{t('productPrices.retailPrice')}</Label>
                     <Input 
                       type="number" 
                       step="0.01" 
@@ -233,7 +235,7 @@ const ProductPrices = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Effective Date</Label>
+                    <Label>{t('productPrices.effectiveDate')}</Label>
                     <Input 
                       type="date" 
                       name="effective_date" 
@@ -241,7 +243,7 @@ const ProductPrices = () => {
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={formLoading}>
-                    {formLoading ? "Saving..." : "Save Price"}
+                    {formLoading ? t('common.loading') : t('common.save')}
                   </Button>
                 </form>
               </DialogContent>
@@ -254,13 +256,13 @@ const ProductPrices = () => {
           <div className="border-2 rounded-lg p-4 bg-muted/20">
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
-                <Label>Product</Label>
+                <Label>{t('invoiceForm.product')}</Label>
                 <Select value={filters.product_id} onValueChange={(value) => setFilters({...filters, product_id: value})}>
                   <SelectTrigger>
-                    <SelectValue placeholder="All products" />
+                    <SelectValue placeholder={t('invoices.allProducts')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All products</SelectItem>
+                    <SelectItem value="all">{t('invoices.allProducts')}</SelectItem>
                     {products.map((product) => (
                       <SelectItem key={product.id} value={product.id}>
                         <span className="text-muted-foreground text-xs">#{product.id}</span> {product.name}
@@ -271,7 +273,7 @@ const ProductPrices = () => {
               </div>
               
               <div className="space-y-2">
-                <Label>Start Date</Label>
+                <Label>{t('invoices.startDate')}</Label>
                 <Input
                   type="date"
                   value={filters.start_date}
@@ -280,7 +282,7 @@ const ProductPrices = () => {
               </div>
               
               <div className="space-y-2">
-                <Label>End Date</Label>
+                <Label>{t('invoices.endDate')}</Label>
                 <Input
                   type="date"
                   value={filters.end_date}
@@ -290,10 +292,10 @@ const ProductPrices = () => {
             </div>
             
             <div className="flex gap-2 mt-4">
-              <Button onClick={applyFilters}>Apply Filters</Button>
+              <Button onClick={applyFilters}>{t('common.apply')}</Button>
               <Button variant="outline" onClick={clearFilters}>
                 <X className="w-4 h-4 mr-2" />
-                Clear
+                {t('common.clear')}
               </Button>
             </div>
           </div>
@@ -318,17 +320,17 @@ const ProductPrices = () => {
             ) : prices.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">
                 <DollarSign className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p className="text-lg">No price records found</p>
+                <p className="text-lg">{t('productPrices.noPrices')}</p>
               </div>
             ) : (
               <div className="rounded-xl border-2 overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5">
-                      <TableHead className="font-bold">Product</TableHead>
-                      <TableHead className="font-bold">Effective Date</TableHead>
-                      <TableHead className="text-right font-bold">Wholesale Price</TableHead>
-                      <TableHead className="text-right font-bold">Retail Price</TableHead>
+                      <TableHead className="font-bold">{t('invoiceForm.product')}</TableHead>
+                      <TableHead className="font-bold">{t('productPrices.effectiveDate')}</TableHead>
+                      <TableHead className="text-right font-bold">{t('productPrices.wholesalePrice')}</TableHead>
+                      <TableHead className="text-right font-bold">{t('productPrices.retailPrice')}</TableHead>
                       <TableHead className="text-center font-bold">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -382,20 +384,20 @@ const ProductPrices = () => {
         <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Edit Product Price</DialogTitle>
-              <DialogDescription>Update price information</DialogDescription>
+              <DialogTitle>{t('productPrices.editPrice')}</DialogTitle>
+              <DialogDescription>{t('productPrices.updatePrice')}</DialogDescription>
             </DialogHeader>
             {editingPrice && (
               <form onSubmit={handleUpdate} className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label>Product</Label>
+                  <Label>{t('invoiceForm.product')}</Label>
                   <Input 
                     value={editingPrice.product_name || ''} 
                     disabled 
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Wholesale Price</Label>
+                  <Label>{t('productPrices.wholesalePrice')}</Label>
                   <Input 
                     type="number" 
                     step="0.01" 
@@ -405,7 +407,7 @@ const ProductPrices = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Retail Price</Label>
+                  <Label>{t('productPrices.retailPrice')}</Label>
                   <Input 
                     type="number" 
                     step="0.01" 
@@ -415,7 +417,7 @@ const ProductPrices = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Effective Date</Label>
+                  <Label>{t('productPrices.effectiveDate')}</Label>
                   <Input 
                     type="date" 
                     name="effective_date" 
@@ -423,7 +425,7 @@ const ProductPrices = () => {
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={formLoading}>
-                  {formLoading ? "Updating..." : "Update Price"}
+                  {formLoading ? t('productPrices.updating') : t('productPrices.updatePrice')}
                 </Button>
               </form>
             )}

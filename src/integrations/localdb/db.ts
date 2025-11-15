@@ -12,7 +12,12 @@ export interface ProductEntity {
   id: number;
   name: string;
   barcode: string | null;
+  category_id: number | null;
+  description: string | null;
+  sku: string | null;
+  shelf: string | null;
   created_at: string;
+  category_name?: string; // From JOIN with categories
 }
 
 export interface CustomerEntity {
@@ -40,6 +45,9 @@ export interface InvoiceEntity {
   total_amount: number;
   is_paid: boolean;
   invoice_date: string; // ISO
+  due_date: string | null;
+  amount_paid?: number;
+  payment_status?: "pending" | "partial" | "paid";
   created_at: string;
 }
 

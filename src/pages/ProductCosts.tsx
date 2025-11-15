@@ -282,69 +282,6 @@ const ProductCosts = () => {
             )}
           </div>
         </div>
-
-        {/* Detailed Snapshots Table */}
-        <div className="border-2 rounded-lg overflow-hidden">
-          <div className="border-b bg-gradient-to-br from-primary/5 to-accent/5 p-4">
-            <h3 className="flex items-center gap-2 text-lg font-bold">
-              <TrendingDown className="w-5 h-5 text-primary" />
-              Daily Avg Cost Snapshots
-            </h3>
-            <p className="text-sm text-muted-foreground">Per-product snapshots from daily_stock</p>
-          </div>
-          <div className="p-4">
-            {loading ? (
-              <div className="space-y-3">
-                {Array(10).fill(0).map((_, i) => (
-                  <Skeleton key={i} className="h-12 w-full" />
-                ))}
-              </div>
-            ) : costs.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground">
-                <DollarSign className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p className="text-lg">No snapshots found</p>
-              </div>
-            ) : (
-              <div className="rounded-xl border-2 overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5">
-                      <TableHead className="font-bold">Date</TableHead>
-                      <TableHead className="font-bold">Product</TableHead>
-                      <TableHead className="text-center font-bold">Quantity</TableHead>
-                      <TableHead className="text-right font-bold">Avg Cost</TableHead>
-                      <TableHead className="text-right font-bold">Total Value</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {costs.map((row, idx) => {
-                      const totalValue = parseFloat(row.avg_cost) * parseInt(row.available_qty);
-                      return (
-                        <TableRow 
-                          key={`${row.product_id}-${row.date}-${idx}`}
-                          className="hover:bg-primary/5 transition-colors animate-fade-in"
-                          style={{ animationDelay: `${idx * 0.01}s` }}
-                        >
-                          <TableCell className="text-sm">
-                            {formatDateTimeLebanon(row.date, "MMM dd, yyyy")}
-                          </TableCell>
-                          <TableCell className="font-semibold">{row.product_name}</TableCell>
-                          <TableCell className="text-center font-medium">{row.available_qty}</TableCell>
-                          <TableCell className="text-right font-semibold text-warning">
-                            ${parseFloat(row.avg_cost).toFixed(2)}
-                          </TableCell>
-                          <TableCell className="text-right font-bold text-destructive">
-                            ${totalValue.toFixed(2)}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </div>
-        </div>
       </div>
     </DashboardLayout>
   );

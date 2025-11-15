@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { auth } from "@/integrations/api/repo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,9 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 const authSchema = z.object({
   email: z.string().trim().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, "Password must contain at least one uppercase letter, one lowercase letter, and one number"),
 });
 
 const Auth = () => {
@@ -117,6 +119,13 @@ const Auth = () => {
                 className="h-11 border-2 focus:border-primary/50 transition-all"
               />
             </div>
+            {isLogin && (
+              <div className="text-right">
+                <Link to="/forgot-password" className="text-sm text-primary hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
+            )}
             <Button 
               type="submit" 
               className="w-full h-11 gradient-primary hover:shadow-glow transition-all duration-300 hover:scale-[1.02] font-semibold text-base" 

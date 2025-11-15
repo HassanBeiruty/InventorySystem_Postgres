@@ -17,7 +17,7 @@ app.use('/api', (req, res, next) => {
 
 // Basic root route to verify server is up
 app.get('/', (req, res) => {
-	res.json({ status: 'ok', service: 'dream-weaver-den backend' });
+	res.json({ status: 'ok', service: 'Invoice System Backend' });
 });
 
 // Initialize SQL schema on startup (idempotent)
@@ -59,16 +59,16 @@ let initCompleted = false;
 // DB health check
 app.get('/api/health', async (req, res) => {
 	const info = {
-		server: process.env.SQL_SERVER,
-		database: process.env.SQL_DATABASE,
-		trustServerCert: process.env.SQL_TRUST_SERVER_CERT,
-		odbcDriver: process.env.SQL_ODBC_DRIVER || 'ODBC Driver 18 for SQL Server',
+		host: process.env.PG_HOST || 'localhost',
+		port: process.env.PG_PORT || '5432',
+		database: process.env.PG_DATABASE || 'invoicesystem',
+		user: process.env.PG_USER || 'postgres',
 	};
 	try {
 		const { query } = require('./db');
 		const pong = await query('SELECT 1 AS ok', []);
-		const result = await query('SELECT GETDATE() AS now, DB_NAME() AS db', []);
-		const tables = await query('SELECT COUNT(*) AS tablesCount FROM INFORMATION_SCHEMA.TABLES', []);
+		const result = await query('SELECT NOW() AS now, current_database() AS db', []);
+		const tables = await query('SELECT COUNT(*) AS tablesCount FROM information_schema.tables WHERE table_schema = \'public\'', []);
 		res.json({ status: 'ok', ping: pong.recordset?.[0]?.ok === 1, db: result.recordset?.[0] ?? null, tablesCount: tables.recordset?.[0]?.tablesCount ?? 0, info });
 	} catch (err) {
 		let message = 'Unknown error';
@@ -94,13 +94,13 @@ app.get('/api/health', async (req, res) => {
 app.get('/api/db-test', async (req, res) => {
 	try {
 		const { query } = require('./db');
-		const hasInvoices = await query("SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'invoices'", []);
+		const hasInvoices = await query("SELECT 1 FROM information_schema.tables WHERE table_name = 'invoices' AND table_schema = 'public'", []);
 		if (hasInvoices.recordset.length > 0) {
-			const rows = await query('SELECT TOP 20 * FROM invoices ORDER BY created_at DESC', []);
+			const rows = await query('SELECT * FROM invoices ORDER BY created_at DESC LIMIT 20', []);
 			return res.json({ source: 'invoices', rows: rows.recordset });
 		}
-		const tables = await query('SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES ORDER BY TABLE_SCHEMA, TABLE_NAME', []);
-		res.json({ source: 'INFORMATION_SCHEMA.TABLES', rows: tables.recordset });
+		const tables = await query('SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema = \'public\' ORDER BY table_schema, table_name', []);
+		res.json({ source: 'information_schema.tables', rows: tables.recordset });
 	} catch (err) {
 		const errorMsg = err?.message || err?.toString() || 'Unknown error';
 		console.error('DB test failed:', errorMsg);
@@ -131,11 +131,11 @@ app.post('/api/admin/init', async (req, res) => {
 app.get('/api/admin/init-status', async (req, res) => {
 	try {
 		const { query } = require('./db');
-		const tables = await query('SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = \'BASE TABLE\' ORDER BY TABLE_NAME', []);
+		const tables = await query('SELECT table_name FROM information_schema.tables WHERE table_schema = \'public\' AND table_type = \'BASE TABLE\' ORDER BY table_name', []);
 		res.json({ 
 			status: 'ok', 
 			tablesCount: tables.recordset.length,
-			tables: tables.recordset.map(t => t.TABLE_NAME),
+			tables: tables.recordset.map(t => t.table_name),
 			initCompleted 
 		});
 	} catch (e) {
