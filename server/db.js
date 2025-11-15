@@ -1,16 +1,46 @@
 const { Pool } = require('pg');
 
-const pool = new Pool({
-	host: process.env.PG_HOST || 'localhost',
-	port: parseInt(process.env.PG_PORT || '5432'),
-	database: process.env.PG_DATABASE || 'invoicesystem',
-	user: process.env.PG_USER || 'postgres',
-	password: process.env.PG_PASSWORD || '',
-	ssl: process.env.PG_SSL === 'true' ? { rejectUnauthorized: false } : false,
-	max: 20,
-	idleTimeoutMillis: 30000,
-	connectionTimeoutMillis: 30000,
-});
+// Support both DATABASE_URL (from Render) and individual connection parameters
+let poolConfig;
+
+if (process.env.DATABASE_URL) {
+	// Use DATABASE_URL if provided (common in Render)
+	poolConfig = {
+		connectionString: process.env.DATABASE_URL,
+		ssl: process.env.PG_SSL === 'true' || process.env.DATABASE_URL.includes('render.com') 
+			? { rejectUnauthorized: false } 
+			: false,
+		max: 20,
+		idleTimeoutMillis: 30000,
+		connectionTimeoutMillis: 30000,
+	};
+} else {
+	// Use individual connection parameters
+	poolConfig = {
+		host: process.env.PG_HOST || 'localhost',
+		port: parseInt(process.env.PG_PORT || '5432'),
+		database: process.env.PG_DATABASE || 'invoicesystem',
+		user: process.env.PG_USER || 'postgres',
+		password: process.env.PG_PASSWORD || '',
+		ssl: process.env.PG_SSL === 'true' ? { rejectUnauthorized: false } : false,
+		max: 20,
+		idleTimeoutMillis: 30000,
+		connectionTimeoutMillis: 30000,
+	};
+}
+
+// Log connection details (without password) for debugging
+if (process.env.NODE_ENV === 'production') {
+	console.log('[DB] Connecting to:', {
+		host: poolConfig.host || 'DATABASE_URL',
+		port: poolConfig.port || 'from URL',
+		database: poolConfig.database || 'from URL',
+		user: poolConfig.user || 'from URL',
+		ssl: poolConfig.ssl ? 'enabled' : 'disabled'
+	});
+}
+
+const pool = new Pool(poolConfig);
 
 pool.on('error', (err) => {
 	console.error('[DB] Unexpected error on idle client', err);
