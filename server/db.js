@@ -5,23 +5,36 @@ let poolConfig;
 
 if (process.env.DATABASE_URL) {
 	// Use DATABASE_URL if provided (common in Render)
+	// This is the easiest and most reliable method
 	poolConfig = {
 		connectionString: process.env.DATABASE_URL,
-		ssl: process.env.PG_SSL === 'true' || process.env.DATABASE_URL.includes('render.com') 
+		ssl: process.env.PG_SSL === 'true' || process.env.DATABASE_URL.includes('render.com') || process.env.DATABASE_URL.includes('dpg-')
 			? { rejectUnauthorized: false } 
 			: false,
 		max: 20,
 		idleTimeoutMillis: 30000,
 		connectionTimeoutMillis: 30000,
 	};
+	console.log('[DB] Using DATABASE_URL connection string');
 } else {
 	// Use individual connection parameters
+	const password = process.env.PG_PASSWORD || '';
+	
+	// Log connection attempt (without password)
+	console.log('[DB] Using individual connection parameters');
+	console.log('[DB] Host:', process.env.PG_HOST);
+	console.log('[DB] Port:', process.env.PG_PORT);
+	console.log('[DB] Database:', process.env.PG_DATABASE);
+	console.log('[DB] User:', process.env.PG_USER);
+	console.log('[DB] Password length:', password.length, 'characters');
+	console.log('[DB] SSL:', process.env.PG_SSL === 'true' ? 'enabled' : 'disabled');
+	
 	poolConfig = {
 		host: process.env.PG_HOST || 'localhost',
 		port: parseInt(process.env.PG_PORT || '5432'),
 		database: process.env.PG_DATABASE || 'invoicesystem',
 		user: process.env.PG_USER || 'postgres',
-		password: process.env.PG_PASSWORD || '',
+		password: password,
 		ssl: process.env.PG_SSL === 'true' ? { rejectUnauthorized: false } : false,
 		max: 20,
 		idleTimeoutMillis: 30000,
