@@ -1852,5 +1852,54 @@ router.get('/export/inventory', async (req, res) => {
 	}
 });
 
+// ===== ADMIN =====
+// Manual database initialization endpoint
+router.post('/admin/init', async (req, res) => {
+	try {
+		console.log('[Admin] Manual database initialization requested');
+		
+		// Test database connection first
+		try {
+			await query('SELECT 1 AS test', []);
+		} catch (connErr) {
+			return res.status(500).json({ 
+				error: 'Database connection failed', 
+				details: connErr.message 
+			});
+		}
+		
+		// Run initialization
+		const { runInit } = require('../sql/runInit');
+		const result = await runInit();
+		
+		if (result?.ok) {
+			console.log(`[Admin] Initialization completed: ${result.batches}/${result.total} tables/migrations processed`);
+			res.json({
+				success: true,
+				message: 'Database initialization completed successfully',
+				details: {
+					processed: result.batches,
+					total: result.total,
+					errors: result.errors || 0
+				}
+			});
+		} else {
+			console.error('[Admin] Initialization failed:', result?.errorDetails);
+			res.status(500).json({
+				success: false,
+				error: 'Database initialization failed',
+				details: result?.errorDetails || 'Unknown error'
+			});
+		}
+	} catch (err) {
+		console.error('[Admin] Initialization error:', err);
+		res.status(500).json({ 
+			success: false,
+			error: 'Database initialization error', 
+			details: err.message 
+		});
+	}
+});
+
 module.exports = router;
 
