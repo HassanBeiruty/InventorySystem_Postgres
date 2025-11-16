@@ -908,12 +908,19 @@ router.get('/invoices/:id', async (req, res) => {
 		
 		const invoice = invoiceResult.recordset[0];
 		
-		// Get payments
+		// Get payments (with currency information)
 		const paymentsResult = await query(
-			'SELECT * FROM invoice_payments WHERE invoice_id = $1 ORDER BY payment_date DESC',
+			`SELECT id, invoice_id, paid_amount, currency_code, exchange_rate_on_payment, usd_equivalent_amount, 
+			 payment_date, payment_method, notes, created_at 
+			 FROM invoice_payments WHERE invoice_id = $1 ORDER BY payment_date DESC`,
 			[{ invoice_id: id }]
 		);
 		const payments = paymentsResult.recordset;
+		
+		// Calculate amount_paid from USD equivalents of all payments (for consistency)
+		const totalPaidUsd = payments.reduce((sum, p) => {
+			return sum + parseFloat(String(p.usd_equivalent_amount || 0));
+		}, 0);
 		
 		// Get invoice items with product details
 		const itemsResult = await query(
@@ -931,7 +938,7 @@ router.get('/invoices/:id', async (req, res) => {
 		const suppliersResult = await query('SELECT * FROM suppliers WHERE id = $1', [{ id: invoice.supplier_id || 0 }]);
 		
 		// Convert DECIMAL strings to numbers
-		const amountPaid = parseFloat(String(invoice.amount_paid || 0));
+		const amountPaid = totalPaidUsd; // Use calculated USD equivalent total
 		const totalAmount = parseFloat(String(invoice.total_amount || 0));
 		const remainingBalance = totalAmount - amountPaid;
 		// Calculate payment status based on amount_paid (always recalculate for consistency)
@@ -968,7 +975,9 @@ router.get('/invoices/:id/payments', async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
 		const result = await query(
-			'SELECT * FROM invoice_payments WHERE invoice_id = $1 ORDER BY payment_date DESC',
+			`SELECT id, invoice_id, paid_amount, currency_code, exchange_rate_on_payment, usd_equivalent_amount, 
+			 payment_date, payment_method, notes, created_at 
+			 FROM invoice_payments WHERE invoice_id = $1 ORDER BY payment_date DESC`,
 			[{ invoice_id: id }]
 		);
 		res.json(result.recordset);
@@ -982,10 +991,24 @@ router.get('/invoices/:id/payments', async (req, res) => {
 router.post('/invoices/:id/payments', async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
-		const { payment_amount, payment_method, notes } = req.body;
+		const { paid_amount, currency_code, exchange_rate_on_payment, payment_method, notes } = req.body;
 		
-		if (!payment_amount || payment_amount <= 0) {
-			return res.status(400).json({ error: 'Payment amount must be greater than 0' });
+		// Validate required fields
+		if (!paid_amount || paid_amount <= 0) {
+			return res.status(400).json({ error: 'paid_amount must be greater than 0' });
+		}
+		
+		if (!currency_code) {
+			return res.status(400).json({ error: 'currency_code is required' });
+		}
+		
+		const currency = currency_code.toUpperCase();
+		if (!['USD', 'LBP', 'EUR'].includes(currency)) {
+			return res.status(400).json({ error: 'Invalid currency_code. Must be USD, LBP, or EUR' });
+		}
+		
+		if (!exchange_rate_on_payment || exchange_rate_on_payment <= 0) {
+			return res.status(400).json({ error: 'exchange_rate_on_payment must be greater than 0' });
 		}
 		
 		// Get invoice details
@@ -995,22 +1018,60 @@ router.post('/invoices/:id/payments', async (req, res) => {
 		}
 		
 		const invoice = invoiceResult.recordset[0];
-		// Convert DECIMAL strings to numbers
-		const currentAmountPaid = parseFloat(String(invoice.amount_paid || 0));
+		
+		// Calculate USD equivalent
+		// Exchange rate is stored as "1 USD = X currency", so USD equivalent = paid_amount / exchange_rate
+		const paidAmount = parseFloat(String(paid_amount));
+		const exchangeRateRaw = exchange_rate_on_payment;
+		const exchangeRate = parseFloat(String(exchangeRateRaw));
+		
+		// Validate inputs
+		if (isNaN(paidAmount) || paidAmount <= 0) {
+			return res.status(400).json({ error: 'Invalid paid amount' });
+		}
+		if (isNaN(exchangeRate) || exchangeRate <= 0) {
+			return res.status(400).json({ error: `Invalid exchange rate: ${exchangeRateRaw} (parsed as ${exchangeRate})` });
+		}
+		
+		// Calculate USD equivalent
+		// Exchange rate format: 1 USD = exchangeRate currency units
+		// For USD: USD equivalent = paid amount (no conversion needed)
+		// For other currencies: USD equivalent = paid_amount / exchange_rate
+		// Example: 777755 LBP / 89500 = 8.69 USD
+		let usdEquivalentAmount;
+		if (currency === 'USD') {
+			usdEquivalentAmount = paidAmount;
+		} else {
+			// Use division: USD equivalent = paid_amount / exchange_rate
+			// Exchange rate format: 1 USD = exchangeRate currency units
+			usdEquivalentAmount = Number(paidAmount) / Number(exchangeRate);
+		}
+		
+		// Validate result
+		if (isNaN(usdEquivalentAmount) || !isFinite(usdEquivalentAmount)) {
+			return res.status(400).json({ error: 'Invalid USD equivalent calculation result' });
+		}
+		
+		// Get current total paid amount (sum of all USD equivalents)
+		const paymentsResult = await query(
+			'SELECT COALESCE(SUM(usd_equivalent_amount), 0) as total_paid FROM invoice_payments WHERE invoice_id = $1',
+			[{ invoice_id: id }]
+		);
+		const currentAmountPaid = parseFloat(String(paymentsResult.recordset[0]?.total_paid || 0));
 		const totalAmount = parseFloat(String(invoice.total_amount || 0));
 		const remainingBalance = totalAmount - currentAmountPaid;
 		
 		// Validate payment doesn't exceed remaining balance (use epsilon for floating point comparison)
 		const epsilon = 0.01;
-		if (payment_amount > remainingBalance + epsilon) {
+		if (usdEquivalentAmount > remainingBalance + epsilon) {
 			return res.status(400).json({ 
-				error: `Payment amount (${payment_amount}) exceeds remaining balance (${remainingBalance.toFixed(2)})` 
+				error: `Payment USD equivalent (${usdEquivalentAmount.toFixed(2)}) exceeds remaining balance (${remainingBalance.toFixed(2)})` 
 			});
 		}
 		
 		// Use current date/time for payment_date (not the invoice creation date)
 		const payment_date = nowIso();
-		const newAmountPaid = currentAmountPaid + parseFloat(String(payment_amount));
+		const newAmountPaid = currentAmountPaid + usdEquivalentAmount;
 		
 		// Determine new payment status
 		let newPaymentStatus = 'pending';
@@ -1022,10 +1083,14 @@ router.post('/invoices/:id/payments', async (req, res) => {
 		
 		// Insert payment record
 		const paymentResult = await query(
-			'INSERT INTO invoice_payments (invoice_id, payment_amount, payment_date, payment_method, notes, created_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+			`INSERT INTO invoice_payments (invoice_id, paid_amount, currency_code, exchange_rate_on_payment, usd_equivalent_amount, payment_date, payment_method, notes, created_at) 
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
 			[
 				{ invoice_id: id },
-				{ payment_amount },
+				{ paid_amount: paidAmount },
+				{ currency_code: currency },
+				{ exchange_rate_on_payment: exchangeRate },
+				{ usd_equivalent_amount: usdEquivalentAmount },
 				{ payment_date },
 				{ payment_method: payment_method || null },
 				{ notes: notes || null },
@@ -1034,7 +1099,7 @@ router.post('/invoices/:id/payments', async (req, res) => {
 		);
 		const paymentId = paymentResult.recordset[0].id;
 		
-		// Update invoice amounts
+		// Update invoice amounts (using USD equivalents)
 		await query(
 			'UPDATE invoices SET amount_paid = $1, payment_status = $2, is_paid = $3 WHERE id = $4',
 			[
@@ -1054,6 +1119,210 @@ router.post('/invoices/:id/payments', async (req, res) => {
 		});
 	} catch (err) {
 		console.error('Record payment error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// ===== EXCHANGE RATES =====
+// List all exchange rates
+router.get('/exchange-rates', async (req, res) => {
+	try {
+		const { currency_code, is_active } = req.query;
+		let sql = 'SELECT * FROM exchange_rates WHERE 1=1';
+		const params = [];
+		
+		if (currency_code) {
+			sql += ' AND currency_code = $' + (params.length + 1);
+			params.push({ currency_code });
+		}
+		
+		if (is_active !== undefined) {
+			sql += ' AND is_active = $' + (params.length + 1);
+			params.push({ is_active: is_active === 'true' || is_active === true });
+		}
+		
+		sql += ' ORDER BY currency_code, effective_date DESC';
+		
+		const result = await query(sql, params);
+		res.json(result.recordset);
+	} catch (err) {
+		console.error('Get exchange rates error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Get current active rate for a currency
+router.get('/exchange-rates/:currency/rate', async (req, res) => {
+	try {
+		const currency = req.params.currency.toUpperCase();
+		
+		// Validate currency
+		if (!['USD', 'LBP', 'EUR'].includes(currency)) {
+			return res.status(400).json({ error: 'Invalid currency code. Must be USD, LBP, or EUR' });
+		}
+		
+		// USD always has rate 1.0
+		if (currency === 'USD') {
+			return res.json({
+				currency_code: 'USD',
+				rate_to_usd: 1.0,
+				effective_date: getTodayLocal(),
+				is_active: true
+			});
+		}
+		
+		// Get most recent active rate for the currency
+		const result = await query(
+			`SELECT * FROM exchange_rates 
+			 WHERE currency_code = $1 AND is_active = true 
+			 ORDER BY effective_date DESC, created_at DESC 
+			 LIMIT 1`,
+			[{ currency_code: currency }]
+		);
+		
+		if (result.recordset.length === 0) {
+			return res.status(404).json({ error: `No active exchange rate found for ${currency}` });
+		}
+		
+		res.json(result.recordset[0]);
+	} catch (err) {
+		console.error('Get exchange rate error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Create new exchange rate
+router.post('/exchange-rates', async (req, res) => {
+	try {
+		const { currency_code, rate_to_usd, effective_date, is_active } = req.body;
+		
+		// Validate required fields
+		if (!currency_code || !rate_to_usd || !effective_date) {
+			return res.status(400).json({ error: 'currency_code, rate_to_usd, and effective_date are required' });
+		}
+		
+		const currency = currency_code.toUpperCase();
+		
+		// Validate currency
+		if (!['USD', 'LBP', 'EUR'].includes(currency)) {
+			return res.status(400).json({ error: 'Invalid currency_code. Must be USD, LBP, or EUR' });
+		}
+		
+		// Validate rate
+		const rate = parseFloat(String(rate_to_usd));
+		if (isNaN(rate) || rate <= 0) {
+			return res.status(400).json({ error: 'rate_to_usd must be a positive number' });
+		}
+		
+		// Insert exchange rate
+		const result = await query(
+			`INSERT INTO exchange_rates (currency_code, rate_to_usd, effective_date, is_active, created_at, updated_at) 
+			 VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+			[
+				{ currency_code: currency },
+				{ rate_to_usd: rate },
+				{ effective_date },
+				{ is_active: is_active !== undefined ? (is_active === true || is_active === 'true') : true },
+				{ created_at: nowIso() },
+				{ updated_at: nowIso() }
+			]
+		);
+		
+		res.status(201).json(result.recordset[0]);
+	} catch (err) {
+		console.error('Create exchange rate error:', err);
+		if (err.code === '23505') { // Unique constraint violation
+			return res.status(400).json({ error: 'Exchange rate for this currency and date already exists' });
+		}
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Update exchange rate
+router.put('/exchange-rates/:id', async (req, res) => {
+	try {
+		const id = parseInt(req.params.id);
+		const { currency_code, rate_to_usd, effective_date, is_active } = req.body;
+		
+		// Check if exchange rate exists
+		const existingResult = await query('SELECT * FROM exchange_rates WHERE id = $1', [{ id }]);
+		if (existingResult.recordset.length === 0) {
+			return res.status(404).json({ error: 'Exchange rate not found' });
+		}
+		
+		const updates = [];
+		const params = [];
+		
+		if (currency_code !== undefined) {
+			const currency = currency_code.toUpperCase();
+			if (!['USD', 'LBP', 'EUR'].includes(currency)) {
+				return res.status(400).json({ error: 'Invalid currency_code. Must be USD, LBP, or EUR' });
+			}
+			updates.push(`currency_code = $${params.length + 1}`);
+			params.push({ currency_code: currency });
+		}
+		
+		if (rate_to_usd !== undefined) {
+			const rate = parseFloat(String(rate_to_usd));
+			if (isNaN(rate) || rate <= 0) {
+				return res.status(400).json({ error: 'rate_to_usd must be a positive number' });
+			}
+			updates.push(`rate_to_usd = $${params.length + 1}`);
+			params.push({ rate_to_usd: rate });
+		}
+		
+		if (effective_date !== undefined) {
+			updates.push(`effective_date = $${params.length + 1}`);
+			params.push({ effective_date });
+		}
+		
+		if (is_active !== undefined) {
+			updates.push(`is_active = $${params.length + 1}`);
+			params.push({ is_active: is_active === true || is_active === 'true' });
+		}
+		
+		if (updates.length === 0) {
+			return res.status(400).json({ error: 'No fields to update' });
+		}
+		
+		updates.push(`updated_at = $${params.length + 1}`);
+		params.push({ updated_at: nowIso() });
+		
+		params.push({ id });
+		
+		const sql = `UPDATE exchange_rates SET ${updates.join(', ')} WHERE id = $${params.length} RETURNING *`;
+		const result = await query(sql, params);
+		
+		res.json(result.recordset[0]);
+	} catch (err) {
+		console.error('Update exchange rate error:', err);
+		if (err.code === '23505') { // Unique constraint violation
+			return res.status(400).json({ error: 'Exchange rate for this currency and date already exists' });
+		}
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Delete exchange rate (soft delete)
+router.delete('/exchange-rates/:id', async (req, res) => {
+	try {
+		const id = parseInt(req.params.id);
+		
+		// Check if exchange rate exists
+		const existingResult = await query('SELECT * FROM exchange_rates WHERE id = $1', [{ id }]);
+		if (existingResult.recordset.length === 0) {
+			return res.status(404).json({ error: 'Exchange rate not found' });
+		}
+		
+		// Soft delete by setting is_active = false
+		const result = await query(
+			'UPDATE exchange_rates SET is_active = false, updated_at = $1 WHERE id = $2 RETURNING *',
+			[{ updated_at: nowIso() }, { id }]
+		);
+		
+		res.json(result.recordset[0]);
+	} catch (err) {
+		console.error('Delete exchange rate error:', err);
 		res.status(500).json({ error: err.message });
 	}
 });

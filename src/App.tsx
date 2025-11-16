@@ -23,6 +23,7 @@ const Inventory = lazy(() => import("./pages/Inventory"));
 const DailyStocks = lazy(() => import("./pages/DailyStocks"));
 const ProductCosts = lazy(() => import("./pages/ProductCosts"));
 const ProductPrices = lazy(() => import("./pages/ProductPrices"));
+const ExchangeRates = lazy(() => import("./pages/ExchangeRates"));
 const LowStock = lazy(() => import("./pages/LowStock"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -72,6 +73,7 @@ const App = () => (
             <Route path="/daily-stocks" element={<DailyStocks />} />
             <Route path="/product-costs" element={<ProductCosts />} />
             <Route path="/product-prices" element={<ProductPrices />} />
+            <Route path="/exchange-rates" element={<ExchangeRates />} />
             <Route path="/low-stock" element={<LowStock />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

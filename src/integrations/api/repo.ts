@@ -267,7 +267,7 @@ export const invoicesRepo = {
   async getInvoiceDetails(invoiceId: string) {
     return fetchJson<any>(`/api/invoices/${invoiceId}`);
   },
-  async recordPayment(invoiceId: string, payment: { payment_amount: number; payment_method?: string; notes?: string }) {
+  async recordPayment(invoiceId: string, payment: { paid_amount: number; currency_code: string; exchange_rate_on_payment: number; payment_method?: string; notes?: string }) {
     return fetchJson<{ id: number; invoice_id: number; amount_paid: number; remaining_balance: number; payment_status: string }>(`/api/invoices/${invoiceId}/payments`, {
       method: "POST",
       body: JSON.stringify(payment),
@@ -390,6 +390,46 @@ export const productPricesRepo = {
   },
   async delete(id: string): Promise<{ success: boolean }> {
     return fetchJson(`/api/product-prices/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+export interface ExchangeRateEntity {
+  id: number;
+  currency_code: 'USD' | 'LBP' | 'EUR';
+  rate_to_usd: number;
+  effective_date: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export const exchangeRatesRepo = {
+  async list(filters?: { currency_code?: string; is_active?: boolean }): Promise<ExchangeRateEntity[]> {
+    const params = new URLSearchParams();
+    if (filters?.currency_code) params.append('currency_code', filters.currency_code);
+    if (filters?.is_active !== undefined) params.append('is_active', String(filters.is_active));
+    const queryString = params.toString();
+    return fetchJson(`/api/exchange-rates${queryString ? '?' + queryString : ''}`);
+  },
+  async getCurrentRate(currency: 'USD' | 'LBP' | 'EUR'): Promise<ExchangeRateEntity> {
+    return fetchJson(`/api/exchange-rates/${currency}/rate`);
+  },
+  async create(data: { currency_code: 'USD' | 'LBP' | 'EUR'; rate_to_usd: number; effective_date: string; is_active?: boolean }): Promise<ExchangeRateEntity> {
+    return fetchJson(`/api/exchange-rates`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  async update(id: number, data: Partial<{ currency_code: 'USD' | 'LBP' | 'EUR'; rate_to_usd: number; effective_date: string; is_active: boolean }>): Promise<ExchangeRateEntity> {
+    return fetchJson(`/api/exchange-rates/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+  async delete(id: number): Promise<ExchangeRateEntity> {
+    return fetchJson(`/api/exchange-rates/${id}`, {
       method: 'DELETE',
     });
   },

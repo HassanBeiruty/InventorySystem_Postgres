@@ -133,6 +133,12 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                     <span className="font-medium">{t('nav.suppliers')}</span>
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/exchange-rates" className="cursor-pointer flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-primary" />
+                    <span className="font-medium">Exchange Rates</span>
+                  </Link>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 

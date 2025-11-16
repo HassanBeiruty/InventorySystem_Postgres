@@ -587,6 +587,63 @@ BEGIN
 	DROP TABLE IF EXISTS missing_values_to_fill;
 END;
 $$;`
+	},
+	{
+		name: 'exchange_rates',
+		sql: `CREATE TABLE IF NOT EXISTS exchange_rates (
+	id SERIAL PRIMARY KEY,
+	currency_code VARCHAR(3) NOT NULL CHECK (currency_code IN ('USD', 'LBP', 'EUR')),
+	rate_to_usd DECIMAL(18,6) NOT NULL,
+	effective_date DATE NOT NULL,
+	is_active BOOLEAN NOT NULL DEFAULT TRUE,
+	created_at TIMESTAMP NOT NULL,
+	updated_at TIMESTAMP NOT NULL,
+	CONSTRAINT UQ_exchange_rates_currency_date UNIQUE (currency_code, effective_date)
+);
+
+CREATE INDEX IF NOT EXISTS IX_exchange_rates_currency ON exchange_rates(currency_code);
+CREATE INDEX IF NOT EXISTS IX_exchange_rates_effective_date ON exchange_rates(effective_date);
+CREATE INDEX IF NOT EXISTS IX_exchange_rates_active ON exchange_rates(is_active);`
+	},
+	{
+		name: 'invoice_payments_multi_currency',
+		sql: `-- Add multi-currency columns to invoice_payments table
+DO $$
+BEGIN
+	-- Rename payment_amount to paid_amount if it exists and new column doesn't
+	IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'invoice_payments' AND column_name = 'payment_amount')
+		AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'invoice_payments' AND column_name = 'paid_amount') THEN
+		ALTER TABLE invoice_payments RENAME COLUMN payment_amount TO paid_amount;
+	END IF;
+	
+	-- Add currency_code column if it doesn't exist
+	IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'invoice_payments' AND column_name = 'currency_code') THEN
+		ALTER TABLE invoice_payments ADD COLUMN currency_code VARCHAR(3) NOT NULL DEFAULT 'USD';
+		ALTER TABLE invoice_payments ADD CONSTRAINT CHK_invoice_payments_currency CHECK (currency_code IN ('USD', 'LBP', 'EUR'));
+	END IF;
+	
+	-- Add exchange_rate_on_payment column if it doesn't exist
+	IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'invoice_payments' AND column_name = 'exchange_rate_on_payment') THEN
+		ALTER TABLE invoice_payments ADD COLUMN exchange_rate_on_payment DECIMAL(18,6) NOT NULL DEFAULT 1.0;
+	END IF;
+	
+	-- Add usd_equivalent_amount column if it doesn't exist
+	IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'invoice_payments' AND column_name = 'usd_equivalent_amount') THEN
+		ALTER TABLE invoice_payments ADD COLUMN usd_equivalent_amount DECIMAL(18,2) NOT NULL DEFAULT 0;
+	END IF;
+	
+	-- Migrate existing data: set currency_code='USD', exchange_rate_on_payment=1.0, usd_equivalent_amount=paid_amount
+	-- for records where usd_equivalent_amount is 0 or NULL (indicating they need migration)
+	UPDATE invoice_payments
+	SET 
+		currency_code = COALESCE(currency_code, 'USD'),
+		exchange_rate_on_payment = COALESCE(exchange_rate_on_payment, 1.0),
+		usd_equivalent_amount = CASE 
+			WHEN usd_equivalent_amount = 0 OR usd_equivalent_amount IS NULL THEN paid_amount
+			ELSE usd_equivalent_amount
+		END
+	WHERE usd_equivalent_amount = 0 OR usd_equivalent_amount IS NULL;
+END $$;`
 	}
 ];
 

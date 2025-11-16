@@ -13,13 +13,16 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { invoicesRepo } from "@/integrations/api/repo";
+import { invoicesRepo, exchangeRatesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
 
 interface Payment {
   id: number;
-  payment_amount: number;
+  paid_amount: number;
+  currency_code: string;
+  exchange_rate_on_payment: number;
+  usd_equivalent_amount: number;
   payment_date: string;
   payment_method: string | null;
   notes: string | null;
@@ -47,7 +50,10 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [invoice, setInvoice] = useState<InvoiceDetails | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paidAmount, setPaidAmount] = useState("");
+  const [currencyCode, setCurrencyCode] = useState<"USD" | "LBP" | "EUR">("USD");
+  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
+  const [fetchingRate, setFetchingRate] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -57,12 +63,64 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
     } else if (!open) {
       // Reset state when dialog closes
       setInvoice(null);
-      setPaymentAmount("");
+      setPaidAmount("");
+      setCurrencyCode("USD");
+      setExchangeRate(null);
       setPaymentMethod("");
       setNotes("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, invoiceId]);
+
+  // Fetch exchange rate when currency changes and auto-fill paid amount
+  useEffect(() => {
+    if (!open || !currencyCode || !invoice) return;
+    
+    // USD always has rate 1.0, no need to fetch
+    if (currencyCode === 'USD') {
+      setExchangeRate(1.0);
+      setFetchingRate(false);
+      // Auto-fill paid amount with remaining balance in USD
+      const totalAmount = parseFloat(String(invoice.total_amount || 0));
+      const amountPaid = parseFloat(String(invoice.amount_paid || 0));
+      const remainingBalance = totalAmount - amountPaid;
+      if (remainingBalance > 0) {
+        setPaidAmount(remainingBalance.toFixed(2));
+      }
+      return;
+    }
+    
+    const fetchExchangeRate = async () => {
+      setFetchingRate(true);
+      try {
+        const rateData = await exchangeRatesRepo.getCurrentRate(currencyCode);
+        const rate = parseFloat(String(rateData.rate_to_usd));
+        setExchangeRate(rate);
+        
+        // Auto-fill paid amount with remaining balance converted to selected currency
+        // Remaining balance is in USD, so convert: remainingBalance * exchangeRate
+        const totalAmount = parseFloat(String(invoice.total_amount || 0));
+        const amountPaid = parseFloat(String(invoice.amount_paid || 0));
+        const remainingBalance = totalAmount - amountPaid;
+        if (remainingBalance > 0 && rate > 0) {
+          const remainingInCurrency = remainingBalance * rate;
+          setPaidAmount(remainingInCurrency.toFixed(2));
+        }
+      } catch (error: any) {
+        console.error('Error fetching exchange rate:', error);
+        toast({
+          title: "Error",
+          description: `Failed to fetch exchange rate for ${currencyCode}. Please ensure an exchange rate is configured.`,
+          variant: "destructive",
+        });
+        setExchangeRate(null);
+      } finally {
+        setFetchingRate(false);
+      }
+    };
+
+    fetchExchangeRate();
+  }, [currencyCode, open, invoice, toast]);
 
   const fetchInvoiceDetails = async () => {
     setLoading(true);
@@ -84,7 +142,7 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!paymentAmount || parseFloat(paymentAmount) <= 0) {
+    if (!paidAmount || parseFloat(paidAmount) <= 0) {
       toast({
         title: "Error",
         description: "Payment amount must be greater than 0",
@@ -93,14 +151,29 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
       return;
     }
 
+    if (!exchangeRate || exchangeRate <= 0) {
+      toast({
+        title: "Error",
+        description: "Exchange rate is required. Please wait for it to load or select a different currency.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const totalAmount = parseFloat(String(invoice?.total_amount || 0));
     const amountPaid = parseFloat(String(invoice?.amount_paid || 0));
     const remainingBalance = totalAmount - amountPaid;
+    
+    // Calculate USD equivalent
+    // Exchange rate is stored as "1 USD = X currency", so USD equivalent = paid_amount / exchange_rate
+    const paidAmt = parseFloat(paidAmount);
+    const usdEquivalent = currencyCode === 'USD' ? paidAmt : paidAmt / parseFloat(String(exchangeRate));
+    
     // Use epsilon for floating point comparison
-    if (parseFloat(paymentAmount) > remainingBalance + 0.01) {
+    if (usdEquivalent > remainingBalance + 0.01) {
       toast({
         title: "Error",
-        description: `Payment amount cannot exceed remaining balance of $${remainingBalance.toFixed(2)}`,
+        description: `Payment USD equivalent ($${usdEquivalent.toFixed(2)}) cannot exceed remaining balance of $${remainingBalance.toFixed(2)}`,
         variant: "destructive",
       });
       return;
@@ -108,8 +181,13 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
 
     setLoading(true);
     try {
+      // Ensure exchange rate is a number
+      const exchangeRateValue = currencyCode === 'USD' ? 1.0 : parseFloat(String(exchangeRate));
+      
       await invoicesRepo.recordPayment(invoiceId, {
-        payment_amount: parseFloat(paymentAmount),
+        paid_amount: paidAmt,
+        currency_code: currencyCode,
+        exchange_rate_on_payment: exchangeRateValue,
         payment_method: paymentMethod || undefined,
         notes: notes || undefined,
       });
@@ -120,7 +198,9 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
       });
       
       // Reset form and refresh invoice details
-      setPaymentAmount("");
+      setPaidAmount("");
+      setCurrencyCode("USD");
+      setExchangeRate(null);
       setPaymentMethod("");
       setNotes("");
       await fetchInvoiceDetails();
@@ -223,7 +303,10 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
                           <TableHeader>
                             <TableRow>
                               <TableHead>Date</TableHead>
-                              <TableHead>Amount</TableHead>
+                              <TableHead>Paid Amount</TableHead>
+                              <TableHead>Currency</TableHead>
+                              <TableHead>Rate</TableHead>
+                              <TableHead>USD Equivalent</TableHead>
                               <TableHead>Method</TableHead>
                               <TableHead>Notes</TableHead>
                             </TableRow>
@@ -234,7 +317,16 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
                                 <TableCell className="text-sm">
                                   {formatDateTimeLebanon(payment.payment_date, "MM/dd/yyyy")}
                                 </TableCell>
-                                <TableCell className="font-medium">${parseFloat(String(payment.payment_amount || 0)).toFixed(2)}</TableCell>
+                                <TableCell className="font-medium">
+                                  {parseFloat(String(payment.paid_amount || 0)).toFixed(2)}
+                                </TableCell>
+                                <TableCell>{payment.currency_code || "USD"}</TableCell>
+                                <TableCell className="text-sm">
+                                  {parseFloat(String(payment.exchange_rate_on_payment || 1)).toFixed(6)}
+                                </TableCell>
+                                <TableCell className="font-medium text-green-600">
+                                  ${parseFloat(String(payment.usd_equivalent_amount || 0)).toFixed(2)}
+                                </TableCell>
                                 <TableCell>{payment.payment_method || "-"}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground">{payment.notes || "-"}</TableCell>
                               </TableRow>
@@ -247,19 +339,70 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
 
                   {/* New Payment Form */}
                   <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="payment_amount">Payment Amount *</Label>
-                      <Input
-                        id="payment_amount"
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        value={paymentAmount}
-                        onChange={(e) => setPaymentAmount(e.target.value)}
-                        placeholder="0.00"
-                        required
-                      />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="currency_code">Currency *</Label>
+                        <Select value={currencyCode} onValueChange={(value) => setCurrencyCode(value as "USD" | "LBP" | "EUR")}>
+                          <SelectTrigger id="currency_code">
+                            <SelectValue placeholder="Select currency" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="USD">USD</SelectItem>
+                            <SelectItem value="LBP">LBP</SelectItem>
+                            <SelectItem value="EUR">EUR</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="paid_amount">Paid Amount ({currencyCode}) *</Label>
+                        <Input
+                          id="paid_amount"
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={paidAmount}
+                          onChange={(e) => setPaidAmount(e.target.value)}
+                          placeholder="0.00"
+                          required
+                        />
+                      </div>
                     </div>
+
+                    {currencyCode !== "USD" && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="exchange_rate">Exchange Rate (1 USD = {currencyCode})</Label>
+                          <Input
+                            id="exchange_rate"
+                            type="number"
+                            step="0.000001"
+                            value={exchangeRate !== null ? parseFloat(String(exchangeRate)).toFixed(6) : ""}
+                            disabled
+                            placeholder={fetchingRate ? "Loading..." : "Select currency"}
+                            className="bg-muted"
+                          />
+                          {fetchingRate && (
+                            <p className="text-xs text-muted-foreground">Fetching current rate...</p>
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="usd_equivalent">USD Equivalent</Label>
+                          <Input
+                            id="usd_equivalent"
+                            type="text"
+                            value={
+                              paidAmount && exchangeRate !== null
+                                ? `$${(parseFloat(paidAmount) / parseFloat(String(exchangeRate))).toFixed(2)}`
+                                : "$0.00"
+                            }
+                            disabled
+                            className="bg-muted font-semibold"
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     <div className="space-y-2">
                       <Label htmlFor="payment_method">Payment Method</Label>
@@ -292,7 +435,7 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
                       <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                         Cancel
                       </Button>
-                      <Button type="submit" disabled={loading || remainingBalance <= 0}>
+                      <Button type="submit" disabled={loading || remainingBalance <= 0 || !exchangeRate || exchangeRate <= 0 || fetchingRate}>
                         {loading ? "Recording..." : "Record Payment"}
                       </Button>
                     </DialogFooter>
