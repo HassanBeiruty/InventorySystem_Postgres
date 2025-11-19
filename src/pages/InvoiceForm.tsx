@@ -773,12 +773,12 @@ const InvoiceForm = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
             {isEditMode ? (invoiceType === 'sell' ? t('invoiceForm.editSellInvoice') : t('invoiceForm.editBuyInvoice')) : (invoiceType === 'sell' ? t('invoiceForm.newSellInvoice') : t('invoiceForm.newBuyInvoice'))}
           </h2>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground text-sm sm:text-base">
             {isEditMode ? (invoiceType === 'sell' ? t('invoiceForm.editSellInvoice') : t('invoiceForm.editBuyInvoice')) : (invoiceType === 'sell' ? t('invoiceForm.newSellInvoice') : t('invoiceForm.newBuyInvoice'))}
           </p>
         </div>
@@ -793,15 +793,15 @@ const InvoiceForm = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>
+                <Label htmlFor="entity-select">
                   {invoiceType === 'sell' ? t('invoiceForm.selectCustomer') : t('invoiceForm.selectSupplier')}
                 </Label>
                 <Select 
                   key={`${invoiceType}-${selectedEntity}-${(invoiceType === 'sell' ? customers : suppliers).length}`}
-                  value={selectedEntity || undefined} 
+                  value={selectedEntity || ""} 
                   onValueChange={setSelectedEntity}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="entity-select">
                     <SelectValue placeholder={invoiceType === 'sell' ? t('invoiceForm.selectCustomer') : t('invoiceForm.selectSupplier')} />
                   </SelectTrigger>
                   <SelectContent>
@@ -841,9 +841,9 @@ const InvoiceForm = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Barcode Scanner Section */}
-              <div className="border rounded-lg p-4 bg-muted/30 space-y-3">
-                <Label className="text-base font-semibold">{t('invoiceForm.scanOrEnterBarcode')}</Label>
-                <div className="flex gap-2">
+              <div className="border rounded-lg p-3 sm:p-4 bg-muted/30 space-y-3">
+                <Label className="text-sm sm:text-base font-semibold">{t('invoiceForm.scanOrEnterBarcode')}</Label>
+                <div className="flex flex-col sm:flex-row gap-2">
                   <Input
                     placeholder={t('invoiceForm.enterBarcodeOrScan')}
                     value={barcodeInput}
@@ -862,33 +862,35 @@ const InvoiceForm = () => {
                     className="flex-1"
                     disabled={isScanning}
                   />
-                  <Button
-                    type="button"
-                    variant={isScanning ? "destructive" : "outline"}
-                    onClick={isScanning ? stopScanning : startScanning}
-                    className="gap-2"
-                  >
-                    {isScanning ? (
-                      <>
-                        <X className="w-4 h-4" />
-                        {t('invoiceForm.stop')}
-                      </>
-                    ) : (
-                      <>
-                        <Scan className="w-4 h-4" />
-                        {t('invoiceForm.scan')}
-                      </>
-                    )}
-                  </Button>
-                  {barcodeInput && !isScanning && (
+                  <div className="flex gap-2">
                     <Button
                       type="button"
-                      onClick={() => handleTopBarcodeSearch(barcodeInput)}
-                      className="gap-2"
+                      variant={isScanning ? "destructive" : "outline"}
+                      onClick={isScanning ? stopScanning : startScanning}
+                      className="gap-1.5 sm:gap-2 flex-1 sm:flex-initial text-xs sm:text-sm"
                     >
-                      {t('invoiceForm.search')}
+                      {isScanning ? (
+                        <>
+                          <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          <span className="hidden sm:inline">{t('invoiceForm.stop')}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Scan className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          <span className="hidden sm:inline">{t('invoiceForm.scan')}</span>
+                        </>
+                      )}
                     </Button>
-                  )}
+                    {barcodeInput && !isScanning && (
+                      <Button
+                        type="button"
+                        onClick={() => handleTopBarcodeSearch(barcodeInput)}
+                        className="gap-1.5 sm:gap-2 text-xs sm:text-sm"
+                      >
+                        {t('invoiceForm.search')}
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 {isScanning && (
                   <div id="barcode-scanner-container" className="mt-3 flex justify-center">
@@ -902,10 +904,10 @@ const InvoiceForm = () => {
                 const isOutOfStock = availableQty !== null && availableQty === 0;
                 
                 return (
-                  <div key={index} className="border rounded-lg p-3 bg-card">
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+                  <div key={index} className="border rounded-lg p-3 sm:p-4 bg-card">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-2 items-end">
                       <div className="md:col-span-3 space-y-1">
-                        <Label className="text-xs">{t('invoiceForm.product')}</Label>
+                        <Label htmlFor={`product-${index}`} className="text-xs">{t('invoiceForm.product')}</Label>
                         <Select
                           value={item.product_id}
                           onValueChange={(value) => {
@@ -921,7 +923,7 @@ const InvoiceForm = () => {
                           }}
                           disabled={isEditMode}
                         >
-                          <SelectTrigger className="h-8 text-sm">
+                          <SelectTrigger id={`product-${index}`} className="h-8 text-sm">
                             <SelectValue placeholder={t('invoiceForm.selectProduct')} />
                           </SelectTrigger>
                           <SelectContent>
@@ -966,14 +968,14 @@ const InvoiceForm = () => {
                               const val = e.target.value === '' ? 1 : parseInt(e.target.value);
                               handleQuantityChange(index, isNaN(val) || val < 1 ? 1 : val);
                             }}
-                            className="flex-1 h-8 text-sm"
+                            className="flex-1 h-8 sm:h-9 text-sm"
                           />
                           <div className="flex flex-col">
                             <Button
                               type="button"
                               variant="outline"
                               size="icon"
-                              className="h-4 w-6 rounded-b-none border-b-0 p-0"
+                              className="h-4 w-6 sm:h-4 sm:w-6 rounded-b-none border-b-0 p-0"
                               onClick={() => {
                                 const currentQty = isNaN(item.quantity) || item.quantity === 0 ? 1 : item.quantity;
                                 const maxQty = availableQty !== null ? availableQty : undefined;
@@ -988,7 +990,7 @@ const InvoiceForm = () => {
                               type="button"
                               variant="outline"
                               size="icon"
-                              className="h-4 w-6 rounded-t-none p-0"
+                              className="h-4 w-6 sm:h-4 sm:w-6 rounded-t-none p-0"
                               onClick={() => {
                                 const currentQty = isNaN(item.quantity) || item.quantity === 0 ? 1 : item.quantity;
                                 const newQty = currentQty > 1 ? currentQty - 1 : 1;
@@ -1004,12 +1006,12 @@ const InvoiceForm = () => {
                       
                       {invoiceType === 'sell' && (
                         <div className="md:col-span-2 space-y-1">
-                          <Label className="text-xs">{t('invoiceForm.priceType')}</Label>
+                          <Label htmlFor={`price-type-${index}`} className="text-xs">{t('invoiceForm.priceType')}</Label>
                           <Select
                             value={item.price_type}
                             onValueChange={(value: 'retail' | 'wholesale') => handlePriceTypeChange(index, value)}
                           >
-                            <SelectTrigger className="h-8 text-sm">
+                            <SelectTrigger id={`price-type-${index}`} className="h-8 text-sm">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -1078,9 +1080,9 @@ const InvoiceForm = () => {
                       </div>
                       
                       {item.is_private_price && (
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                           <div className="space-y-2">
-                            <Label>{t('invoiceForm.customPriceAmount')}</Label>
+                            <Label className="text-xs sm:text-sm">{t('invoiceForm.customPriceAmount')}</Label>
                             <Input
                               type="number"
                               step="0.01"
@@ -1091,10 +1093,11 @@ const InvoiceForm = () => {
                                 handlePrivatePriceChange(index, isNaN(val) ? 0 : val);
                               }}
                               placeholder={t('invoiceForm.enterCustomPrice')}
+                              className="text-sm"
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>{t('invoiceForm.reasonNote')}</Label>
+                            <Label className="text-xs sm:text-sm">{t('invoiceForm.reasonNote')}</Label>
                             <Input
                               type="text"
                               value={item.private_price_note}
@@ -1104,6 +1107,7 @@ const InvoiceForm = () => {
                                 setItems(newItems);
                               }}
                               placeholder={t('invoiceForm.whyCustomPrice')}
+                              className="text-sm"
                             />
                           </div>
                         </div>
@@ -1124,18 +1128,18 @@ const InvoiceForm = () => {
               
               <div className="flex justify-end pt-4 border-t">
                 <div className="text-right space-y-2">
-                  <div className="text-sm text-muted-foreground">{t('invoiceForm.totalAmount')}</div>
-                  <div className="text-3xl font-bold">${calculateTotal().toFixed(2)}</div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">{t('invoiceForm.totalAmount')}</div>
+                  <div className="text-2xl sm:text-3xl font-bold">${calculateTotal().toFixed(2)}</div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <div className="flex gap-4">
-            <Button type="button" variant="outline" onClick={() => navigate("/invoices")}>
+          <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4">
+            <Button type="button" variant="outline" onClick={() => navigate("/invoices")} className="w-full sm:w-auto">
               {t('invoiceForm.cancel')}
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading} className="w-full sm:w-auto">
               {loading ? (isEditMode ? t('invoiceForm.updating') : t('invoiceForm.creating')) : (isEditMode ? t('invoiceForm.updateInvoice') : t('invoiceForm.createInvoice'))}
             </Button>
           </div>

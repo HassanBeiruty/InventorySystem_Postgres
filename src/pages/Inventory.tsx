@@ -53,13 +53,13 @@ const Inventory = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8 animate-fade-in">
-        <div className="flex items-center justify-between">
+      <div className="space-y-6 sm:space-y-8 animate-fade-in">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="space-y-2">
-            <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
               {t('inventory.title')} - {t('inventory.todayPosition')}
             </h1>
-            <p className="text-muted-foreground text-lg">{t('inventory.subtitle')}</p>
+            <p className="text-muted-foreground text-base sm:text-lg">{t('inventory.subtitle')}</p>
           </div>
         </div>
 
@@ -95,13 +95,13 @@ const Inventory = () => {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5 hover:from-primary/10 hover:to-accent/10">
-                      <TableHead className="font-bold">{t('invoiceForm.product')}</TableHead>
-                      <TableHead className="font-bold">{t('products.barcode')}</TableHead>
-                      <TableHead className="text-center font-bold">{t('inventory.availableQty')}</TableHead>
-                      <TableHead className="text-center font-bold">{t('invoices.status')}</TableHead>
-                      <TableHead className="text-right font-bold">{t('productPrices.wholesalePrice')}</TableHead>
-                      <TableHead className="text-right font-bold">{t('productPrices.retailPrice')}</TableHead>
-                      <TableHead className="font-bold">{t('inventory.lastUpdated')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap">{t('invoiceForm.product')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap hidden sm:table-cell">{t('products.barcode')}</TableHead>
+                      <TableHead className="text-center font-bold whitespace-nowrap">{t('inventory.availableQty')}</TableHead>
+                      <TableHead className="text-center font-bold whitespace-nowrap">{t('invoices.status')}</TableHead>
+                      <TableHead className="text-right font-bold whitespace-nowrap hidden md:table-cell">{t('productPrices.wholesalePrice')}</TableHead>
+                      <TableHead className="text-right font-bold whitespace-nowrap hidden md:table-cell">{t('productPrices.retailPrice')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap hidden lg:table-cell">{t('inventory.lastUpdated')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

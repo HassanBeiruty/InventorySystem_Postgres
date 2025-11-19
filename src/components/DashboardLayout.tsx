@@ -51,29 +51,29 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     <div className="min-h-screen bg-background">
       {/* Top Navigation */}
       <header className="sticky top-0 z-50 border-b-2 border-border/50 glass shadow-elegant backdrop-blur-xl">
-        <div className="container mx-auto px-4 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="relative w-12 h-12 gradient-primary rounded-2xl flex items-center justify-center shadow-glow animate-float">
-              <Receipt className="w-7 h-7 text-primary-foreground" />
+        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-0 sm:h-20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+          <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
+            <div className="relative w-10 h-10 sm:w-12 sm:h-12 gradient-primary rounded-2xl flex items-center justify-center shadow-glow animate-float flex-shrink-0">
+              <Receipt className="w-5 h-5 sm:w-7 sm:h-7 text-primary-foreground" />
               <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent rounded-2xl" />
             </div>
-            <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent animate-gradient">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent animate-gradient truncate">
                 Invoice System
               </h1>
-              <p className="text-xs text-muted-foreground font-medium">{user.email}</p>
+              <p className="text-xs text-muted-foreground font-medium truncate">{user.email}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <LanguageSwitcher />
             <Button 
               variant="outline" 
               size="sm" 
               onClick={handleSignOut}
-              className="hover:scale-105 transition-all duration-300 hover:shadow-md border-2 hover:border-primary/30 font-semibold"
+              className="hover:scale-105 transition-all duration-300 hover:shadow-md border-2 hover:border-primary/30 font-semibold text-xs sm:text-sm"
             >
-              <LogOut className="w-4 h-4 mr-2" />
-              {t('common.signOut')}
+              <LogOut className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
+              <span className="hidden sm:inline">{t('common.signOut')}</span>
             </Button>
           </div>
         </div>
@@ -81,16 +81,16 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
       {/* Navigation Menu */}
       <nav className="border-b-2 border-border/50 glass backdrop-blur-md relative z-10">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide items-center">
+        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4">
+          <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-2 scrollbar-hide items-center -mx-3 sm:mx-0 px-3 sm:px-0">
             {/* Dashboard */}
             <Link to="/" className="no-underline inline-block">
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-primary/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto"
+                className="gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-primary/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap"
               >
-                <Home className="w-4 h-4" />
+                <Home className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 {t('nav.dashboard')}
               </Button>
             </Link>
@@ -101,9 +101,9 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-accent/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto"
+                  className="gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-accent/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap"
                 >
-                  <Database className="w-4 h-4" />
+                  <Database className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   {t('nav.masterData')}
                   <ChevronDown className="w-3 h-3" />
                 </Button>
@@ -148,9 +148,9 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-success/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto"
+                  className="gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-success/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap"
                 >
-                  <FileText className="w-4 h-4" />
+                  <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   {t('nav.invoices')}
                   <ChevronDown className="w-3 h-3" />
                 </Button>
@@ -177,9 +177,9 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-warning/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto"
+                  className="gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-warning/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap"
                 >
-                  <Warehouse className="w-4 h-4" />
+                  <Warehouse className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   {t('nav.stockTracking')}
                   <ChevronDown className="w-3 h-3" />
                 </Button>
@@ -230,9 +230,9 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-success/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto"
+                  className="gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-success/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap"
                 >
-                  <DollarSign className="w-4 h-4" />
+                  <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   Prices & Costs
                   <ChevronDown className="w-3 h-3" />
                 </Button>
@@ -264,9 +264,9 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-accent/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto"
+                className="gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-accent/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap"
               >
-                <BarChart3 className="w-4 h-4" />
+                <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 {t('nav.reports')}
               </Button>
             </Link>
@@ -275,7 +275,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       </nav>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
         {children}
       </main>
     </div>

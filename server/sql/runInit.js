@@ -385,12 +385,14 @@ $$;`
 	},
 	{
 		name: 'function_daily_stock_snapshot',
-		sql: `-- Function: sp_DailyStockSnapshot
+		sql: `-- Function: sp_daily_stock_snapshot
 -- Creates daily stock snapshots for all products
-CREATE OR REPLACE FUNCTION sp_daily_stock_snapshot()
-RETURNS VOID
-LANGUAGE plpgsql
-AS $$
+CREATE OR REPLACE FUNCTION public.sp_daily_stock_snapshot()
+RETURNS void
+LANGUAGE 'plpgsql'
+COST 100
+VOLATILE PARALLEL UNSAFE
+AS $BODY$
 DECLARE
 	v_yesterday DATE := CURRENT_DATE - INTERVAL '1 day';
 	v_today DATE := CURRENT_DATE;
@@ -443,7 +445,10 @@ BEGIN
 	
 	RAISE NOTICE 'Daily stock snapshot completed. Processed: %, Skipped: %', v_success_count, v_skipped_count;
 END;
-$$;`
+$BODY$;
+
+ALTER FUNCTION public.sp_daily_stock_snapshot()
+    OWNER TO postgres;`
 	},
 	{
 		name: 'function_recompute_positions',
@@ -644,6 +649,205 @@ BEGIN
 		END
 	WHERE usd_equivalent_amount = 0 OR usd_equivalent_amount IS NULL;
 END $$;`
+	},
+	{
+		name: 'pg_cron_extension',
+		sql: `-- Enable pg_cron extension (if available and not already enabled)
+-- Note: This requires superuser privileges and may not be available on all PostgreSQL instances
+DO $$
+BEGIN
+	-- Check if pg_cron extension exists
+	IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pg_cron') THEN
+		-- Try to create extension if it doesn't exist
+		CREATE EXTENSION IF NOT EXISTS pg_cron;
+		RAISE NOTICE 'pg_cron extension enabled';
+	ELSE
+		RAISE NOTICE 'pg_cron extension not available - scheduled jobs will need to be set up manually or via application-level cron';
+	END IF;
+EXCEPTION
+	WHEN insufficient_privilege THEN
+		RAISE NOTICE 'Insufficient privileges to enable pg_cron - contact database administrator';
+	WHEN OTHERS THEN
+		RAISE NOTICE 'Could not enable pg_cron: %', SQLERRM;
+END $$;`
+	},
+	{
+		name: 'recompute_positions_job',
+		sql: `-- Create scheduled job for sp_recompute_positions (runs daily at 12:05 AM)
+-- This will only work if pg_cron extension is enabled
+DO $$
+DECLARE
+	v_job_exists BOOLEAN;
+BEGIN
+	-- Check if pg_cron is available
+	IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+		RAISE NOTICE 'pg_cron extension not available - skipping job creation';
+		RETURN;
+	END IF;
+	
+	-- Check if job already exists
+	SELECT EXISTS (
+		SELECT 1 FROM cron.job WHERE jobname = 'recompute-positions-daily-job'
+	) INTO v_job_exists;
+	
+	-- Remove existing job if it exists
+	IF v_job_exists THEN
+		PERFORM cron.unschedule('recompute-positions-daily-job');
+		RAISE NOTICE 'Removed existing recompute-positions-daily-job';
+	END IF;
+	
+	-- Create the scheduled job
+	-- Schedule: Every day at 12:05 AM (00:05)
+	-- Cron format: '5 0 * * *' = minute 5, hour 0, every day, every month, every day of week
+	PERFORM cron.schedule(
+		'recompute-positions-daily-job',           -- Job name
+		'5 0 * * *',                              -- Cron schedule: 5 minutes past midnight every day
+		$cmd$SELECT sp_recompute_positions(NULL);$cmd$, -- Command to execute (NULL = all products)
+		current_database(),                       -- Database name
+		current_user,                             -- Username
+		true                                      -- Active (enabled)
+	);
+	
+	RAISE NOTICE 'Scheduled job recompute-positions-daily-job created successfully (runs daily at 12:05 AM)';
+EXCEPTION
+	WHEN insufficient_privilege THEN
+		RAISE NOTICE 'Insufficient privileges to create cron job - contact database administrator';
+	WHEN OTHERS THEN
+		RAISE NOTICE 'Could not create cron job: %', SQLERRM;
+		RAISE NOTICE 'You may need to set up the job manually using pgAdmin or psql';
+END $$;`
+	},
+	{
+		name: 'pgagent_extension',
+		sql: `-- Enable pgagent extension (if available and not already enabled)
+-- Note: pgAgent must be installed separately and requires superuser privileges
+DO $$
+BEGIN
+	-- Check if pgagent extension exists
+	IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pgagent') THEN
+		-- Try to create extension if it doesn't exist
+		CREATE EXTENSION IF NOT EXISTS pgagent;
+		RAISE NOTICE 'pgagent extension enabled';
+	ELSE
+		RAISE NOTICE 'pgagent extension not available - scheduled jobs will need to be set up manually via pgAdmin';
+	END IF;
+EXCEPTION
+	WHEN insufficient_privilege THEN
+		RAISE NOTICE 'Insufficient privileges to enable pgagent - contact database administrator';
+	WHEN OTHERS THEN
+		RAISE NOTICE 'Could not enable pgagent: %', SQLERRM;
+		RAISE NOTICE 'pgAgent must be installed separately. See: https://www.pgadmin.org/docs/pgadmin4/latest/pgagent.html';
+END $$;`
+	},
+	{
+		name: 'daily_stock_snapshot_pgagent_job',
+		sql: `-- Create pgAgent job for sp_daily_stock_snapshot (runs daily at 12:05 AM)
+-- This will only work if pgagent extension is enabled
+DO $$
+DECLARE
+	v_job_id INTEGER;
+	v_job_exists BOOLEAN;
+	v_schedule_id INTEGER;
+BEGIN
+	-- Check if pgagent is available
+	IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pgagent') THEN
+		RAISE NOTICE 'pgagent extension not available - skipping job creation';
+		RAISE NOTICE 'To use pgAgent, install it separately and enable the extension';
+		RETURN;
+	END IF;
+	
+	-- Check if job already exists
+	SELECT EXISTS (
+		SELECT 1 FROM pgagent.pga_job WHERE jobname = 'daily-stock-snapshot-job'
+	) INTO v_job_exists;
+	
+	-- Remove existing job if it exists
+	IF v_job_exists THEN
+		DELETE FROM pgagent.pga_job WHERE jobname = 'daily-stock-snapshot-job';
+		RAISE NOTICE 'Removed existing daily-stock-snapshot-job';
+	END IF;
+	
+	-- Create the job
+	INSERT INTO pgagent.pga_job (
+		jobjclid,      -- Job class ID (1 = SQL job)
+		jobjname,      -- Job name
+		jobjdesc,      -- Job description
+		jobhostagent,  -- Host agent (NULL = any agent)
+		jobenabled     -- Enabled (true)
+	) VALUES (
+		1,
+		'daily-stock-snapshot-job',
+		'Creates daily stock snapshots for all products. Runs daily at 12:05 AM.',
+		NULL,
+		true
+	) RETURNING jobid INTO v_job_id;
+	
+	-- Create job step
+	INSERT INTO pgagent.pga_jobstep (
+		jstjobid,      -- Job ID
+		jstname,       -- Step name
+		jstkind,       -- Step kind ('s' = SQL)
+		jstcode,       -- SQL code to execute
+		jstdbname,     -- Database name
+		jstenabled     -- Enabled (true)
+	) VALUES (
+		v_job_id,
+		'Run Daily Stock Snapshot',
+		's',
+		'SELECT sp_daily_stock_snapshot();',
+		current_database(),
+		true
+	);
+	
+	-- Create schedule: Daily at 12:05 AM (00:05)
+	-- pgAgent schedule format uses bit arrays:
+	-- jscminutes: bit array for minutes (0-59), bit 5 = minute 5
+	-- jschours: bit array for hours (0-23), bit 0 = hour 0 (midnight)
+	-- jscweekdays: bit array for weekdays (0-6, Sunday=0), all bits set = all days
+	-- jscmonthdays: bit array for month days (1-31), all bits set = all days
+	-- jscmonths: bit array for months (1-12), all bits set = all months
+	-- Note: pgAgent uses bit arrays where each bit represents a time unit
+	
+	-- For minute 5: set bit 5 (0-indexed, so 2^5 = 32)
+	-- For hour 0: set bit 0 (2^0 = 1)
+	-- For all weekdays: 127 (bits 0-6 all set)
+	-- For all month days: 2147483647 (bits 0-30 all set for days 1-31)
+	-- For all months: 4095 (bits 0-11 all set for months 1-12)
+	
+	INSERT INTO pgagent.pga_schedule (
+		jscjobid,      -- Job ID
+		jscname,       -- Schedule name
+		jscdesc,       -- Schedule description
+		jscenabled,    -- Enabled (true)
+		jscminutes,    -- Minutes: only minute 5 (value: 32 = 2^5)
+		jschours,      -- Hours: only hour 0 (value: 1 = 2^0)
+		jscweekdays,   -- Weekdays: all days (value: 127 = all bits 0-6 set)
+		jscmonthdays,  -- Month days: all days (value: 2147483647 = all bits set)
+		jscmonths      -- Months: all months (value: 4095 = all bits 0-11 set)
+	) VALUES (
+		v_job_id,
+		'Daily at 12:05 AM',
+		'Runs every day at 12:05 AM (00:05)',
+		true,
+		32,              -- Minute 5: bit 5 set (2^5 = 32)
+		1,               -- Hour 0: bit 0 set (2^0 = 1)
+		127,             -- All weekdays: Sunday(0) through Saturday(6) = 127
+		2147483647,      -- All month days: days 1-31 = 2147483647
+		4095             -- All months: months 1-12 = 4095
+	) RETURNING jscid INTO v_schedule_id;
+	
+	RAISE NOTICE 'pgAgent job daily-stock-snapshot-job created successfully (runs daily at 12:05 AM)';
+	RAISE NOTICE 'Job ID: %, Schedule ID: %', v_job_id, v_schedule_id;
+EXCEPTION
+	WHEN insufficient_privilege THEN
+		RAISE NOTICE 'Insufficient privileges to create pgAgent job - contact database administrator';
+	WHEN undefined_table THEN
+		RAISE NOTICE 'pgAgent tables not found - ensure pgagent extension is properly installed';
+	WHEN OTHERS THEN
+		RAISE NOTICE 'Could not create pgAgent job: %', SQLERRM;
+		RAISE NOTICE 'You may need to set up the job manually using pgAdmin GUI';
+		RAISE NOTICE 'In pgAdmin: Right-click Jobs > New Job > Set schedule to run daily at 00:05';
+END $$;`
 	}
 ];
 
@@ -667,7 +871,7 @@ async function runInit() {
 					if (table.sql.includes('FUNCTION')) {
 						console.log(`✓ Function '${table.name}' created/updated`);
 					} else {
-						console.log(`✓ Columns for '${table.name}' added/verified`);
+					console.log(`✓ Columns for '${table.name}' added/verified`);
 					}
 					continue;
 				} catch (err) {
@@ -676,7 +880,7 @@ async function runInit() {
 						if (table.sql.includes('FUNCTION')) {
 							console.log(`⚠ Function '${table.name}' already exists (skipped)`);
 						} else {
-							console.log(`⚠ Columns for '${table.name}' already exist (skipped)`);
+						console.log(`⚠ Columns for '${table.name}' already exist (skipped)`);
 						}
 						executed++;
 						continue;

@@ -55,8 +55,10 @@ const Customers = () => {
     setLoading(false);
 
     toast({ title: "Success", description: "Customer added successfully" });
+    if (e.currentTarget) {
+      e.currentTarget.reset();
+    }
     setIsOpen(false);
-    e.currentTarget.reset();
     fetchCustomers();
   };
 
@@ -98,13 +100,13 @@ const Customers = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8 animate-fade-in">
-        <div className="flex items-center justify-between">
+      <div className="space-y-6 sm:space-y-8 animate-fade-in">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="space-y-2">
-            <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
               {t('customers.title')}
             </h2>
-            <p className="text-muted-foreground text-lg">{t('customers.subtitle')}</p>
+            <p className="text-muted-foreground text-base sm:text-lg">{t('customers.subtitle')}</p>
           </div>
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
@@ -118,24 +120,24 @@ const Customers = () => {
                 <DialogTitle>{t('customers.addCustomer')}</DialogTitle>
                 <DialogDescription>{t('customers.subtitle')}</DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">{t('customers.customerName')}</Label>
-                  <Input id="name" name="name" placeholder={t('customers.customerName')} required />
+              <form onSubmit={handleSubmit} className="space-y-3 py-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="name" className="text-sm">{t('customers.customerName')}</Label>
+                  <Input id="name" name="name" placeholder={t('customers.customerName')} required className="h-9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">{t('customers.phone')}</Label>
-                  <Input id="phone" name="phone" placeholder={t('customers.phone')} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="phone" className="text-sm">{t('customers.phone')}</Label>
+                  <Input id="phone" name="phone" placeholder={t('customers.phone')} className="h-9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="address">{t('customers.address')}</Label>
-                  <Input id="address" name="address" placeholder={t('customers.address')} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="address" className="text-sm">{t('customers.address')}</Label>
+                  <Input id="address" name="address" placeholder={t('customers.address')} className="h-9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="credit">{t('customers.creditLimit')}</Label>
-                  <Input id="credit" name="credit" type="number" step="0.01" placeholder="0.00" />
+                <div className="space-y-1.5">
+                  <Label htmlFor="credit" className="text-sm">{t('customers.creditLimit')}</Label>
+                  <Input id="credit" name="credit" type="number" step="0.01" placeholder="0.00" className="h-9" />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full h-9 mt-2" disabled={loading}>
                   {loading ? t('common.loading') : t('common.save')}
                 </Button>
               </form>
@@ -160,15 +162,15 @@ const Customers = () => {
                 <p className="text-muted-foreground text-lg">{t('customers.noCustomers')}</p>
               </div>
             ) : (
-              <div className="rounded-xl border-2 overflow-hidden">
+              <div className="rounded-xl border-2 overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-success/5 to-accent/5 hover:from-success/10 hover:to-accent/10">
-                      <TableHead className="font-bold">{t('customers.customerName')}</TableHead>
-                      <TableHead className="font-bold">{t('customers.phone')}</TableHead>
-                      <TableHead className="font-bold">{t('customers.address')}</TableHead>
-                      <TableHead className="font-bold">{t('customers.creditLimit')}</TableHead>
-                      <TableHead className="font-bold">Actions</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap">{t('customers.customerName')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap">{t('customers.phone')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap hidden md:table-cell">{t('customers.address')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap">{t('customers.creditLimit')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -178,10 +180,10 @@ const Customers = () => {
                         className="hover:bg-success/5 transition-colors animate-fade-in"
                         style={{ animationDelay: `${idx * 0.05}s` }}
                       >
-                        <TableCell className="font-medium">{customer.name}</TableCell>
-                        <TableCell className="text-muted-foreground">{customer.phone || "-"}</TableCell>
-                        <TableCell className="text-muted-foreground">{customer.address || "-"}</TableCell>
-                        <TableCell className="font-semibold text-success">${parseFloat(customer.credit_limit).toFixed(2)}</TableCell>
+                        <TableCell className="font-medium whitespace-nowrap">{customer.name}</TableCell>
+                        <TableCell className="text-muted-foreground whitespace-nowrap">{customer.phone || "-"}</TableCell>
+                        <TableCell className="text-muted-foreground whitespace-nowrap hidden md:table-cell">{customer.address || "-"}</TableCell>
+                        <TableCell className="font-semibold text-success whitespace-nowrap">${parseFloat(customer.credit_limit).toFixed(2)}</TableCell>
                         <TableCell>
                           <Button 
                             variant="ghost" 
@@ -208,24 +210,24 @@ const Customers = () => {
               <DialogDescription>{t('customers.subtitle')}</DialogDescription>
             </DialogHeader>
             {editingCustomer && (
-              <form onSubmit={handleUpdate} className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-name">{t('customers.customerName')}</Label>
-                  <Input id="edit-name" name="name" defaultValue={editingCustomer.name} required />
+              <form onSubmit={handleUpdate} className="space-y-3 py-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-name" className="text-sm">{t('customers.customerName')}</Label>
+                  <Input id="edit-name" name="name" defaultValue={editingCustomer.name} required className="h-9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-phone">{t('customers.phone')}</Label>
-                  <Input id="edit-phone" name="phone" defaultValue={editingCustomer.phone} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-phone" className="text-sm">{t('customers.phone')}</Label>
+                  <Input id="edit-phone" name="phone" defaultValue={editingCustomer.phone} className="h-9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-address">{t('customers.address')}</Label>
-                  <Input id="edit-address" name="address" defaultValue={editingCustomer.address} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-address" className="text-sm">{t('customers.address')}</Label>
+                  <Input id="edit-address" name="address" defaultValue={editingCustomer.address} className="h-9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-credit">{t('customers.creditLimit')}</Label>
-                  <Input id="edit-credit" name="credit" type="number" step="0.01" defaultValue={editingCustomer.credit_limit} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-credit" className="text-sm">{t('customers.creditLimit')}</Label>
+                  <Input id="edit-credit" name="credit" type="number" step="0.01" defaultValue={editingCustomer.credit_limit} className="h-9" />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full h-9 mt-2" disabled={loading}>
                   {loading ? t('common.loading') : t('common.save')}
                 </Button>
               </form>

@@ -88,7 +88,7 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
     const entityName = invoice.customers?.name || invoice.suppliers?.name || "N/A";
     const entityPhone = invoice.customers?.phone || invoice.suppliers?.phone || "N/A";
     const entityAddress = invoice.customers?.address || invoice.suppliers?.address || "N/A";
-    const remainingBalance = invoice.total_amount - invoice.amount_paid;
+    const remainingBalance = Number(invoice.total_amount || 0) - Number(invoice.amount_paid || 0);
 
     const printContent = `
       <!DOCTYPE html>
@@ -217,9 +217,9 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                 <tr>
                   <td>#${item.product_id} ${item.product_name || 'Product'}</td>
                   <td>${item.quantity}</td>
-                  <td>$${item.unit_price.toFixed(2)}</td>
+                  <td>$${Number(item.unit_price || 0).toFixed(2)}</td>
                   <td>${item.price_type}</td>
-                  <td style="text-align: right;">$${item.total_price.toFixed(2)}</td>
+                  <td style="text-align: right;">$${Number(item.total_price || 0).toFixed(2)}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -228,15 +228,15 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
           <div class="summary">
             <div class="summary-item">
               <div class="summary-label">Total Amount</div>
-              <div class="summary-value">$${invoice.total_amount.toFixed(2)}</div>
+              <div class="summary-value">$${Number(invoice.total_amount || 0).toFixed(2)}</div>
             </div>
             <div class="summary-item">
               <div class="summary-label">Amount Paid</div>
-              <div class="summary-value" style="color: #4CAF50;">$${invoice.amount_paid.toFixed(2)}</div>
+              <div class="summary-value" style="color: #4CAF50;">$${Number(invoice.amount_paid || 0).toFixed(2)}</div>
             </div>
             <div class="summary-item">
               <div class="summary-label">Remaining Balance</div>
-              <div class="summary-value" style="color: #FF9800;">$${remainingBalance.toFixed(2)}</div>
+              <div class="summary-value" style="color: #FF9800;">$${Number(remainingBalance || 0).toFixed(2)}</div>
             </div>
           </div>
         </body>
@@ -315,7 +315,7 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
         ) : (
           <>
             {(() => {
-              const remainingBalance = invoice.total_amount - invoice.amount_paid;
+              const remainingBalance = Number(invoice.total_amount || 0) - Number(invoice.amount_paid || 0);
               const entityName = invoice.customers?.name || invoice.suppliers?.name || "N/A";
               const entityPhone = invoice.customers?.phone || invoice.suppliers?.phone || "N/A";
               const entityAddress = invoice.customers?.address || invoice.suppliers?.address || "N/A";
@@ -412,13 +412,13 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                                   )}
                                 </TableCell>
                                 <TableCell>{item.quantity}</TableCell>
-                                <TableCell>${item.unit_price.toFixed(2)}</TableCell>
+                                <TableCell>${Number(item.unit_price || 0).toFixed(2)}</TableCell>
                                 <TableCell>
                                   <Badge variant="outline" className="capitalize">
                                     {item.price_type}
                                   </Badge>
                                 </TableCell>
-                                <TableCell className="text-right font-bold">${item.total_price.toFixed(2)}</TableCell>
+                                <TableCell className="text-right font-bold">${Number(item.total_price || 0).toFixed(2)}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
@@ -436,15 +436,15 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                     <div className="grid grid-cols-3 gap-4">
                       <div>
                         <div className="text-sm text-muted-foreground">Total Amount</div>
-                        <div className="text-2xl font-bold">${invoice.total_amount.toFixed(2)}</div>
+                        <div className="text-2xl font-bold">${Number(invoice.total_amount || 0).toFixed(2)}</div>
                       </div>
                       <div>
                         <div className="text-sm text-green-600">Amount Paid</div>
-                        <div className="text-2xl font-bold text-green-600">${invoice.amount_paid.toFixed(2)}</div>
+                        <div className="text-2xl font-bold text-green-600">${Number(invoice.amount_paid || 0).toFixed(2)}</div>
                       </div>
                       <div>
                         <div className="text-sm text-orange-600">Remaining Balance</div>
-                        <div className="text-2xl font-bold text-orange-600">${remainingBalance.toFixed(2)}</div>
+                        <div className="text-2xl font-bold text-orange-600">${Number(remainingBalance || 0).toFixed(2)}</div>
                       </div>
                     </div>
                   </div>

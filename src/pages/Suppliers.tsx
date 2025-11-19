@@ -49,8 +49,10 @@ const Suppliers = () => {
     setLoading(false);
 
     toast({ title: "Success", description: "Supplier added successfully" });
+    if (e.currentTarget) {
+      e.currentTarget.reset();
+    }
     setIsOpen(false);
-    e.currentTarget.reset();
     fetchSuppliers();
   };
 
@@ -90,13 +92,13 @@ const Suppliers = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8 animate-fade-in">
-        <div className="flex items-center justify-between">
+      <div className="space-y-6 sm:space-y-8 animate-fade-in">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="space-y-2">
-            <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
               {t('suppliers.title')}
             </h2>
-            <p className="text-muted-foreground text-lg">{t('suppliers.subtitle')}</p>
+            <p className="text-muted-foreground text-base sm:text-lg">{t('suppliers.subtitle')}</p>
           </div>
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
@@ -110,20 +112,20 @@ const Suppliers = () => {
                 <DialogTitle>{t('suppliers.addSupplier')}</DialogTitle>
                 <DialogDescription>{t('suppliers.subtitle')}</DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">{t('suppliers.supplierName')}</Label>
-                  <Input id="name" name="name" placeholder={t('suppliers.supplierName')} required />
+              <form onSubmit={handleSubmit} className="space-y-3 py-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="name" className="text-sm">{t('suppliers.supplierName')}</Label>
+                  <Input id="name" name="name" placeholder={t('suppliers.supplierName')} required className="h-9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">{t('suppliers.phone')}</Label>
-                  <Input id="phone" name="phone" placeholder={t('suppliers.phone')} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="phone" className="text-sm">{t('suppliers.phone')}</Label>
+                  <Input id="phone" name="phone" placeholder={t('suppliers.phone')} className="h-9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="address">{t('suppliers.address')}</Label>
-                  <Input id="address" name="address" placeholder={t('suppliers.address')} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="address" className="text-sm">{t('suppliers.address')}</Label>
+                  <Input id="address" name="address" placeholder={t('suppliers.address')} className="h-9" />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full h-9 mt-2" disabled={loading}>
                   {loading ? t('common.loading') : t('common.save')}
                 </Button>
               </form>
@@ -148,14 +150,14 @@ const Suppliers = () => {
                 <p className="text-muted-foreground text-lg">{t('suppliers.noSuppliers')}</p>
               </div>
             ) : (
-              <div className="rounded-xl border-2 overflow-hidden">
+              <div className="rounded-xl border-2 overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-secondary/5 to-accent/5 hover:from-secondary/10 hover:to-accent/10">
-                      <TableHead className="font-bold">{t('suppliers.supplierName')}</TableHead>
-                      <TableHead className="font-bold">{t('suppliers.phone')}</TableHead>
-                      <TableHead className="font-bold">{t('suppliers.address')}</TableHead>
-                      <TableHead className="font-bold">Actions</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap">{t('suppliers.supplierName')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap">{t('suppliers.phone')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap hidden md:table-cell">{t('suppliers.address')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -165,9 +167,9 @@ const Suppliers = () => {
                         className="hover:bg-secondary/5 transition-colors animate-fade-in"
                         style={{ animationDelay: `${idx * 0.05}s` }}
                       >
-                        <TableCell className="font-medium">{supplier.name}</TableCell>
-                        <TableCell className="text-muted-foreground">{supplier.phone || "-"}</TableCell>
-                        <TableCell className="text-muted-foreground">{supplier.address || "-"}</TableCell>
+                        <TableCell className="font-medium whitespace-nowrap">{supplier.name}</TableCell>
+                        <TableCell className="text-muted-foreground whitespace-nowrap">{supplier.phone || "-"}</TableCell>
+                        <TableCell className="text-muted-foreground whitespace-nowrap hidden md:table-cell">{supplier.address || "-"}</TableCell>
                         <TableCell>
                           <Button 
                             variant="ghost" 
@@ -194,20 +196,20 @@ const Suppliers = () => {
               <DialogDescription>{t('suppliers.subtitle')}</DialogDescription>
             </DialogHeader>
             {editingSupplier && (
-              <form onSubmit={handleUpdate} className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-name">{t('suppliers.supplierName')}</Label>
-                  <Input id="edit-name" name="name" defaultValue={editingSupplier.name} required />
+              <form onSubmit={handleUpdate} className="space-y-3 py-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-name" className="text-sm">{t('suppliers.supplierName')}</Label>
+                  <Input id="edit-name" name="name" defaultValue={editingSupplier.name} required className="h-9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-phone">{t('suppliers.phone')}</Label>
-                  <Input id="edit-phone" name="phone" defaultValue={editingSupplier.phone} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-phone" className="text-sm">{t('suppliers.phone')}</Label>
+                  <Input id="edit-phone" name="phone" defaultValue={editingSupplier.phone} className="h-9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-address">{t('suppliers.address')}</Label>
-                  <Input id="edit-address" name="address" defaultValue={editingSupplier.address} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-address" className="text-sm">{t('suppliers.address')}</Label>
+                  <Input id="edit-address" name="address" defaultValue={editingSupplier.address} className="h-9" />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full h-9 mt-2" disabled={loading}>
                   {loading ? t('common.loading') : t('common.save')}
                 </Button>
               </form>

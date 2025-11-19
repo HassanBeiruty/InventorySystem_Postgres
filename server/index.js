@@ -187,6 +187,57 @@ app.get('/api/admin/init-status', async (req, res) => {
 	}
 });
 
+// Schedule daily stock snapshot at 12:05 AM (works on cloud databases like Render)
+// This is the alternative to pgAgent for cloud databases
+// Wait for DB initialization to complete before setting up cron job
+(async () => {
+	// Wait for database initialization to complete
+	let attempts = 0;
+	while (!initCompleted && attempts < 30) {
+		await new Promise(resolve => setTimeout(resolve, 1000));
+		attempts++;
+	}
+	
+	if (!initCompleted) {
+		console.warn('⚠ Database initialization not completed, but setting up cron job anyway...');
+	}
+	
+	try {
+		const cron = require('node-cron');
+		const { query } = require('./db');
+		
+		// Run daily at 12:05 AM (00:05) - adjust timezone as needed
+		// Cron format: '5 0 * * *' = minute 5, hour 0, every day, every month, every day of week
+		cron.schedule('5 0 * * *', async () => {
+			try {
+				const startTime = new Date().toISOString();
+				console.log(`[Cron] Running daily stock snapshot at ${startTime}`);
+				
+				const result = await query('SELECT sp_daily_stock_snapshot();', []);
+				
+				const endTime = new Date().toISOString();
+				console.log(`[Cron] ✓ Daily stock snapshot completed successfully at ${endTime}`);
+			} catch (error) {
+				console.error('[Cron] ✗ Error running daily stock snapshot:', error.message);
+				if (error.stack) {
+					console.error('[Cron] Stack:', error.stack);
+				}
+			}
+		}, {
+			timezone: "Asia/Beirut" // Change to your timezone if needed
+		});
+		
+		console.log('✓ Scheduled job: Daily stock snapshot (runs daily at 12:05 AM Beirut time)');
+	} catch (error) {
+		// node-cron might not be installed, that's okay
+		if (error.code !== 'MODULE_NOT_FOUND') {
+			console.error('⚠ Failed to set up scheduled job:', error.message);
+		} else {
+			console.warn('⚠ node-cron not found - scheduled jobs disabled');
+		}
+	}
+})();
+
 const PORT = process.env.PORT || 5050;
 app.listen(PORT, () => {
 	console.log(`Backend server running on http://localhost:${PORT}`);

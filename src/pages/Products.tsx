@@ -96,9 +96,11 @@ const Products = () => {
     setLoading(false);
 
     toast({ title: "Success", description: "Product added successfully" });
-    setIsOpen(false);
     setFormCategoryId("");
-    e.currentTarget.reset();
+    if (e.currentTarget) {
+      e.currentTarget.reset();
+    }
+    setIsOpen(false);
     fetchProducts();
   };
 
@@ -181,22 +183,23 @@ const Products = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8 animate-fade-in">
-        <div className="flex items-center justify-between">
+      <div className="space-y-6 sm:space-y-8 animate-fade-in">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="space-y-2">
-            <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
               {t('products.title')}
             </h2>
-            <p className="text-muted-foreground text-lg">{t('products.subtitle')}</p>
+            <p className="text-muted-foreground text-base sm:text-lg">{t('products.subtitle')}</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 w-full sm:w-auto">
             <Button 
               variant="outline"
               onClick={() => window.open('/api/export/products', '_blank')}
-              className="hover:scale-105 transition-all duration-300 font-semibold"
+              className="hover:scale-105 transition-all duration-300 font-semibold text-xs sm:text-sm flex-1 sm:flex-initial"
             >
-              <Download className="w-4 h-4 mr-2" />
-              Export CSV
+              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Export CSV</span>
+              <span className="sm:hidden">Export</span>
             </Button>
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
@@ -210,27 +213,27 @@ const Products = () => {
                 <DialogTitle>{t('products.addProduct')}</DialogTitle>
                 <DialogDescription>{t('products.subtitle')}</DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">{t('products.productName')}</Label>
-                  <Input id="name" name="name" placeholder={t('products.productName')} required />
+              <form onSubmit={handleSubmit} className="space-y-3 py-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="name" className="text-sm">{t('products.productName')}</Label>
+                  <Input id="name" name="name" placeholder={t('products.productName')} required className="h-9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sku">SKU</Label>
-                  <Input id="sku" name="sku" placeholder="SKU (optional)" />
+                <div className="space-y-1.5">
+                  <Label htmlFor="sku" className="text-sm">SKU</Label>
+                  <Input id="sku" name="sku" placeholder="SKU (optional)" className="h-9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="shelf">Shelf</Label>
-                  <Input id="shelf" name="shelf" placeholder="Shelf (optional)" />
+                <div className="space-y-1.5">
+                  <Label htmlFor="shelf" className="text-sm">Shelf</Label>
+                  <Input id="shelf" name="shelf" placeholder="Shelf (optional)" className="h-9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="barcode">{t('products.barcode')}</Label>
-                  <Input id="barcode" name="barcode" placeholder={t('products.barcode')} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="barcode" className="text-sm">{t('products.barcode')}</Label>
+                  <Input id="barcode" name="barcode" placeholder={t('products.barcode')} className="h-9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="category_id">{t('categories.title')}</Label>
-                  <Select value={formCategoryId || undefined} onValueChange={(val) => setFormCategoryId(val === "none" ? "" : val)}>
-                    <SelectTrigger>
+                <div className="space-y-1.5">
+                  <Label htmlFor="category_id" className="text-sm">{t('categories.title')}</Label>
+                  <Select value={formCategoryId || "none"} onValueChange={(val) => setFormCategoryId(val === "none" ? "" : val)}>
+                    <SelectTrigger id="category_id" className="h-9">
                       <SelectValue placeholder={`${t('common.all')} ${t('categories.title')}`} />
                     </SelectTrigger>
                     <SelectContent>
@@ -243,12 +246,12 @@ const Products = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">{t('categories.description')}</Label>
-                  <Textarea id="description" name="description" placeholder={t('categories.description')} rows={3} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="description" className="text-sm">{t('categories.description')}</Label>
+                  <Textarea id="description" name="description" placeholder={t('categories.description')} rows={2} className="text-sm" />
                 </div>
                 
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full h-9 mt-2" disabled={loading}>
                   {loading ? t('common.loading') : t('common.save')}
                 </Button>
               </form>
@@ -259,18 +262,18 @@ const Products = () => {
 
         <Card className="border-2 shadow-card hover:shadow-elegant transition-all duration-300">
           <CardHeader className="border-b bg-gradient-to-br from-primary/5 via-transparent to-accent/5">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-            <CardTitle className="flex items-center gap-2 text-2xl">
-              <Package className="w-6 h-6 text-primary" />
+            <CardTitle className="flex items-center gap-2 text-xl sm:text-2xl">
+              <Package className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
               {t('products.title')}
             </CardTitle>
-            <CardDescription className="text-base">{t('products.subtitle')}</CardDescription>
+            <CardDescription className="text-sm sm:text-base">{t('products.subtitle')}</CardDescription>
               </div>
-              <div className="flex items-center gap-2">
-                <Label htmlFor="category-filter">{t('common.filter')} {t('categories.title')}:</Label>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                <Label htmlFor="category-filter" className="text-xs sm:text-sm whitespace-nowrap">{t('common.filter')} {t('categories.title')}:</Label>
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger id="category-filter" className="w-[200px]">
+                  <SelectTrigger id="category-filter" className="w-full sm:w-[200px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -298,17 +301,17 @@ const Products = () => {
                 </p>
               </div>
             ) : (
-              <div className="rounded-xl border-2 overflow-hidden">
+              <div className="rounded-xl border-2 overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5 hover:from-primary/10 hover:to-accent/10">
-                      <TableHead className="font-bold">{t('products.productName')}</TableHead>
-                      <TableHead className="font-bold">SKU</TableHead>
-                      <TableHead className="font-bold">Shelf</TableHead>
-                      <TableHead className="font-bold">{t('products.barcode')}</TableHead>
-                      <TableHead className="font-bold">{t('categories.title')}</TableHead>
-                      <TableHead className="font-bold">{t('categories.description')}</TableHead>
-                      <TableHead className="font-bold">Actions</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap">{t('products.productName')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap">SKU</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap">Shelf</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap">{t('products.barcode')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap">{t('categories.title')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap hidden md:table-cell">{t('categories.description')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -318,14 +321,14 @@ const Products = () => {
                         className="hover:bg-primary/5 transition-colors animate-fade-in"
                         style={{ animationDelay: `${idx * 0.05}s` }}
                       >
-                        <TableCell className="font-medium"><span className="text-muted-foreground text-sm">#{product.id}</span> {product.name}</TableCell>
-                        <TableCell className="text-muted-foreground">{product.sku || "-"}</TableCell>
-                        <TableCell className="text-muted-foreground">{product.shelf || "-"}</TableCell>
-                        <TableCell className="text-muted-foreground">{product.barcode || "-"}</TableCell>
-                        <TableCell className="text-muted-foreground">{product.category_name || "-"}</TableCell>
-                        <TableCell className="text-muted-foreground max-w-xs truncate" title={product.description || ""}>{product.description || "-"}</TableCell>
+                        <TableCell className="font-medium whitespace-nowrap"><span className="text-muted-foreground text-sm">#{product.id}</span> {product.name}</TableCell>
+                        <TableCell className="text-muted-foreground whitespace-nowrap">{product.sku || "-"}</TableCell>
+                        <TableCell className="text-muted-foreground whitespace-nowrap">{product.shelf || "-"}</TableCell>
+                        <TableCell className="text-muted-foreground whitespace-nowrap">{product.barcode || "-"}</TableCell>
+                        <TableCell className="text-muted-foreground whitespace-nowrap">{product.category_name || "-"}</TableCell>
+                        <TableCell className="text-muted-foreground max-w-xs truncate hidden md:table-cell" title={product.description || ""}>{product.description || "-"}</TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 sm:gap-2">
                             <Button 
                               variant="ghost" 
                               size="sm" 
@@ -360,27 +363,27 @@ const Products = () => {
               <DialogDescription>{t('products.subtitle')}</DialogDescription>
             </DialogHeader>
             {editingProduct && (
-              <form onSubmit={handleUpdate} className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-name">{t('products.productName')}</Label>
-                  <Input id="edit-name" name="name" defaultValue={editingProduct.name} required />
+              <form onSubmit={handleUpdate} className="space-y-3 py-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-name" className="text-sm">{t('products.productName')}</Label>
+                  <Input id="edit-name" name="name" defaultValue={editingProduct.name} required className="h-9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-sku">SKU</Label>
-                  <Input id="edit-sku" name="sku" defaultValue={editingProduct.sku || ""} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-sku" className="text-sm">SKU</Label>
+                  <Input id="edit-sku" name="sku" defaultValue={editingProduct.sku || ""} className="h-9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-shelf">Shelf</Label>
-                  <Input id="edit-shelf" name="shelf" defaultValue={editingProduct.shelf || ""} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-shelf" className="text-sm">Shelf</Label>
+                  <Input id="edit-shelf" name="shelf" defaultValue={editingProduct.shelf || ""} className="h-9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-barcode">{t('products.barcode')}</Label>
-                  <Input id="edit-barcode" name="barcode" defaultValue={editingProduct.barcode || ""} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-barcode" className="text-sm">{t('products.barcode')}</Label>
+                  <Input id="edit-barcode" name="barcode" defaultValue={editingProduct.barcode || ""} className="h-9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-category_id">{t('categories.title')}</Label>
-                  <Select value={editFormCategoryId || undefined} onValueChange={(val) => setEditFormCategoryId(val === "none" ? "" : val)}>
-                    <SelectTrigger>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-category_id" className="text-sm">{t('categories.title')}</Label>
+                  <Select value={editFormCategoryId || "none"} onValueChange={(val) => setEditFormCategoryId(val === "none" ? "" : val)}>
+                    <SelectTrigger id="edit-category_id" className="h-9">
                       <SelectValue placeholder={`${t('common.all')} ${t('categories.title')}`} />
                     </SelectTrigger>
                     <SelectContent>
@@ -393,12 +396,12 @@ const Products = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-description">{t('categories.description')}</Label>
-                  <Textarea id="edit-description" name="description" defaultValue={editingProduct.description || ""} rows={3} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-description" className="text-sm">{t('categories.description')}</Label>
+                  <Textarea id="edit-description" name="description" defaultValue={editingProduct.description || ""} rows={2} className="text-sm" />
                 </div>
                 
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full h-9 mt-2" disabled={loading}>
                   {loading ? t('common.loading') : t('common.save')}
                 </Button>
               </form>

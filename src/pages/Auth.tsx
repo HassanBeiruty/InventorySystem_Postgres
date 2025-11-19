@@ -83,10 +83,10 @@ const Auth = () => {
             <Receipt className="w-10 h-10 text-primary-foreground relative z-10" />
             <div className="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent rounded-3xl" />
           </div>
-          <CardTitle className="text-4xl font-bold bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+          <CardTitle className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
             {t('auth.welcomeBack')}
           </CardTitle>
-          <CardDescription className="text-base font-medium">
+          <CardDescription className="text-sm sm:text-base font-medium">
             {isLogin ? t('auth.signInToContinue') : t('auth.createAccount')}
           </CardDescription>
         </CardHeader>

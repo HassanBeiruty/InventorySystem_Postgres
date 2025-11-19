@@ -205,43 +205,46 @@ const InvoicesList = () => {
     <DashboardLayout>
       <div className="space-y-4">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
               {t('invoices.title')}
             </h1>
-            <p className="text-muted-foreground">{t('invoices.subtitle')}</p>
+            <p className="text-muted-foreground text-sm sm:text-base">{t('invoices.subtitle')}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
              <Button
                onClick={() => navigate("/invoices/new/buy")}
-               className="gap-2 bg-gradient-to-r from-emerald-600 via-teal-500 to-cyan-500 hover:from-emerald-700 hover:via-teal-600 hover:to-cyan-600 text-white hover:shadow-lg hover:shadow-emerald-500/50 transition-all duration-300 hover:scale-105 border-0"
+               className="gap-1.5 sm:gap-2 bg-gradient-to-r from-emerald-600 via-teal-500 to-cyan-500 hover:from-emerald-700 hover:via-teal-600 hover:to-cyan-600 text-white hover:shadow-lg hover:shadow-emerald-500/50 transition-all duration-300 hover:scale-105 border-0 text-xs sm:text-sm flex-1 sm:flex-initial"
              >
-               <Plus className="w-4 h-4" />
-               {t('invoices.newBuyInvoice')}
+               <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+               <span className="hidden sm:inline">{t('invoices.newBuyInvoice')}</span>
+               <span className="sm:hidden">Buy</span>
              </Button>
             <Button
               onClick={() => navigate("/invoices/new/sell")}
-              className="gap-2 gradient-primary hover:shadow-glow transition-all duration-300 hover:scale-105"
+              className="gap-1.5 sm:gap-2 gradient-primary hover:shadow-glow transition-all duration-300 hover:scale-105 text-xs sm:text-sm flex-1 sm:flex-initial"
             >
-              <Plus className="w-4 h-4" />
-              {t('invoices.newSellInvoice')}
+              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">{t('invoices.newSellInvoice')}</span>
+              <span className="sm:hidden">Sell</span>
             </Button>
             <Button
               variant="outline"
               onClick={() => setShowFilters(!showFilters)}
-              className="gap-2"
+              className="gap-1.5 sm:gap-2 text-xs sm:text-sm"
             >
-              <Filter className="w-4 h-4" />
-              {showFilters ? t('common.hideFilters') : t('common.showFilters')}
+              <Filter className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">{showFilters ? t('common.hideFilters') : t('common.showFilters')}</span>
+              <span className="sm:hidden">Filters</span>
             </Button>
           </div>
         </div>
 
         {/* Filters */}
         {showFilters && (
-          <div className="border-2 rounded-lg p-4 bg-muted/20">
-            <div className="grid gap-4 md:grid-cols-4">
+          <div className="border-2 rounded-lg p-3 sm:p-4 bg-muted/20">
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
               <div className="space-y-2">
                 <Label>{t('invoices.search')}</Label>
                 <Input
@@ -362,21 +365,21 @@ const InvoicesList = () => {
         )}
 
         {/* Summary Stats */}
-        <div className="grid gap-3 md:grid-cols-8">
-          <div className="border rounded-lg p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <FileText className="w-4 h-4 text-primary" />
-              <span className="text-xs font-medium text-muted-foreground">{t('invoices.totalInvoices')}</span>
+        <div className="grid gap-2 sm:gap-3 grid-cols-2 sm:grid-cols-4 md:grid-cols-8">
+          <div className="border rounded-lg p-2 sm:p-3">
+            <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
+              <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary flex-shrink-0" />
+              <span className="text-xs font-medium text-muted-foreground truncate">{t('invoices.totalInvoices')}</span>
             </div>
-            <div className="text-2xl font-bold">{stats.total}</div>
+            <div className="text-xl sm:text-2xl font-bold">{stats.total}</div>
           </div>
 
-          <div className="border rounded-lg p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="w-4 h-4 text-primary" />
-              <span className="text-xs font-medium text-muted-foreground">{t('invoices.totalAmount')}</span>
+          <div className="border rounded-lg p-2 sm:p-3">
+            <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
+              <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary flex-shrink-0" />
+              <span className="text-xs font-medium text-muted-foreground truncate">{t('invoices.totalAmount')}</span>
             </div>
-            <div className="text-lg font-bold text-primary">${stats.totalAmount.toFixed(2)}</div>
+            <div className="text-base sm:text-lg font-bold text-primary truncate">${stats.totalAmount.toFixed(2)}</div>
           </div>
 
           <div className="border rounded-lg p-3">
@@ -427,19 +430,19 @@ const InvoicesList = () => {
         </div>
 
         {/* Table */}
-        <div className="border-2 rounded-lg overflow-hidden">
+        <div className="border-2 rounded-lg overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5">
-                <TableHead className="font-bold">Invoice#</TableHead>
-                <TableHead className="font-bold">{t('invoices.date')}</TableHead>
-                <TableHead className="font-bold">Due Date</TableHead>
-                <TableHead className="font-bold">{t('invoices.type')}</TableHead>
-                <TableHead className="font-bold">{t('invoices.entity')}</TableHead>
-                <TableHead className="font-bold">{t('invoices.items')}</TableHead>
-                <TableHead className="text-right font-bold">{t('invoices.amount')}</TableHead>
-                <TableHead className="text-center font-bold">{t('invoices.status')}</TableHead>
-                <TableHead className="text-center font-bold">Actions</TableHead>
+                <TableHead className="font-bold whitespace-nowrap">Invoice#</TableHead>
+                <TableHead className="font-bold whitespace-nowrap">{t('invoices.date')}</TableHead>
+                <TableHead className="font-bold whitespace-nowrap hidden md:table-cell">Due Date</TableHead>
+                <TableHead className="font-bold whitespace-nowrap">{t('invoices.type')}</TableHead>
+                <TableHead className="font-bold whitespace-nowrap">{t('invoices.entity')}</TableHead>
+                <TableHead className="font-bold whitespace-nowrap hidden sm:table-cell">{t('invoices.items')}</TableHead>
+                <TableHead className="text-right font-bold whitespace-nowrap">{t('invoices.amount')}</TableHead>
+                <TableHead className="text-center font-bold whitespace-nowrap">{t('invoices.status')}</TableHead>
+                <TableHead className="text-center font-bold whitespace-nowrap">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -473,10 +476,10 @@ const InvoicesList = () => {
                     <TableCell className="font-bold text-primary">
                       #{invoice.id}
                     </TableCell>
-                    <TableCell className="text-sm">
+                    <TableCell className="text-xs sm:text-sm whitespace-nowrap">
                       {formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}
                     </TableCell>
-                    <TableCell className="text-sm">
+                    <TableCell className="text-xs sm:text-sm whitespace-nowrap hidden md:table-cell">
                       {invoice.due_date ? (
                         <span className={new Date(invoice.due_date) < new Date() && invoice.payment_status !== 'paid' 
                           ? 'text-red-600 font-semibold' 
@@ -498,13 +501,13 @@ const InvoicesList = () => {
                         {invoice.invoice_type === 'sell' ? t('invoices.sell') : t('invoices.buy')}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-semibold">
+                    <TableCell className="font-semibold whitespace-nowrap max-w-[120px] sm:max-w-none truncate">
                       {invoice.customers?.name || invoice.suppliers?.name || "N/A"}
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="text-muted-foreground whitespace-nowrap hidden sm:table-cell">
                       {invoice.invoice_items?.length || 0} items
                     </TableCell>
-                    <TableCell className={`text-right font-bold text-lg ${
+                    <TableCell className={`text-right font-bold text-base sm:text-lg whitespace-nowrap ${
                       invoice.payment_status === 'paid' 
                         ? 'text-green-600' 
                         : invoice.payment_status === 'partial'
@@ -529,15 +532,15 @@ const InvoicesList = () => {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-center gap-1 sm:gap-2 flex-wrap">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleViewDetails(invoice.id)}
-                          className="gap-1"
+                          className="gap-1 text-xs sm:text-sm h-7 sm:h-8 px-2 sm:px-3"
                         >
-                          <Eye className="w-4 h-4" />
-                          {t('invoices.view')}
+                          <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
+                          <span className="hidden sm:inline">{t('invoices.view')}</span>
                         </Button>
                         {invoice.payment_status !== 'paid' && (
                           <>
@@ -545,19 +548,19 @@ const InvoicesList = () => {
                               variant="outline"
                               size="sm"
                               onClick={() => navigate(`/invoices/edit/${invoice.id}`)}
-                              className="gap-1"
+                              className="gap-1 text-xs sm:text-sm h-7 sm:h-8 px-2 sm:px-3"
                             >
-                              <Pencil className="w-4 h-4" />
-                              {t('invoices.edit')}
+                              <Pencil className="w-3 h-3 sm:w-4 sm:h-4" />
+                              <span className="hidden sm:inline">{t('invoices.edit')}</span>
                             </Button>
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handleRecordPayment(invoice.id)}
-                              className="gap-1"
+                              className="gap-1 text-xs sm:text-sm h-7 sm:h-8 px-2 sm:px-3"
                             >
-                              <CreditCard className="w-4 h-4" />
-                              {"Payment"}
+                              <CreditCard className="w-3 h-3 sm:w-4 sm:h-4" />
+                              <span className="hidden sm:inline">Payment</span>
                             </Button>
                           </>
                         )}
@@ -568,7 +571,7 @@ const InvoicesList = () => {
                           className="gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2 text-xs"
                         >
                           <Trash2 className="w-3 h-3" />
-                          {"Delete"}
+                          <span className="hidden sm:inline">Delete</span>
                         </Button>
                       </div>
                     </TableCell>

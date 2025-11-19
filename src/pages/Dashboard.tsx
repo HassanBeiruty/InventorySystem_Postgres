@@ -102,15 +102,15 @@ const Dashboard = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8 animate-fade-in">
+      <div className="space-y-6 sm:space-y-8 animate-fade-in">
         <div className="space-y-2">
-          <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
             {t('dashboard.title')}
           </h2>
-          <p className="text-muted-foreground text-lg">{t('dashboard.subtitle')}</p>
+          <p className="text-muted-foreground text-base sm:text-lg">{t('dashboard.subtitle')}</p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {loading ? (
             Array(5).fill(0).map((_, i) => (
               <Card key={i} className="animate-pulse border-2">
@@ -148,7 +148,7 @@ const Dashboard = () => {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
+                  <div className="text-2xl sm:text-3xl font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
                     {stat.value}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
@@ -174,11 +174,11 @@ const Dashboard = () => {
                   {recentInvoices.map((invoice, idx) => (
                     <div 
                       key={invoice.id} 
-                      className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors border-b last:border-0 animate-fade-in"
+                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 p-3 rounded-lg hover:bg-muted/50 transition-colors border-b last:border-0 animate-fade-in"
                       style={{ animationDelay: `${idx * 0.1}s` }}
                     >
-                      <div>
-                        <p className="font-semibold text-foreground">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-foreground truncate">
                           {invoice.invoice_type === 'sell' ? invoice.customers?.name : invoice.suppliers?.name}
                         </p>
                         <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
@@ -186,9 +186,9 @@ const Dashboard = () => {
                           {formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}
                         </p>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-lg">${Number(invoice.total_amount).toFixed(2)}</p>
-                        <p className={`text-xs px-2 py-1 rounded-full ${invoice.is_paid ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
+                      <div className="text-left sm:text-right w-full sm:w-auto">
+                        <p className="font-bold text-base sm:text-lg">${Number(invoice.total_amount).toFixed(2)}</p>
+                        <p className={`text-xs px-2 py-1 rounded-full inline-block ${invoice.is_paid ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
                           {invoice.is_paid ? `✓ ${t('dashboard.paid')}` : `○ ${t('dashboard.pending')}`}
                         </p>
                       </div>

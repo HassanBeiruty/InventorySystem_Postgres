@@ -64,8 +64,10 @@ const Categories = () => {
     setLoading(false);
 
     toast({ title: "Success", description: "Category added successfully" });
+    if (e.currentTarget) {
+      e.currentTarget.reset();
+    }
     setIsOpen(false);
-    e.currentTarget.reset();
     fetchCategories();
   };
 
@@ -125,13 +127,13 @@ const Categories = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8 animate-fade-in">
-        <div className="flex items-center justify-between">
+      <div className="space-y-6 sm:space-y-8 animate-fade-in">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="space-y-2">
-            <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
               {t('categories.title')}
             </h2>
-            <p className="text-muted-foreground text-lg">{t('categories.subtitle')}</p>
+            <p className="text-muted-foreground text-base sm:text-lg">{t('categories.subtitle')}</p>
           </div>
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
@@ -145,16 +147,16 @@ const Categories = () => {
                 <DialogTitle>{t('categories.addCategory')}</DialogTitle>
                 <DialogDescription>{t('categories.subtitle')}</DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">{t('categories.categoryName')}</Label>
-                  <Input id="name" name="name" placeholder={t('categories.categoryName')} required />
+              <form onSubmit={handleSubmit} className="space-y-3 py-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="name" className="text-sm">{t('categories.categoryName')}</Label>
+                  <Input id="name" name="name" placeholder={t('categories.categoryName')} required className="h-9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">{t('categories.description')}</Label>
-                  <Textarea id="description" name="description" placeholder={t('categories.description')} rows={3} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="description" className="text-sm">{t('categories.description')}</Label>
+                  <Textarea id="description" name="description" placeholder={t('categories.description')} rows={2} className="text-sm" />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full h-9 mt-2" disabled={loading}>
                   {loading ? t('common.loading') : t('common.save')}
                 </Button>
               </form>
@@ -179,13 +181,13 @@ const Categories = () => {
                 <p className="text-muted-foreground text-lg">{t('categories.noCategories')}</p>
               </div>
             ) : (
-              <div className="rounded-xl border-2 overflow-hidden">
+              <div className="rounded-xl border-2 overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5 hover:from-primary/10 hover:to-accent/10">
-                      <TableHead className="font-bold">{t('categories.categoryName')}</TableHead>
-                      <TableHead className="font-bold">{t('categories.description')}</TableHead>
-                      <TableHead className="font-bold">Actions</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap">{t('categories.categoryName')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap hidden md:table-cell">{t('categories.description')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -195,10 +197,10 @@ const Categories = () => {
                         className="hover:bg-primary/5 transition-colors animate-fade-in"
                         style={{ animationDelay: `${idx * 0.05}s` }}
                       >
-                        <TableCell className="font-medium">{category.name}</TableCell>
-                        <TableCell className="text-muted-foreground">{category.description || "-"}</TableCell>
+                        <TableCell className="font-medium whitespace-nowrap">{category.name}</TableCell>
+                        <TableCell className="text-muted-foreground whitespace-nowrap hidden md:table-cell">{category.description || "-"}</TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 sm:gap-2">
                             <Button 
                               variant="ghost" 
                               size="sm" 
@@ -233,16 +235,16 @@ const Categories = () => {
               <DialogDescription>{t('categories.updateCategory')}</DialogDescription>
             </DialogHeader>
             {editingCategory && (
-              <form onSubmit={handleUpdate} className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-name">{t('categories.categoryName')}</Label>
-                  <Input id="edit-name" name="name" defaultValue={editingCategory.name} required />
+              <form onSubmit={handleUpdate} className="space-y-3 py-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-name" className="text-sm">{t('categories.categoryName')}</Label>
+                  <Input id="edit-name" name="name" defaultValue={editingCategory.name} required className="h-9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-description">{t('categories.description')}</Label>
-                  <Textarea id="edit-description" name="description" defaultValue={editingCategory.description || ""} rows={3} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-description" className="text-sm">{t('categories.description')}</Label>
+                  <Textarea id="edit-description" name="description" defaultValue={editingCategory.description || ""} rows={2} className="text-sm" />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full h-9 mt-2" disabled={loading}>
                   {loading ? t('categories.updating') : t('categories.updateCategory')}
                 </Button>
               </form>
