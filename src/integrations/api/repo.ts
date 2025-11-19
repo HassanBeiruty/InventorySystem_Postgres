@@ -70,7 +70,7 @@ const listeners = new Set<AuthCallback>();
 // Get API base URL from environment variable or use relative path for development
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
-async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
+export async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getToken();
   const headers: HeadersInit = { 
     "Content-Type": "application/json",

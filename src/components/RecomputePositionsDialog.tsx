@@ -18,6 +18,7 @@ import {
 import { Loader2, RefreshCw } from "lucide-react";
 import { productsRepo } from "@/integrations/api/repo";
 import { toast } from "sonner";
+import { fetchJson } from "@/integrations/api/repo";
 
 interface RecomputePositionsDialogProps {
   open: boolean;
@@ -64,21 +65,13 @@ export function RecomputePositionsDialog({
         ? null 
         : parseInt(selectedProductId);
 
-      const response = await fetch("/api/admin/recompute-positions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
-        },
-        body: JSON.stringify({ product_id: productId }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to recompute positions");
-      }
-
-      const result = await response.json();
+      const result = await fetchJson<{ success: boolean; message: string; product_id: number | null }>(
+        "/api/admin/recompute-positions",
+        {
+          method: "POST",
+          body: JSON.stringify({ product_id: productId }),
+        }
+      );
       
       toast.success("Positions recomputed successfully", {
         description: result.message || "Daily stock positions have been recalculated",
