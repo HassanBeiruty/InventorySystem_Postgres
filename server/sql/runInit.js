@@ -486,7 +486,7 @@ BEGIN
 			next_date AS gap_end
 		FROM Ordered
 		WHERE next_date IS NOT NULL
-		  AND next_date - date > INTERVAL '1 day'
+		  AND (next_date - date)::INTEGER > 1
 	),
 	EndOfDataGaps AS (
 		SELECT 
