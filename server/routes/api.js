@@ -1853,7 +1853,48 @@ router.get('/export/inventory', async (req, res) => {
 });
 
 // ===== ADMIN =====
-// Manual database initialization endpoint
+// Admin: Recompute positions
+router.post('/admin/recompute-positions', async (req, res) => {
+	try {
+		const { product_id } = req.body;
+		
+		// Validate product_id if provided
+		let productIdParam = null;
+		if (product_id !== null && product_id !== undefined && product_id !== '') {
+			const parsedId = parseInt(product_id);
+			if (isNaN(parsedId)) {
+				return res.status(400).json({ error: 'Invalid product_id. Must be a number.' });
+			}
+			productIdParam = parsedId;
+		}
+		
+		// Call the stored procedure
+		const sql = productIdParam !== null 
+			? 'SELECT sp_recompute_positions($1);'
+			: 'SELECT sp_recompute_positions(NULL);';
+		
+		const params = productIdParam !== null ? [productIdParam] : [];
+		
+		await query(sql, params);
+		
+		const message = productIdParam !== null
+			? `Positions recomputed successfully for product ID ${productIdParam}`
+			: 'Positions recomputed successfully for all products';
+		
+		res.json({ 
+			success: true, 
+			message,
+			product_id: productIdParam
+		});
+	} catch (err) {
+		console.error('Recompute positions error:', err);
+		res.status(500).json({ 
+			error: err.message || 'Failed to recompute positions',
+			details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+		});
+	}
+});
+
 router.post('/admin/init', async (req, res) => {
 	try {
 		console.log('[Admin] Manual database initialization requested');

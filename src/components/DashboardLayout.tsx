@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Receipt, Package, Users, UserPlus, FileText, TrendingUp, Home, History, Warehouse, ChevronDown, Database, BarChart3, Calendar, DollarSign, AlertTriangle, FolderTree, AlertCircle } from "lucide-react";
+import { LogOut, Receipt, Package, Users, UserPlus, FileText, TrendingUp, Home, History, Warehouse, ChevronDown, Database, BarChart3, Calendar, DollarSign, AlertTriangle, FolderTree, AlertCircle, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useTranslation } from "react-i18next";
@@ -268,6 +268,18 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               >
                 <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 {t('nav.reports')}
+              </Button>
+            </Link>
+
+            {/* Settings */}
+            <Link to="/settings" className="no-underline inline-block">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-accent/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap"
+              >
+                <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                Settings
               </Button>
             </Link>
           </div>

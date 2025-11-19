@@ -25,6 +25,7 @@ const ProductCosts = lazy(() => import("./pages/ProductCosts"));
 const ProductPrices = lazy(() => import("./pages/ProductPrices"));
 const ExchangeRates = lazy(() => import("./pages/ExchangeRates"));
 const LowStock = lazy(() => import("./pages/LowStock"));
+const Settings = lazy(() => import("./pages/Settings"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Configure React Query with performance optimizations
@@ -75,6 +76,7 @@ const App = () => (
             <Route path="/product-prices" element={<ProductPrices />} />
             <Route path="/exchange-rates" element={<ExchangeRates />} />
             <Route path="/low-stock" element={<LowStock />} />
+            <Route path="/settings" element={<Settings />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
