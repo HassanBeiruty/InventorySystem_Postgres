@@ -109,7 +109,7 @@
    Invoke-WebRequest -Uri "https://invoicesystem-api.onrender.com/api/admin/init" -Method POST
    
    Option C - Using Postman:
-   - POST https://invoicesystem-api.onrender.com/api/admin/init
+   - POST https://invoicesystem-api-esb1.onrender.com//api/admin/init
 
 4. Verify initialization:
    Visit: https://invoicesystem-api.onrender.com/api/admin/init-status
@@ -157,6 +157,16 @@ Database:     (saved in Render dashboard)
    → Check VITE_API_URL in Vercel
    → Verify backend URL is correct
    → Check browser network tab
+
+❌ Daily stock snapshot job didn't run at midnight?
+   → On Render free tier, server spins down after 15 min inactivity
+   → Server must be running at 12:05 AM for cron job to execute
+   → Solution 1: Manually trigger the job:
+     POST https://your-backend-url.onrender.com/api/admin/daily-stock-snapshot
+   → Solution 2: Use external cron service (e.g., cron-job.org) to ping your server
+   → Solution 3: Upgrade to Render paid tier (always-on service)
+   → To fill missing dates, use:
+     POST https://your-backend-url.onrender.com/api/admin/recompute-positions
 
 
 ═══════════════════════════════════════════════════════════════

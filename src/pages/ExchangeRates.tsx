@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -6,14 +6,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { DollarSign, Filter, X, Plus, Pencil, Trash2, CheckCircle2, XCircle } from "lucide-react";
+import { DollarSign, Filter, X, Plus, Pencil, Trash2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { exchangeRatesRepo, ExchangeRateEntity } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
+import { useAdmin } from "@/hooks/useAdmin";
 
 const ExchangeRates = () => {
   const { toast } = useToast();
+  const { isAdmin, isLoading: isAdminLoading } = useAdmin();
   const [loading, setLoading] = useState(true);
   const [rates, setRates] = useState<ExchangeRateEntity[]>([]);
   const [filters, setFilters] = useState({
@@ -26,11 +29,12 @@ const ExchangeRates = () => {
   const [editingRate, setEditingRate] = useState<ExchangeRateEntity | null>(null);
   const [formLoading, setFormLoading] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    // Only fetch if admin check is complete and user is admin
+    if (isAdminLoading || !isAdmin) {
+      return;
+    }
+    
     setLoading(true);
     try {
       const filterObj: any = {};
@@ -52,7 +56,14 @@ const ExchangeRates = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAdminLoading, isAdmin, filters.currency_code, filters.is_active, toast]);
+
+  // Only fetch data when admin status is confirmed
+  useEffect(() => {
+    if (!isAdminLoading && isAdmin) {
+      fetchData();
+    }
+  }, [isAdminLoading, isAdmin, fetchData]);
 
   const applyFilters = async () => {
     await fetchData();
@@ -158,6 +169,44 @@ const ExchangeRates = () => {
       });
     return activeRates;
   };
+
+  // Wait for admin check to complete before rendering anything
+  // This prevents the flash of content/access denied
+  if (isAdminLoading) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6 p-4 sm:p-6">
+          <div className="space-y-4">
+            <Skeleton className="h-10 w-64" />
+            <Skeleton className="h-64 w-full" />
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Show access denied if not admin (only after loading is definitely complete)
+  if (!isAdmin) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6 p-4 sm:p-6">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <DollarSign className="w-8 h-8" />
+              Exchange Rates
+            </h1>
+            <p className="text-muted-foreground mt-2">Manage currency exchange rates</p>
+          </div>
+          <Card>
+            <CardContent className="p-6 text-center">
+              <AlertCircle className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">Admin access required to manage exchange rates</p>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   const currentRates = getCurrentActiveRates();
 

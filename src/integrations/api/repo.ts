@@ -435,4 +435,81 @@ export const exchangeRatesRepo = {
   },
 };
 
+// ===== ADMIN =====
+export interface HealthCheckResponse {
+  status: string;
+  timestamp: string;
+  database: {
+    status: string;
+    responseTime: string;
+    host: string;
+    database: string;
+  };
+  server: {
+    uptime: string;
+    memory: {
+      used: string;
+      total: string;
+    };
+    nodeVersion: string;
+    environment: string;
+  };
+  dailyStockSnapshot: {
+    lastRun: string | null;
+    scheduledTime: string;
+  };
+  responseTime: string;
+}
+
+export interface AdminActionResponse {
+  success: boolean;
+  message?: string;
+  started_at?: string;
+  completed_at?: string;
+  details?: any;
+}
+
+export interface UserEntity {
+  id: number;
+  email: string;
+  is_admin: boolean;
+  created_at: string;
+}
+
+export const adminRepo = {
+  async healthCheck(): Promise<HealthCheckResponse> {
+    return fetchJson<HealthCheckResponse>("/api/admin/health");
+  },
+  async triggerDailySnapshot(): Promise<AdminActionResponse> {
+    return fetchJson<AdminActionResponse>("/api/admin/daily-stock-snapshot", {
+      method: "POST",
+    });
+  },
+  async initDatabase(): Promise<AdminActionResponse> {
+    return fetchJson<AdminActionResponse>("/api/admin/init", {
+      method: "POST",
+    });
+  },
+  async recomputePositions(productId?: number): Promise<AdminActionResponse> {
+    return fetchJson<AdminActionResponse>("/api/admin/recompute-positions", {
+      method: "POST",
+      body: JSON.stringify({ product_id: productId ?? null }),
+    });
+  },
+  async listUsers(): Promise<UserEntity[]> {
+    return fetchJson<UserEntity[]>("/api/admin/users");
+  },
+  async updateUserAdminStatus(userId: number, isAdmin: boolean): Promise<AdminActionResponse> {
+    return fetchJson<AdminActionResponse>(`/api/admin/users/${userId}/admin`, {
+      method: "PUT",
+      body: JSON.stringify({ isAdmin }),
+    });
+  },
+  async clearUsers(): Promise<AdminActionResponse> {
+    return fetchJson<AdminActionResponse>("/api/admin/users/clear", {
+      method: "POST",
+    });
+  },
+};
+
 

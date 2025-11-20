@@ -10,6 +10,7 @@ const tables = [
 	id SERIAL PRIMARY KEY,
 	email VARCHAR(255) NOT NULL UNIQUE,
 	passwordHash VARCHAR(255) NOT NULL,
+	is_admin BOOLEAN NOT NULL DEFAULT false,
 	created_at TIMESTAMP NOT NULL
 );`
 	},
@@ -942,6 +943,39 @@ async function runInit() {
 				errors++;
 			}
 		}
+	}
+
+	// Migration: Add is_admin column if it doesn't exist and set first user as admin
+	try {
+		// Check if is_admin column exists
+		const columnCheck = await query(`
+			SELECT column_name 
+			FROM information_schema.columns 
+			WHERE table_name = 'users' AND column_name = 'is_admin'
+		`, []);
+		
+		if (columnCheck.recordset.length === 0) {
+			// Add is_admin column
+			await query('ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT false', []);
+			console.log('✓ Added is_admin column to users table');
+		}
+		
+		// Set first user (lowest ID) as admin if no admin exists
+		const adminCheck = await query('SELECT COUNT(*) as admin_count FROM users WHERE is_admin = true', []);
+		const adminCount = adminCheck.recordset[0]?.admin_count || 0;
+		
+		if (adminCount === 0) {
+			// Set first user as admin
+			await query(`
+				UPDATE users 
+				SET is_admin = true 
+				WHERE id = (SELECT MIN(id) FROM users)
+			`, []);
+			console.log('✓ Set first user as admin');
+		}
+	} catch (migrationErr) {
+		console.warn('⚠ Migration warning:', migrationErr.message);
+		// Don't fail initialization if migration has issues
 	}
 
 	const result = { ok: errors === 0, batches: executed, errors, total: tables.length, errorDetails: errorDetails.length > 0 ? errorDetails : undefined };

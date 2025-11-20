@@ -91,6 +91,58 @@ function hashPassword(pw) {
 	return `${h}`;
 }
 
+// ===== MIDDLEWARE =====
+// JWT Authentication Middleware
+async function authenticateToken(req, res, next) {
+	try {
+		const authHeader = req.headers['authorization'];
+		const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+		
+		if (!token) {
+			return res.status(401).json({ error: 'Authentication required' });
+		}
+		
+		const decoded = jwt.verify(token, JWT_SECRET);
+		req.user = decoded; // Attach user info to request
+		next();
+	} catch (err) {
+		if (err.name === 'TokenExpiredError') {
+			return res.status(401).json({ error: 'Token expired' });
+		}
+		if (err.name === 'JsonWebTokenError') {
+			return res.status(401).json({ error: 'Invalid token' });
+		}
+		return res.status(401).json({ error: 'Authentication failed' });
+	}
+}
+
+// Admin Role Check Middleware
+async function requireAdmin(req, res, next) {
+	try {
+		if (!req.user || !req.user.userId) {
+			return res.status(401).json({ error: 'Authentication required' });
+		}
+		
+		// Check if user is admin
+		const result = await query('SELECT is_admin FROM users WHERE id = $1', [{ id: req.user.userId }]);
+		
+		if (result.recordset.length === 0) {
+			return res.status(404).json({ error: 'User not found' });
+		}
+		
+		const isAdmin = result.recordset[0].is_admin === true || result.recordset[0].is_admin === 1;
+		
+		if (!isAdmin) {
+			return res.status(403).json({ error: 'Admin access required' });
+		}
+		
+		next();
+	} catch (err) {
+		console.error('Admin check error:', err);
+		return res.status(500).json({ error: 'Failed to verify admin status' });
+	}
+}
+
 router.post('/auth/signup', async (req, res) => {
 	try {
 		const { email, password } = req.body;
@@ -98,15 +150,27 @@ router.post('/auth/signup', async (req, res) => {
 		if (result.recordset.length > 0) {
 			return res.status(400).json({ error: 'User already exists' });
 		}
+		
+		// Check if this is the first user (table is empty)
+		const userCountResult = await query('SELECT COUNT(*) as count FROM users', []);
+		const userCount = userCountResult.recordset[0]?.count || 0;
+		const isFirstUser = userCount === 0;
+		
 		const passwordHash = hashPassword(password);
 		const insertResult = await query(
-			'INSERT INTO users (email, passwordHash, created_at) VALUES ($1, $2, $3) RETURNING id',
-			[{ email, passwordHash, created_at: nowIso() }]
+			'INSERT INTO users (email, passwordHash, is_admin, created_at) VALUES ($1, $2, $3, $4) RETURNING id, is_admin',
+			[{ email, passwordHash, is_admin: isFirstUser, created_at: nowIso() }]
 		);
-		const id = insertResult.recordset[0].id;
+		const user = insertResult.recordset[0];
+		const isAdmin = user.is_admin === true || user.is_admin === 1;
+		
+		if (isFirstUser) {
+			console.log(`✓ First user created and set as admin: ${email}`);
+		}
+		
 		// Generate JWT token
-		const token = jwt.sign({ userId: id, email }, JWT_SECRET, { expiresIn: '7d' });
-		res.json({ id, email, token });
+		const token = jwt.sign({ userId: user.id, email, isAdmin }, JWT_SECRET, { expiresIn: '7d' });
+		res.json({ id: user.id, email, isAdmin, token });
 	} catch (err) {
 		console.error('Signup error:', err);
 		res.status(500).json({ error: err.message });
@@ -117,16 +181,17 @@ router.post('/auth/signin', async (req, res) => {
 	try {
 		const { email, password } = req.body;
 		const passwordHash = hashPassword(password);
-		const result = await query('SELECT id, email FROM users WHERE email = $1 AND passwordHash = $2', [
+		const result = await query('SELECT id, email, is_admin FROM users WHERE email = $1 AND passwordHash = $2', [
 			{ email, passwordHash },
 		]);
 		if (result.recordset.length === 0) {
 			return res.status(401).json({ error: 'Invalid credentials' });
 		}
 		const user = result.recordset[0];
+		const isAdmin = user.is_admin === true || user.is_admin === 1;
 		// Generate JWT token
-		const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
-		res.json({ id: user.id, email: user.email, token });
+		const token = jwt.sign({ userId: user.id, email: user.email, isAdmin }, JWT_SECRET, { expiresIn: '7d' });
+		res.json({ id: user.id, email: user.email, isAdmin, token });
 	} catch (err) {
 		console.error('Signin error:', err);
 		res.status(500).json({ error: err.message });
@@ -137,6 +202,22 @@ router.post('/auth/logout', async (req, res) => {
 	// For JWT, logout is handled client-side by removing the token
 	// This endpoint exists for compatibility
 	res.json({ success: true });
+});
+
+// Check if current user is admin
+router.get('/auth/me', authenticateToken, async (req, res) => {
+	try {
+		const result = await query('SELECT id, email, is_admin FROM users WHERE id = $1', [{ id: req.user.userId }]);
+		if (result.recordset.length === 0) {
+			return res.status(404).json({ error: 'User not found' });
+		}
+		const user = result.recordset[0];
+		const isAdmin = user.is_admin === true || user.is_admin === 1;
+		res.json({ id: user.id, email: user.email, isAdmin });
+	} catch (err) {
+		console.error('Get user info error:', err);
+		res.status(500).json({ error: err.message });
+	}
 });
 
 // ===== CUSTOMERS =====
@@ -1125,7 +1206,8 @@ router.post('/invoices/:id/payments', async (req, res) => {
 
 // ===== EXCHANGE RATES =====
 // List all exchange rates
-router.get('/exchange-rates', async (req, res) => {
+// Get exchange rates (admin only - for management)
+router.get('/exchange-rates', authenticateToken, requireAdmin, async (req, res) => {
 	try {
 		const { currency_code, is_active } = req.query;
 		let sql = 'SELECT * FROM exchange_rates WHERE 1=1';
@@ -1191,8 +1273,8 @@ router.get('/exchange-rates/:currency/rate', async (req, res) => {
 	}
 });
 
-// Create new exchange rate
-router.post('/exchange-rates', async (req, res) => {
+// Create new exchange rate (admin only)
+router.post('/exchange-rates', authenticateToken, requireAdmin, async (req, res) => {
 	try {
 		const { currency_code, rate_to_usd, effective_date, is_active } = req.body;
 		
@@ -1238,8 +1320,8 @@ router.post('/exchange-rates', async (req, res) => {
 	}
 });
 
-// Update exchange rate
-router.put('/exchange-rates/:id', async (req, res) => {
+// Update exchange rate (admin only)
+router.put('/exchange-rates/:id', authenticateToken, requireAdmin, async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
 		const { currency_code, rate_to_usd, effective_date, is_active } = req.body;
@@ -1303,8 +1385,8 @@ router.put('/exchange-rates/:id', async (req, res) => {
 	}
 });
 
-// Delete exchange rate (soft delete)
-router.delete('/exchange-rates/:id', async (req, res) => {
+// Delete exchange rate (soft delete, admin only)
+router.delete('/exchange-rates/:id', authenticateToken, requireAdmin, async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
 		
@@ -1853,8 +1935,78 @@ router.get('/export/inventory', async (req, res) => {
 });
 
 // ===== ADMIN =====
+// Health Check Endpoint (admin-only)
+router.get('/admin/health', authenticateToken, requireAdmin, async (req, res) => {
+	try {
+		const startTime = Date.now();
+		
+		// Test database connection
+		let dbStatus = 'disconnected';
+		let dbResponseTime = 0;
+		try {
+			const dbStart = Date.now();
+			await query('SELECT 1 AS test', []);
+			dbResponseTime = Date.now() - dbStart;
+			dbStatus = 'connected';
+		} catch (dbErr) {
+			dbStatus = 'error';
+		}
+		
+		// Get last daily stock snapshot time
+		let lastSnapshot = null;
+		try {
+			const snapshotResult = await query(`
+				SELECT MAX(created_at) as last_snapshot 
+				FROM daily_stock 
+				WHERE date = CURRENT_DATE
+			`, []);
+			lastSnapshot = snapshotResult.recordset[0]?.last_snapshot || null;
+		} catch (err) {
+			// Ignore if table doesn't exist yet
+		}
+		
+		// Get system info
+		const serverUptime = process.uptime();
+		const memoryUsage = process.memoryUsage();
+		
+		const responseTime = Date.now() - startTime;
+		
+		res.json({
+			status: 'ok',
+			timestamp: new Date().toISOString(),
+			database: {
+				status: dbStatus,
+				responseTime: `${dbResponseTime}ms`,
+				host: process.env.PG_HOST || 'localhost',
+				database: process.env.PG_DATABASE || 'invoicesystem'
+			},
+			server: {
+				uptime: `${Math.floor(serverUptime)}s`,
+				memory: {
+					used: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`,
+					total: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`
+				},
+				nodeVersion: process.version,
+				environment: process.env.NODE_ENV || 'development'
+			},
+			dailyStockSnapshot: {
+				lastRun: lastSnapshot,
+				scheduledTime: '00:05 (Asia/Beirut)'
+			},
+			responseTime: `${responseTime}ms`
+		});
+	} catch (error) {
+		console.error('[Admin] Health check error:', error);
+		res.status(500).json({
+			status: 'error',
+			error: error.message,
+			timestamp: new Date().toISOString()
+		});
+	}
+});
+
 // Admin: Recompute positions
-router.post('/admin/recompute-positions', async (req, res) => {
+router.post('/admin/recompute-positions', authenticateToken, requireAdmin, async (req, res) => {
 	try {
 		const { product_id } = req.body;
 		
@@ -1895,7 +2047,7 @@ router.post('/admin/recompute-positions', async (req, res) => {
 	}
 });
 
-router.post('/admin/init', async (req, res) => {
+router.post('/admin/init', authenticateToken, requireAdmin, async (req, res) => {
 	try {
 		console.log('[Admin] Manual database initialization requested');
 		
@@ -1939,6 +2091,181 @@ router.post('/admin/init', async (req, res) => {
 			error: 'Database initialization error', 
 			details: err.message 
 		});
+	}
+});
+
+// Manual trigger for daily stock snapshot
+router.post('/admin/daily-stock-snapshot', authenticateToken, requireAdmin, async (req, res) => {
+	try {
+		console.log('[Admin] Manual daily stock snapshot requested');
+		
+		const startTime = new Date().toISOString();
+		console.log(`[Admin] Running daily stock snapshot at ${startTime}`);
+		
+		const result = await query('SELECT sp_daily_stock_snapshot();', []);
+		
+		const endTime = new Date().toISOString();
+		console.log(`[Admin] ✓ Daily stock snapshot completed successfully at ${endTime}`);
+		
+		res.json({
+			success: true,
+			message: 'Daily stock snapshot completed successfully',
+			started_at: startTime,
+			completed_at: endTime
+		});
+	} catch (error) {
+		console.error('[Admin] ✗ Error running daily stock snapshot:', error.message);
+		if (error.stack) {
+			console.error('[Admin] Stack:', error.stack);
+		}
+		res.status(500).json({
+			success: false,
+			error: 'Failed to run daily stock snapshot',
+			details: error.message,
+			stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+		});
+	}
+});
+
+// Admin: List all users
+router.get('/admin/users', authenticateToken, requireAdmin, async (req, res) => {
+	try {
+		const result = await query('SELECT id, email, is_admin, created_at FROM users ORDER BY created_at DESC', []);
+		res.json(result.recordset);
+	} catch (err) {
+		console.error('[Admin] List users error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// One-time endpoint to set first user as admin (for production setup)
+// Only works if no admin exists - safe to call multiple times
+router.post('/admin/setup-first-admin', async (req, res) => {
+	try {
+		// Check if any admin exists
+		const adminCheck = await query('SELECT COUNT(*) as admin_count FROM users WHERE is_admin = true', []);
+		const adminCount = adminCheck.recordset[0]?.admin_count || 0;
+		
+		if (adminCount > 0) {
+			return res.json({ 
+				success: true, 
+				message: 'Admin already exists. No action needed.',
+				adminCount 
+			});
+		}
+		
+		// Check if users table has is_admin column
+		const columnCheck = await query(`
+			SELECT column_name 
+			FROM information_schema.columns 
+			WHERE table_name = 'users' AND column_name = 'is_admin'
+		`, []);
+		
+		if (columnCheck.recordset.length === 0) {
+			// Add is_admin column if it doesn't exist
+			await query('ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT false', []);
+		}
+		
+		// Get first user (lowest ID)
+		const firstUserResult = await query('SELECT id, email FROM users ORDER BY id ASC LIMIT 1', []);
+		
+		if (firstUserResult.recordset.length === 0) {
+			return res.status(400).json({ 
+				error: 'No users found. Please create a user account first.' 
+			});
+		}
+		
+		const firstUser = firstUserResult.recordset[0];
+		
+		// Set first user as admin
+		await query('UPDATE users SET is_admin = true WHERE id = $1', [{ id: firstUser.id }]);
+		
+		console.log(`[Setup] First user set as admin: ${firstUser.email} (ID: ${firstUser.id})`);
+		
+		res.json({ 
+			success: true, 
+			message: `First user (${firstUser.email}) has been set as admin`,
+			userId: firstUser.id,
+			email: firstUser.email
+		});
+	} catch (err) {
+		console.error('[Setup] Set first admin error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Admin: Clear all users (WARNING: This will delete all users except the current admin)
+router.post('/admin/users/clear', authenticateToken, requireAdmin, async (req, res) => {
+	try {
+		// Get current admin user ID
+		const currentUserId = req.user.userId;
+		
+		// Delete all users except the current admin
+		await query('DELETE FROM users WHERE id != $1', [{ id: currentUserId }]);
+		
+		console.log(`[Admin] Users table cleared (admin ${currentUserId} preserved)`);
+		
+		res.json({ 
+			success: true, 
+			message: 'All users cleared. Next user to sign up will become admin.' 
+		});
+	} catch (err) {
+		console.error('[Admin] Clear users error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Admin: Update user admin status
+router.put('/admin/users/:id/admin', authenticateToken, requireAdmin, async (req, res) => {
+	try {
+		const userId = parseInt(req.params.id);
+		const { isAdmin } = req.body;
+		
+		if (isNaN(userId)) {
+			return res.status(400).json({ error: 'Invalid user ID' });
+		}
+		
+		if (typeof isAdmin !== 'boolean') {
+			return res.status(400).json({ error: 'isAdmin must be a boolean' });
+		}
+		
+		// Prevent removing admin from yourself
+		if (userId === req.user.userId && isAdmin === false) {
+			return res.status(400).json({ error: 'Cannot remove admin status from yourself' });
+		}
+		
+		// Ensure at least one admin remains
+		if (isAdmin === false) {
+			const adminCountResult = await query('SELECT COUNT(*) as count FROM users WHERE is_admin = true', []);
+			const adminCount = adminCountResult.recordset[0]?.count || 0;
+			if (adminCount <= 1) {
+				return res.status(400).json({ error: 'Cannot remove last admin. At least one admin must exist.' });
+			}
+		}
+		
+		// Check if user exists
+		const userCheck = await query('SELECT id, email FROM users WHERE id = $1', [{ id: userId }]);
+		if (userCheck.recordset.length === 0) {
+			return res.status(404).json({ error: 'User not found' });
+		}
+		
+		// Update admin status
+		await query('UPDATE users SET is_admin = $1 WHERE id = $2', [{ is_admin: isAdmin }, { id: userId }]);
+		
+		console.log(`[Admin] User ${userCheck.recordset[0].email} admin status set to ${isAdmin}`);
+		
+		res.json({ 
+			success: true, 
+			message: `User admin status ${isAdmin ? 'granted' : 'revoked'}`,
+			user: {
+				id: userId,
+				email: userCheck.recordset[0].email,
+				isAdmin
+			}
+		});
+	} catch (err) {
+		console.error('[Admin] Update user admin status error:', err);
+		res.status(500).json({ error: err.message });
 	}
 });
 
