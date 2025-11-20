@@ -25,8 +25,10 @@ import { RecomputePositionsDialog } from "@/components/RecomputePositionsDialog"
 import { useAdmin } from "@/hooks/useAdmin";
 import { adminRepo, type HealthCheckResponse, type UserEntity } from "@/integrations/api/repo";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 const Settings = () => {
+  const { t } = useTranslation();
   const { isAdmin, isLoading: isAdminLoading, userInfo } = useAdmin();
   const [recomputeDialogOpen, setRecomputeDialogOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -44,11 +46,11 @@ const Settings = () => {
   const snapshotMutation = useMutation({
     mutationFn: () => adminRepo.triggerDailySnapshot(),
     onSuccess: (data) => {
-      toast.success(data.message || "Daily stock snapshot triggered successfully");
+      toast.success(data.message || t("settings.dailyStockSnapshotTriggered"));
       refetchHealth();
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to trigger daily stock snapshot");
+      toast.error(error.message || t("settings.failedToTriggerSnapshot"));
     },
   });
 
@@ -56,11 +58,11 @@ const Settings = () => {
   const initMutation = useMutation({
     mutationFn: () => adminRepo.initDatabase(),
     onSuccess: (data) => {
-      toast.success(data.message || "Database initialization completed");
+      toast.success(data.message || t("settings.databaseInitializationCompleted"));
       refetchHealth();
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to initialize database");
+      toast.error(error.message || t("settings.failedToInitializeDatabase"));
     },
   });
 
@@ -77,18 +79,18 @@ const Settings = () => {
     mutationFn: ({ userId, isAdmin }: { userId: number; isAdmin: boolean }) =>
       adminRepo.updateUserAdminStatus(userId, isAdmin),
     onSuccess: (data, variables) => {
-      toast.success(data.message || `Admin status ${variables.isAdmin ? "granted" : "revoked"}`);
+      toast.success(data.message || (variables.isAdmin ? t("settings.adminStatusGranted") || "Admin status granted" : t("settings.adminStatusRevoked") || "Admin status revoked"));
       refetchUsers();
       // Refresh admin status if updating current user
       queryClient.invalidateQueries({ queryKey: ["user", "me"] });
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to update admin status");
+      toast.error(error.message || t("settings.failedToUpdateAdminStatus"));
     },
   });
 
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return "Never";
+    if (!dateString) return t("settings.never");
     try {
       return new Date(dateString).toLocaleString();
     } catch {
@@ -98,8 +100,7 @@ const Settings = () => {
 
   // Wait for admin check to complete before rendering anything
   // This prevents the flash of content/access denied
-  // Only show loading if we truly have no data (initial load)
-  if (isAdminLoading && !userInfo) {
+  if (isAdminLoading) {
     return (
       <DashboardLayout>
         <div className="space-y-6 p-4 sm:p-6">
@@ -118,9 +119,9 @@ const Settings = () => {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <SettingsIcon className="w-8 h-8" />
-            Settings
+            {t("settings.title")}
           </h1>
-          <p className="text-muted-foreground mt-2">Manage system settings and preferences</p>
+          <p className="text-muted-foreground mt-2">{t("settings.subtitle")}</p>
         </div>
 
         {/* Admin Section */}
@@ -133,9 +134,9 @@ const Settings = () => {
                   <div>
                     <CardTitle className="flex items-center gap-2">
                       <Activity className="w-5 h-5" />
-                      System Health
+                      {t("settings.systemHealth")}
                     </CardTitle>
-                    <CardDescription>Current system status and performance metrics</CardDescription>
+                    <CardDescription>{t("settings.systemHealthDescription")}</CardDescription>
                   </div>
                   <Button
                     variant="outline"
@@ -144,7 +145,7 @@ const Settings = () => {
                     disabled={healthLoading}
                   >
                     <RefreshCw className={`w-4 h-4 ${healthLoading ? "animate-spin" : ""}`} />
-                    Refresh
+                    {t("settings.refresh")}
                   </Button>
                 </div>
               </CardHeader>
@@ -162,7 +163,7 @@ const Settings = () => {
                       <div className="flex items-center gap-3">
                         <Database className="w-5 h-5 text-primary" />
                         <div>
-                          <p className="font-medium">Database</p>
+                          <p className="font-medium">{t("settings.database")}</p>
                           <p className="text-sm text-muted-foreground">
                             {health.database.host} / {health.database.database}
                           </p>
@@ -173,13 +174,13 @@ const Settings = () => {
                           <>
                             <CheckCircle2 className="w-5 h-5 text-green-500" />
                             <Badge variant="default" className="bg-green-500">
-                              Connected
+                              {t("settings.connected")}
                             </Badge>
                           </>
                         ) : (
                           <>
                             <XCircle className="w-5 h-5 text-red-500" />
-                            <Badge variant="destructive">Disconnected</Badge>
+                            <Badge variant="destructive">{t("settings.disconnected")}</Badge>
                           </>
                         )}
                         <span className="text-sm text-muted-foreground">
@@ -193,16 +194,16 @@ const Settings = () => {
                       <div className="flex items-center gap-3">
                         <Server className="w-5 h-5 text-primary" />
                         <div>
-                          <p className="font-medium">Server</p>
+                          <p className="font-medium">{t("settings.server")}</p>
                           <p className="text-sm text-muted-foreground">
                             Node {health.server.nodeVersion} • {health.server.environment}
                           </p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-medium">Uptime: {health.server.uptime}</p>
+                        <p className="text-sm font-medium">{t("settings.uptime")}: {health.server.uptime}</p>
                         <p className="text-xs text-muted-foreground">
-                          Memory: {health.server.memory.used} / {health.server.memory.total}
+                          {t("settings.memory")}: {health.server.memory.used} / {health.server.memory.total}
                         </p>
                       </div>
                     </div>
@@ -212,12 +213,12 @@ const Settings = () => {
                       <div className="flex items-center gap-3">
                         <Clock className="w-5 h-5 text-primary" />
                         <div>
-                          <p className="font-medium">Daily Stock Snapshot</p>
+                          <p className="font-medium">{t("settings.dailyStockSnapshot")}</p>
                           <p className="text-sm text-muted-foreground">
-                            Last run: {formatDate(health.dailyStockSnapshot.lastRun)}
+                            {t("settings.lastRun")}: {formatDate(health.dailyStockSnapshot.lastRun)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Scheduled: {health.dailyStockSnapshot.scheduledTime}
+                            {t("settings.scheduled")}: {health.dailyStockSnapshot.scheduledTime}
                           </p>
                         </div>
                       </div>
@@ -226,7 +227,7 @@ const Settings = () => {
                 ) : (
                   <div className="flex items-center gap-2 text-destructive">
                     <AlertCircle className="w-5 h-5" />
-                    <p>Failed to load health data</p>
+                    <p>{t("settings.failedToLoad")}</p>
                   </div>
                 )}
               </CardContent>
@@ -237,17 +238,17 @@ const Settings = () => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <HardDrive className="w-5 h-5" />
-                  Admin Actions
+                  {t("settings.adminActions")}
                 </CardTitle>
-                <CardDescription>System maintenance and management tools</CardDescription>
+                <CardDescription>{t("settings.adminActionsDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-3">
                   {/* Trigger Daily Snapshot */}
                   <div className="p-4 border rounded-lg">
-                    <h4 className="font-medium mb-2">Daily Stock Snapshot</h4>
+                    <h4 className="font-medium mb-2">{t("settings.dailyStockSnapshotTitle")}</h4>
                     <p className="text-sm text-muted-foreground mb-4">
-                      Manually trigger the daily stock snapshot job
+                      {t("settings.dailyStockSnapshotDescription")}
                     </p>
                     <Button
                       onClick={() => snapshotMutation.mutate()}
@@ -257,12 +258,12 @@ const Settings = () => {
                       {snapshotMutation.isPending ? (
                         <>
                           <RefreshCw className="w-4 h-4 animate-spin" />
-                          Running...
+                          {t("settings.running")}
                         </>
                       ) : (
                         <>
                           <Play className="w-4 h-4" />
-                          Trigger Snapshot
+                          {t("settings.triggerSnapshot")}
                         </>
                       )}
                     </Button>
@@ -270,14 +271,14 @@ const Settings = () => {
 
                   {/* Database Initialization */}
                   <div className="p-4 border rounded-lg">
-                    <h4 className="font-medium mb-2">Database Initialization</h4>
+                    <h4 className="font-medium mb-2">{t("settings.databaseInitialization")}</h4>
                     <p className="text-sm text-muted-foreground mb-4">
-                      Re-run database schema initialization
+                      {t("settings.databaseInitializationDescription")}
                     </p>
                     <Button
                       variant="outline"
                       onClick={() => {
-                        if (confirm("Are you sure you want to reinitialize the database? This will recreate all tables and functions.")) {
+                        if (confirm(t("settings.reinitializeConfirm"))) {
                           initMutation.mutate();
                         }
                       }}
@@ -287,32 +288,32 @@ const Settings = () => {
                       {initMutation.isPending ? (
                         <>
                           <RefreshCw className="w-4 h-4 animate-spin" />
-                          Initializing...
+                          {t("settings.initializing")}
                         </>
                       ) : (
                         <>
                           <Database className="w-4 h-4" />
-                          Initialize Database
+                          {t("settings.initializeDatabase")}
                         </>
                       )}
                     </Button>
                   </div>
-                </div>
 
-                {/* Recompute Positions */}
-                <div className="p-4 border rounded-lg">
-                  <h4 className="font-medium mb-2">Recompute Stock Positions</h4>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Recalculate and fill gaps in daily stock positions
-                  </p>
-                  <Button
-                    variant="outline"
-                    onClick={() => setRecomputeDialogOpen(true)}
-                    className="w-full"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                    Recompute Positions
-                  </Button>
+                  {/* Recompute Positions */}
+                  <div className="p-4 border rounded-lg">
+                    <h4 className="font-medium mb-2">{t("settings.recomputeStockPositions")}</h4>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {t("settings.recomputeStockPositionsDescription")}
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => setRecomputeDialogOpen(true)}
+                      className="w-full"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      {t("settings.recomputePositions") || "Recompute Positions"}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -322,9 +323,9 @@ const Settings = () => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Users className="w-5 h-5" />
-                  User Management
+                  {t("settings.userManagement")}
                 </CardTitle>
-                <CardDescription>Manage user accounts and admin permissions</CardDescription>
+                <CardDescription>{t("settings.userManagementDescription")}</CardDescription>
               </CardHeader>
               <CardContent>
                 {usersLoading ? (
@@ -348,17 +349,17 @@ const Settings = () => {
                             <div className="flex items-center gap-2">
                               <p className="font-medium">{user.email}</p>
                               {isCurrentUser && (
-                                <Badge variant="secondary" className="text-xs">You</Badge>
+                                <Badge variant="secondary" className="text-xs">{t("settings.you")}</Badge>
                               )}
                               {isUserAdmin && (
                                 <Badge variant="default" className="bg-primary">
                                   <Shield className="w-3 h-3 mr-1" />
-                                  Admin
+                                  {t("settings.admin")}
                                 </Badge>
                               )}
                             </div>
                             <p className="text-xs text-muted-foreground mt-1">
-                              Joined: {new Date(user.created_at).toLocaleDateString()}
+                              {t("settings.joined")}: {new Date(user.created_at).toLocaleDateString()}
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
@@ -368,12 +369,12 @@ const Settings = () => {
                                 size="sm"
                                 onClick={() => {
                                   if (isCurrentUser) {
-                                    toast.error("Cannot remove admin status from yourself");
+                                    toast.error(t("settings.cannotRemoveYourself") || "Cannot remove admin status from yourself");
                                     return;
                                   }
                                   if (
                                     confirm(
-                                      `Are you sure you want to remove admin status from ${user.email}?`
+                                      t("settings.removeAdminConfirm", { email: user.email }) || `Are you sure you want to remove admin status from ${user.email}?`
                                     )
                                   ) {
                                     updateAdminMutation.mutate({ userId: user.id, isAdmin: false });
@@ -382,7 +383,7 @@ const Settings = () => {
                                 disabled={updateAdminMutation.isPending || isCurrentUser}
                               >
                                 <ShieldOff className="w-4 h-4 mr-1" />
-                                Remove Admin
+                                {t("settings.removeAdmin")}
                               </Button>
                             ) : (
                               <Button
@@ -391,7 +392,7 @@ const Settings = () => {
                                 onClick={() => {
                                   if (
                                     confirm(
-                                      `Are you sure you want to grant admin status to ${user.email}?`
+                                      t("settings.makeAdminConfirm", { email: user.email }) || `Are you sure you want to grant admin status to ${user.email}?`
                                     )
                                   ) {
                                     updateAdminMutation.mutate({ userId: user.id, isAdmin: true });
@@ -400,7 +401,7 @@ const Settings = () => {
                                 disabled={updateAdminMutation.isPending}
                               >
                                 <Shield className="w-4 h-4 mr-1" />
-                                Make Admin
+                                {t("settings.makeAdmin")}
                               </Button>
                             )}
                           </div>
@@ -411,7 +412,7 @@ const Settings = () => {
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>No users found</p>
+                    <p>{t("settings.noUsers")}</p>
                   </div>
                 )}
               </CardContent>
@@ -421,23 +422,21 @@ const Settings = () => {
                   size="sm"
                   onClick={() => {
                     if (
-                      confirm(
-                        "⚠️ WARNING: This will delete ALL users except you. The next user to sign up will become admin.\n\nAre you absolutely sure?"
-                      )
+                      confirm(t("settings.clearAllUsersConfirm"))
                     ) {
                       adminRepo.clearUsers().then(() => {
-                        toast.success("Users cleared. Next signup will be admin.");
+                        toast.success(t("settings.usersCleared") || "Users cleared. Next signup will be admin.");
                         refetchUsers();
                         queryClient.invalidateQueries({ queryKey: ["user", "me"] });
                       }).catch((error: Error) => {
-                        toast.error(error.message || "Failed to clear users");
+                        toast.error(error.message || t("settings.failedToClearUsers") || "Failed to clear users");
                       });
                     }
                   }}
                   className="w-full sm:w-auto"
                 >
                   <AlertCircle className="w-4 h-4 mr-2" />
-                  Clear All Users (Reset)
+                  {t("settings.clearAllUsers")}
                 </Button>
               </CardFooter>
             </Card>
@@ -446,7 +445,7 @@ const Settings = () => {
           <Card>
             <CardContent className="p-6 text-center">
               <AlertCircle className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">Admin access required to view system settings</p>
+              <p className="text-muted-foreground">{t("settings.adminAccessRequired")}</p>
             </CardContent>
           </Card>
         )}

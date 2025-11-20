@@ -136,7 +136,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <DropdownMenuItem asChild>
                   <Link to="/exchange-rates" className="cursor-pointer flex items-center gap-2">
                     <DollarSign className="w-4 h-4 text-primary" />
-                    <span className="font-medium">Exchange Rates</span>
+                    <span className="font-medium">{t("exchangeRates.title")}</span>
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -279,7 +279,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 className="gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-accent/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap"
               >
                 <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                Settings
+                {t("settings.title")}
               </Button>
             </Link>
           </div>

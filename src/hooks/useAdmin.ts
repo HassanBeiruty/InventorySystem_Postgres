@@ -8,24 +8,17 @@ interface UserInfo {
 }
 
 export function useAdmin() {
-  const { data: userInfo, isLoading, isFetching, error } = useQuery<UserInfo>({
+  const { data: userInfo, isLoading, isRefetching, error } = useQuery<UserInfo>({
     queryKey: ["user", "me"],
     queryFn: () => fetchJson<UserInfo>("/api/auth/me"),
     retry: 1,
-    staleTime: 1000 * 60 * 2, // Cache for 2 minutes - admin status doesn't change often
-    gcTime: 1000 * 60 * 10, // Keep in cache for 10 minutes
-    refetchOnMount: false, // Don't refetch if data exists (use cache)
-    refetchOnWindowFocus: false, // Don't refetch on window focus
-    refetchOnReconnect: true, // Only refetch on reconnect
+    staleTime: 0, // Always consider data stale to refetch on mount
+    refetchOnMount: "always", // Ensure refetch on component mount
   });
-
-  // Only show loading on initial fetch (when no data exists)
-  // React Query will deduplicate multiple simultaneous requests automatically
-  const isActuallyLoading = isLoading && !userInfo;
 
   return {
     isAdmin: userInfo?.isAdmin ?? false,
-    isLoading: isActuallyLoading,
+    isLoading: isLoading || isRefetching, // Consider loading if fetching or refetching
     userInfo,
     error,
   };

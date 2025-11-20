@@ -13,8 +13,10 @@ import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { exchangeRatesRepo, ExchangeRateEntity } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { useAdmin } from "@/hooks/useAdmin";
+import { useTranslation } from "react-i18next";
 
 const ExchangeRates = () => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const { isAdmin, isLoading: isAdminLoading, userInfo } = useAdmin();
   const [loading, setLoading] = useState(true);
@@ -49,7 +51,7 @@ const ExchangeRates = () => {
       setRates(ratesData || []);
     } catch (error: any) {
       toast({
-        title: "Error",
+        title: t("common.error"),
         description: error.message,
         variant: "destructive",
       });
@@ -87,14 +89,14 @@ const ExchangeRates = () => {
         is_active: formData.get("is_active") === "on",
       });
       toast({
-        title: "Success",
-        description: "Exchange rate added successfully",
+        title: t("common.success"),
+        description: t("exchangeRates.exchangeRateAdded"),
       });
       setIsAddOpen(false);
       fetchData();
     } catch (error: any) {
       toast({
-        title: "Error",
+        title: t("common.error"),
         description: error.message,
         variant: "destructive",
       });
@@ -118,15 +120,15 @@ const ExchangeRates = () => {
         is_active: formData.get("is_active") === "on",
       });
       toast({
-        title: "Success",
-        description: "Exchange rate updated successfully",
+        title: t("common.success"),
+        description: t("exchangeRates.exchangeRateUpdated"),
       });
       setIsEditOpen(false);
       setEditingRate(null);
       fetchData();
     } catch (error: any) {
       toast({
-        title: "Error",
+        title: t("common.error"),
         description: error.message,
         variant: "destructive",
       });
@@ -136,20 +138,20 @@ const ExchangeRates = () => {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to deactivate this exchange rate?")) {
+    if (!confirm(t("exchangeRates.deactivateConfirm"))) {
       return;
     }
     
     try {
       await exchangeRatesRepo.delete(id);
       toast({
-        title: "Success",
-        description: "Exchange rate deactivated successfully",
+        title: t("common.success"),
+        description: t("exchangeRates.exchangeRateDeactivated"),
       });
       fetchData();
     } catch (error: any) {
       toast({
-        title: "Error",
+        title: t("common.error"),
         description: error.message,
         variant: "destructive",
       });
@@ -172,8 +174,7 @@ const ExchangeRates = () => {
 
   // Wait for admin check to complete before rendering anything
   // This prevents the flash of content/access denied
-  // Only show loading if we truly have no data (initial load)
-  if (isAdminLoading && !userInfo) {
+  if (isAdminLoading) {
     return (
       <DashboardLayout>
         <div className="space-y-6 p-4 sm:p-6">
@@ -216,28 +217,28 @@ const ExchangeRates = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Exchange Rates</h1>
-            <p className="text-muted-foreground">Manage currency exchange rates</p>
+            <h1 className="text-3xl font-bold">{t("exchangeRates.title")}</h1>
+            <p className="text-muted-foreground">{t("exchangeRates.subtitle")}</p>
           </div>
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
-                Add Exchange Rate
+                {t("exchangeRates.addExchangeRate")}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Add Exchange Rate</DialogTitle>
-                <DialogDescription>Create a new exchange rate</DialogDescription>
+                <DialogTitle>{t("exchangeRates.addExchangeRateTitle")}</DialogTitle>
+                <DialogDescription>{t("exchangeRates.addExchangeRateDescription")}</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleAdd}>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="currency_code">Currency *</Label>
+                    <Label htmlFor="currency_code">{t("exchangeRates.currency")} *</Label>
                     <Select name="currency_code" required>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select currency" />
+                        <SelectValue placeholder={t("exchangeRates.selectCurrency")} />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="USD">USD</SelectItem>
@@ -247,18 +248,18 @@ const ExchangeRates = () => {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="rate_to_usd">Rate (1 USD = X currency) *</Label>
+                    <Label htmlFor="rate_to_usd">{t("exchangeRates.rate")} *</Label>
                     <Input
                       name="rate_to_usd"
                       type="number"
                       step="0.000001"
                       min="0.000001"
                       required
-                      placeholder="e.g., 89500 for LBP"
+                      placeholder={t("exchangeRates.ratePlaceholder")}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="effective_date">Effective Date *</Label>
+                    <Label htmlFor="effective_date">{t("exchangeRates.effectiveDate")} *</Label>
                     <Input
                       name="effective_date"
                       type="date"
@@ -274,15 +275,15 @@ const ExchangeRates = () => {
                       defaultChecked
                       className="h-4 w-4"
                     />
-                    <Label htmlFor="is_active">Active</Label>
+                    <Label htmlFor="is_active">{t("exchangeRates.active")}</Label>
                   </div>
                 </div>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>
-                    Cancel
+                    {t("common.cancel")}
                   </Button>
                   <Button type="submit" disabled={formLoading}>
-                    {formLoading ? "Adding..." : "Add"}
+                    {formLoading ? t("exchangeRates.adding") : t("exchangeRates.add")}
                   </Button>
                 </DialogFooter>
               </form>
@@ -308,11 +309,11 @@ const ExchangeRates = () => {
                   <>
                     <div className="text-2xl font-bold">1 USD = {parseFloat(String(currentRate.rate_to_usd)).toLocaleString()} {currency}</div>
                     <div className="text-xs text-muted-foreground">
-                      Effective: {formatDateTimeLebanon(currentRate.effective_date, "MM/dd/yyyy")}
+                      {t("exchangeRates.effective")}: {formatDateTimeLebanon(currentRate.effective_date, "MM/dd/yyyy")}
                     </div>
                   </>
                 ) : (
-                  <div className="text-sm text-muted-foreground">No active rate</div>
+                  <div className="text-sm text-muted-foreground">{t("exchangeRates.noActiveRate")}</div>
                 )}
               </div>
             );
@@ -327,7 +328,7 @@ const ExchangeRates = () => {
             onClick={() => setShowFilters(!showFilters)}
           >
             <Filter className="mr-2 h-4 w-4" />
-            {showFilters ? "Hide" : "Show"} Filters
+            {showFilters ? t("common.hideFilters") : t("common.showFilters")}
           </Button>
           {showFilters && (
             <>
@@ -336,10 +337,10 @@ const ExchangeRates = () => {
                 onValueChange={(value) => setFilters({ ...filters, currency_code: value })}
               >
                 <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Currency" />
+                  <SelectValue placeholder={t("exchangeRates.currency")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Currencies</SelectItem>
+                  <SelectItem value="all">{t("exchangeRates.allCurrencies")}</SelectItem>
                   <SelectItem value="USD">USD</SelectItem>
                   <SelectItem value="LBP">LBP</SelectItem>
                   <SelectItem value="EUR">EUR</SelectItem>
@@ -350,16 +351,16 @@ const ExchangeRates = () => {
                 onValueChange={(value) => setFilters({ ...filters, is_active: value })}
               >
                 <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Status" />
+                  <SelectValue placeholder={t("invoices.status")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="true">Active</SelectItem>
-                  <SelectItem value="false">Inactive</SelectItem>
+                  <SelectItem value="all">{t("exchangeRates.allStatus")}</SelectItem>
+                  <SelectItem value="true">{t("exchangeRates.activeStatus")}</SelectItem>
+                  <SelectItem value="false">{t("exchangeRates.inactiveStatus")}</SelectItem>
                 </SelectContent>
               </Select>
               <Button variant="outline" size="sm" onClick={applyFilters}>
-                Apply
+                {t("common.apply")}
               </Button>
               <Button variant="outline" size="sm" onClick={clearFilters}>
                 <X className="h-4 w-4" />
@@ -377,19 +378,19 @@ const ExchangeRates = () => {
           </div>
         ) : rates.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            No exchange rates found
+            {t("exchangeRates.noExchangeRates")}
           </div>
         ) : (
           <div className="border rounded-lg">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Currency</TableHead>
-                  <TableHead>Rate (1 USD = X)</TableHead>
-                  <TableHead>Effective Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{t("exchangeRates.currency")}</TableHead>
+                  <TableHead>{t("exchangeRates.rate")}</TableHead>
+                  <TableHead>{t("exchangeRates.effectiveDate")}</TableHead>
+                  <TableHead>{t("invoices.status")}</TableHead>
+                  <TableHead>{t("common.created") || "Created"}</TableHead>
+                  <TableHead className="text-right">{t("common.actions") || "Actions"}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -400,9 +401,9 @@ const ExchangeRates = () => {
                     <TableCell>{formatDateTimeLebanon(rate.effective_date, "MM/dd/yyyy")}</TableCell>
                     <TableCell>
                       {rate.is_active ? (
-                        <span className="text-green-600">Active</span>
+                        <span className="text-green-600">{t("exchangeRates.activeStatus")}</span>
                       ) : (
-                        <span className="text-muted-foreground">Inactive</span>
+                        <span className="text-muted-foreground">{t("exchangeRates.inactiveStatus")}</span>
                       )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
@@ -440,17 +441,17 @@ const ExchangeRates = () => {
         <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Edit Exchange Rate</DialogTitle>
-              <DialogDescription>Update exchange rate details</DialogDescription>
+              <DialogTitle>{t("exchangeRates.editExchangeRate")}</DialogTitle>
+              <DialogDescription>{t("exchangeRates.editExchangeRateDescription")}</DialogDescription>
             </DialogHeader>
             {editingRate && (
               <form onSubmit={handleEdit}>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="edit_currency_code">Currency *</Label>
+                    <Label htmlFor="edit_currency_code">{t("exchangeRates.currency")} *</Label>
                     <Select name="currency_code" defaultValue={editingRate.currency_code} required>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select currency" />
+                        <SelectValue placeholder={t("exchangeRates.selectCurrency")} />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="USD">USD</SelectItem>
@@ -460,7 +461,7 @@ const ExchangeRates = () => {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit_rate_to_usd">Rate (1 USD = X currency) *</Label>
+                    <Label htmlFor="edit_rate_to_usd">{t("exchangeRates.rate")} *</Label>
                     <Input
                       name="rate_to_usd"
                       type="number"
@@ -468,11 +469,11 @@ const ExchangeRates = () => {
                       min="0.000001"
                       defaultValue={parseFloat(String(editingRate.rate_to_usd))}
                       required
-                      placeholder="e.g., 89500 for LBP"
+                      placeholder={t("exchangeRates.ratePlaceholder")}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit_effective_date">Effective Date *</Label>
+                    <Label htmlFor="edit_effective_date">{t("exchangeRates.effectiveDate")} *</Label>
                     <Input
                       name="effective_date"
                       type="date"
@@ -488,7 +489,7 @@ const ExchangeRates = () => {
                       defaultChecked={editingRate.is_active}
                       className="h-4 w-4"
                     />
-                    <Label htmlFor="edit_is_active">Active</Label>
+                    <Label htmlFor="edit_is_active">{t("exchangeRates.active")}</Label>
                   </div>
                 </div>
                 <DialogFooter>
@@ -496,10 +497,10 @@ const ExchangeRates = () => {
                     setIsEditOpen(false);
                     setEditingRate(null);
                   }}>
-                    Cancel
+                    {t("common.cancel")}
                   </Button>
                   <Button type="submit" disabled={formLoading}>
-                    {formLoading ? "Updating..." : "Update"}
+                    {formLoading ? t("exchangeRates.updating") : t("exchangeRates.update")}
                   </Button>
                 </DialogFooter>
               </form>

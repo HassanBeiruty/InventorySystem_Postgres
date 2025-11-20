@@ -2100,18 +2100,39 @@ router.post('/admin/daily-stock-snapshot', authenticateToken, requireAdmin, asyn
 		console.log('[Admin] Manual daily stock snapshot requested');
 		
 		const startTime = new Date().toISOString();
+		const todayLebanon = getTodayLocal();
 		console.log(`[Admin] Running daily stock snapshot at ${startTime}`);
+		console.log(`[Admin] Today (Lebanon time): ${todayLebanon}`);
 		
+		// Set timezone to Lebanon for this session so CURRENT_DATE in the function uses Lebanon time
+		await query('SET TIMEZONE = \'Asia/Beirut\';', []);
+		
+		// Call the stored procedure - for VOID functions in PostgreSQL, we use SELECT
 		const result = await query('SELECT sp_daily_stock_snapshot();', []);
+		
+		// Get count of records created today to verify
+		const checkResult = await query(
+			'SELECT COUNT(*) as count FROM daily_stock WHERE date = $1',
+			[{ date: todayLebanon }]
+		);
+		const recordsCreated = checkResult.recordset[0]?.count || 0;
+		
+		// Get total products count for reference
+		const productsResult = await query('SELECT COUNT(*) as count FROM products', []);
+		const totalProducts = productsResult.recordset[0]?.count || 0;
 		
 		const endTime = new Date().toISOString();
 		console.log(`[Admin] ✓ Daily stock snapshot completed successfully at ${endTime}`);
+		console.log(`[Admin] Records found for ${todayLebanon}: ${recordsCreated} out of ${totalProducts} products`);
 		
 		res.json({
 			success: true,
-			message: 'Daily stock snapshot completed successfully',
+			message: `Daily stock snapshot completed successfully. ${recordsCreated} record(s) found for today (${totalProducts} total products).`,
 			started_at: startTime,
-			completed_at: endTime
+			completed_at: endTime,
+			records_created: recordsCreated,
+			total_products: totalProducts,
+			date: todayLebanon
 		});
 	} catch (error) {
 		console.error('[Admin] ✗ Error running daily stock snapshot:', error.message);
