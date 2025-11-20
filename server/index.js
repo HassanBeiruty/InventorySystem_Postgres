@@ -51,11 +51,24 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Disable caching for all API responses in development
+// Cache control for API responses
 app.use('/api', (req, res, next) => {
-	res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-	res.set('Pragma', 'no-cache');
-	res.set('Expires', '0');
+	// For GET requests to /api/auth/me, allow short caching (admin status doesn't change often)
+	if (req.method === 'GET' && req.path === '/auth/me') {
+		res.set('Cache-Control', 'private, max-age=120'); // Cache for 2 minutes
+	} else {
+		// For other endpoints, disable caching in development
+		if (process.env.NODE_ENV === 'development') {
+			res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+			res.set('Pragma', 'no-cache');
+			res.set('Expires', '0');
+		} else {
+			// In production, allow short caching for GET requests
+			if (req.method === 'GET') {
+				res.set('Cache-Control', 'private, max-age=60'); // 1 minute cache
+			}
+		}
+	}
 	next();
 });
 

@@ -88,6 +88,8 @@ export async function fetchJson<T>(path: string, options?: RequestInit): Promise
   const res = await fetch(url, {
     headers,
     credentials: "include",
+    // Performance optimizations
+    cache: "default", // Allow browser caching for GET requests
     ...options,
   });
   

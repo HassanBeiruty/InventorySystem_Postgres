@@ -98,7 +98,8 @@ const Settings = () => {
 
   // Wait for admin check to complete before rendering anything
   // This prevents the flash of content/access denied
-  if (isAdminLoading) {
+  // Only show loading if we truly have no data (initial load)
+  if (isAdminLoading && !userInfo) {
     return (
       <DashboardLayout>
         <div className="space-y-6 p-4 sm:p-6">

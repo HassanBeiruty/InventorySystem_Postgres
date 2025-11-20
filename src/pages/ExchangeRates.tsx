@@ -16,7 +16,7 @@ import { useAdmin } from "@/hooks/useAdmin";
 
 const ExchangeRates = () => {
   const { toast } = useToast();
-  const { isAdmin, isLoading: isAdminLoading } = useAdmin();
+  const { isAdmin, isLoading: isAdminLoading, userInfo } = useAdmin();
   const [loading, setLoading] = useState(true);
   const [rates, setRates] = useState<ExchangeRateEntity[]>([]);
   const [filters, setFilters] = useState({
@@ -172,7 +172,8 @@ const ExchangeRates = () => {
 
   // Wait for admin check to complete before rendering anything
   // This prevents the flash of content/access denied
-  if (isAdminLoading) {
+  // Only show loading if we truly have no data (initial load)
+  if (isAdminLoading && !userInfo) {
     return (
       <DashboardLayout>
         <div className="space-y-6 p-4 sm:p-6">
