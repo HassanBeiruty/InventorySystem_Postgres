@@ -85,11 +85,14 @@ export async function fetchJson<T>(path: string, options?: RequestInit): Promise
   // Use API_BASE_URL if set, otherwise use relative path (for Vercel proxy)
   const url = API_BASE_URL ? `${API_BASE_URL}${path}` : path;
   
+  // For /api/auth/me, disable all caching to prevent stale admin status
+  const isAuthMe = path === "/api/auth/me";
+  const cacheOption = isAuthMe ? "no-store" : "default";
+  
   const res = await fetch(url, {
     headers,
     credentials: "include",
-    // Performance optimizations
-    cache: "default", // Allow browser caching for GET requests
+    cache: cacheOption, // Disable cache for auth/me, allow for others
     ...options,
   });
   

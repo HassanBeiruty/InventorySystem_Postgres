@@ -13,7 +13,10 @@ export function useAdmin() {
     queryFn: () => fetchJson<UserInfo>("/api/auth/me"),
     retry: 1,
     staleTime: 0, // Always consider data stale to refetch on mount
+    gcTime: 0, // Don't cache at all - always fetch fresh
     refetchOnMount: "always", // Ensure refetch on component mount
+    refetchOnWindowFocus: true, // Refetch when window regains focus
+    refetchOnReconnect: true, // Refetch on reconnect
   });
 
   return {
