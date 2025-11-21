@@ -303,10 +303,33 @@ app.get('/api/admin/init-status', async (req, res) => {
 				const startTime = new Date().toISOString();
 				console.log(`[Cron] Running daily stock snapshot at ${startTime}`);
 				
+				// CRITICAL: Set timezone to Lebanon for this session
+				// The stored procedure uses CURRENT_DATE which depends on session timezone
+				// Without this, PostgreSQL uses UTC and creates records for the wrong date
+				await query("SET TIMEZONE = 'Asia/Beirut';", []);
+				
+				// Call the stored procedure - it uses CURRENT_DATE which now uses Beirut timezone
 				const result = await query('SELECT sp_daily_stock_snapshot();', []);
+				
+				// Verify records were created for today (using PostgreSQL CURRENT_DATE with Beirut timezone)
+				// Query using CURRENT_DATE directly to match what the function used
+				const checkResult = await query(
+					'SELECT COUNT(*) as count FROM daily_stock WHERE date = CURRENT_DATE',
+					[]
+				);
+				const recordsCreated = parseInt(checkResult.recordset[0]?.count || 0);
+				
+				// Get total products count for reference
+				const productsResult = await query('SELECT COUNT(*) as count FROM products', []);
+				const totalProducts = parseInt(productsResult.recordset[0]?.count || 0);
 				
 				const endTime = new Date().toISOString();
 				console.log(`[Cron] ✓ Daily stock snapshot completed successfully at ${endTime}`);
+				console.log(`[Cron] Records created for today: ${recordsCreated} out of ${totalProducts} products`);
+				
+				if (recordsCreated === 0 && totalProducts > 0) {
+					console.warn(`[Cron] ⚠ WARNING: No records created but ${totalProducts} products exist. Check timezone settings.`);
+				}
 			} catch (error) {
 				console.error('[Cron] ✗ Error running daily stock snapshot:', error.message);
 				if (error.stack) {
