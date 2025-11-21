@@ -89,28 +89,40 @@ export async function fetchJson<T>(path: string, options?: RequestInit): Promise
   const isAuthMe = path === "/api/auth/me";
   const cacheOption = isAuthMe ? "no-store" : "default";
   
-  const res = await fetch(url, {
-    headers,
-    credentials: "include",
-    cache: cacheOption, // Disable cache for auth/me, allow for others
-    ...options,
-  });
-  
-  if (!res.ok) {
-    // If unauthorized, clear token and session
-    if (res.status === 401) {
-      setToken(null);
-      listeners.forEach((cb) => cb("SIGNED_OUT", null));
-    }
+  try {
+    const res = await fetch(url, {
+      headers,
+      credentials: "include",
+      cache: cacheOption, // Disable cache for auth/me, allow for others
+      ...options,
+    });
     
-    let msg = `${res.status} ${res.statusText}`;
-    try {
-      const body = await res.json();
-      if (body?.error) msg = body.error;
-    } catch {}
-    throw new Error(msg);
+    if (!res.ok) {
+      // If unauthorized, clear token and session
+      if (res.status === 401) {
+        setToken(null);
+        listeners.forEach((cb) => cb("SIGNED_OUT", null));
+      }
+      
+      let msg = `${res.status} ${res.statusText}`;
+      try {
+        const body = await res.json();
+        if (body?.error) msg = body.error;
+        if (body?.message) msg = body.message;
+      } catch {}
+      throw new Error(msg);
+    }
+    return (await res.json()) as T;
+  } catch (error: any) {
+    // Handle network errors (CORS, blocked, etc.)
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      throw new Error('Network error: Unable to connect to server. Please check your connection and try again.');
+    }
+    if (error.message && error.message.includes('ERR_NETWORK_ACCESS_DENIED')) {
+      throw new Error('Access denied: Please check your firewall or network settings.');
+    }
+    throw error;
   }
-  return (await res.json()) as T;
 }
 
 export const auth = {

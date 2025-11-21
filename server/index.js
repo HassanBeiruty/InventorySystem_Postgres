@@ -56,8 +56,49 @@ const corsOptions = {
 	optionsSuccessStatus: 204
 };
 
+// Apply CORS middleware
 app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly to avoid blocking issues
+app.options('*', (req, res) => {
+	// Set CORS headers explicitly
+	const origin = req.headers.origin;
+	if (origin) {
+		// Check if origin is allowed
+		let allowed = false;
+		
+		if (process.env.NODE_ENV !== 'production') {
+			allowed = true;
+		} else {
+			for (const allowedOrigin of allowedOrigins) {
+				if (typeof allowedOrigin === 'string') {
+					if (origin === allowedOrigin) {
+						allowed = true;
+						break;
+					}
+				} else if (allowedOrigin instanceof RegExp) {
+					if (allowedOrigin.test(origin)) {
+						allowed = true;
+						break;
+					}
+				}
+			}
+		}
+		
+		if (allowed || !origin) {
+			res.setHeader('Access-Control-Allow-Origin', origin || '*');
+			res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+			res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+			res.setHeader('Access-Control-Allow-Credentials', 'true');
+			res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+		}
+	}
+	
+	res.status(204).end();
+});
+
 app.use(express.json());
+
 
 // Cache control for API responses
 app.use('/api', (req, res, next) => {
@@ -286,6 +327,60 @@ app.get('/api/admin/init-status', async (req, res) => {
 		}
 	}
 })();
+
+// Global error handler - must be last middleware
+// Ensures CORS headers are always sent even on errors to prevent browser blocking
+app.use((err, req, res, next) => {
+	const origin = req.headers.origin;
+	
+	// Always set CORS headers on error responses to prevent browser blocking
+	if (origin) {
+		// Check if origin is allowed
+		let allowed = false;
+		if (process.env.NODE_ENV !== 'production') {
+			allowed = true;
+		} else {
+			for (const allowedOrigin of allowedOrigins) {
+				if (typeof allowedOrigin === 'string') {
+					if (origin === allowedOrigin) {
+						allowed = true;
+						break;
+					}
+				} else if (allowedOrigin instanceof RegExp) {
+					if (allowedOrigin.test(origin)) {
+						allowed = true;
+						break;
+					}
+				}
+			}
+		}
+		
+		if (allowed || !origin) {
+			res.setHeader('Access-Control-Allow-Origin', origin);
+			res.setHeader('Access-Control-Allow-Credentials', 'true');
+			res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+			res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+		}
+	}
+	
+	// Handle CORS errors specifically
+	if (err.message && err.message.includes('CORS')) {
+		return res.status(403).json({ 
+			error: 'CORS policy violation',
+			message: 'The request was blocked due to CORS policy. Please check your origin.' 
+		});
+	}
+	
+	// Handle other errors
+	console.error('Server error:', err.message);
+	console.error('Stack:', err.stack);
+	
+	const statusCode = err.statusCode || err.status || 500;
+	res.status(statusCode).json({
+		error: err.message || 'Internal server error',
+		...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+	});
+});
 
 const PORT = process.env.PORT || 5050;
 app.listen(PORT, () => {
