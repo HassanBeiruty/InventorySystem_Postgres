@@ -511,20 +511,32 @@ router.delete('/products/:id', async (req, res) => {
 // ===== INVOICES =====
 router.get('/invoices', async (req, res) => {
 	try {
-		const invoices = await query('SELECT * FROM invoices ORDER BY created_at DESC', []);
-		const customers = await query('SELECT * FROM customers', []);
-		const suppliers = await query('SELECT * FROM suppliers', []);
-		const invoiceItems = await query('SELECT * FROM invoice_items', []);
-		const idToCustomer = new Map(customers.recordset.map((c) => [c.id, c]));
-		const idToSupplier = new Map(suppliers.recordset.map((s) => [s.id, s]));
+		// Load invoices with customer and supplier data via JOINs (more efficient)
+		const [invoicesResult, invoiceItemsResult] = await Promise.all([
+			query(
+				`SELECT 
+					i.*,
+					c.id as customer_id_val, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, c.credit_limit as customer_credit_limit, c.created_at as customer_created_at,
+					s.id as supplier_id_val, s.name as supplier_name, s.phone as supplier_phone, s.address as supplier_address, s.created_at as supplier_created_at
+				FROM invoices i
+				LEFT JOIN customers c ON i.customer_id = c.id
+				LEFT JOIN suppliers s ON i.supplier_id = s.id
+				ORDER BY i.created_at DESC`,
+				[]
+			),
+			query('SELECT * FROM invoice_items ORDER BY invoice_id, id', [])
+		]);
+		
+		// Group invoice items by invoice_id
 		const idToItems = new Map();
-		invoiceItems.recordset.forEach(item => {
+		invoiceItemsResult.recordset.forEach(item => {
 			if (!idToItems.has(item.invoice_id)) {
 				idToItems.set(item.invoice_id, []);
 			}
 			idToItems.get(item.invoice_id).push(item);
 		});
-		const result = invoices.recordset.map((inv) => {
+		
+		const result = invoicesResult.recordset.map((inv) => {
 			const amountPaid = inv.amount_paid || 0;
 			const totalAmount = inv.total_amount || 0;
 			const remainingBalance = totalAmount - amountPaid;
@@ -537,14 +549,38 @@ router.get('/invoices', async (req, res) => {
 			} else {
 				paymentStatus = 'pending';
 			}
+			
+			// Build customer object if exists
+			const customers = inv.customer_id_val ? {
+				id: inv.customer_id_val,
+				name: inv.customer_name,
+				phone: inv.customer_phone,
+				address: inv.customer_address,
+				credit_limit: inv.customer_credit_limit,
+				created_at: inv.customer_created_at
+			} : undefined;
+			
+			// Build supplier object if exists
+			const suppliers = inv.supplier_id_val ? {
+				id: inv.supplier_id_val,
+				name: inv.supplier_name,
+				phone: inv.supplier_phone,
+				address: inv.supplier_address,
+				created_at: inv.supplier_created_at
+			} : undefined;
+			
+			// Remove JOIN columns from invoice object
+			const { customer_id_val, customer_name, customer_phone, customer_address, customer_credit_limit, customer_created_at,
+				supplier_id_val, supplier_name, supplier_phone, supplier_address, supplier_created_at, ...invoiceData } = inv;
+			
 			return {
-				...inv,
-				is_paid: !!inv.is_paid, // Convert BIT to boolean
+				...invoiceData,
+				is_paid: !!inv.is_paid,
 				amount_paid: amountPaid,
 				payment_status: paymentStatus,
 				remaining_balance: remainingBalance,
-				customers: inv.customer_id ? idToCustomer.get(inv.customer_id) : undefined,
-				suppliers: inv.supplier_id ? idToSupplier.get(inv.supplier_id) : undefined,
+				customers,
+				suppliers,
 				invoice_items: idToItems.get(inv.id) || [],
 			};
 		});
@@ -1441,21 +1477,41 @@ router.get('/inventory/low-stock/:threshold', async (req, res) => {
 		const threshold = parseInt(req.params.threshold) || 10;
 		const today = getTodayLocal();
 		
-		// Only get today's records (live quantities)
-		const stock = await query(
-			'SELECT * FROM daily_stock WHERE date = $1 AND available_qty < $2 ORDER BY available_qty ASC', 
+		// Use JOIN to only get products for low stock items (more efficient)
+		const result = await query(
+			`SELECT 
+				ds.*,
+				p.id as product_id_val, p.name as product_name, p.barcode as product_barcode, p.category_id as product_category_id,
+				p.description as product_description, p.sku as product_sku, p.shelf as product_shelf, p.created_at as product_created_at
+			FROM daily_stock ds
+			LEFT JOIN products p ON ds.product_id = p.id
+			WHERE ds.date = $1 AND ds.available_qty < $2
+			ORDER BY ds.available_qty ASC`, 
 			[{ today }, { threshold }]
 		);
 		
-		const products = await query('SELECT * FROM products', []);
-		const idToProduct = new Map(products.recordset.map((p) => [p.id, p]));
-		const result = stock.recordset.map((d) => ({
-			...d,
-			products: idToProduct.get(d.product_id),
-		}));
+		const formattedResult = result.recordset.map((row) => {
+			const { product_id_val, product_name, product_barcode, product_category_id, product_description, 
+				product_sku, product_shelf, product_created_at, ...stockData } = row;
+			
+			const products = product_id_val ? {
+				id: product_id_val,
+				name: product_name,
+				barcode: product_barcode,
+				category_id: product_category_id,
+				description: product_description,
+				sku: product_sku,
+				shelf: product_shelf,
+				created_at: product_created_at
+			} : undefined;
+			
+			return {
+				...stockData,
+				products
+			};
+		});
 		
-		console.log(`Low stock check: Found ${result.length} products below threshold ${threshold} for date ${today}`);
-		res.json(result);
+		res.json(formattedResult);
 	} catch (err) {
 		console.error('Low stock error:', err);
 		res.status(500).json({ error: err.message });
@@ -1464,14 +1520,40 @@ router.get('/inventory/low-stock/:threshold', async (req, res) => {
 
 router.get('/inventory/daily', async (req, res) => {
 	try {
-		const stock = await query('SELECT * FROM daily_stock ORDER BY date DESC', []);
-		const products = await query('SELECT * FROM products', []);
-		const idToProduct = new Map(products.recordset.map((p) => [p.id, p]));
-		const result = stock.recordset.map((d) => ({
-			...d,
-			products: idToProduct.get(d.product_id),
-		}));
-		res.json(result);
+		// Use JOIN to get products with stock data (more efficient)
+		const result = await query(
+			`SELECT 
+				ds.*,
+				p.id as product_id_val, p.name as product_name, p.barcode as product_barcode, p.category_id as product_category_id,
+				p.description as product_description, p.sku as product_sku, p.shelf as product_shelf, p.created_at as product_created_at
+			FROM daily_stock ds
+			LEFT JOIN products p ON ds.product_id = p.id
+			ORDER BY ds.date DESC`,
+			[]
+		);
+		
+		const formattedResult = result.recordset.map((row) => {
+			const { product_id_val, product_name, product_barcode, product_category_id, product_description, 
+				product_sku, product_shelf, product_created_at, ...stockData } = row;
+			
+			const products = product_id_val ? {
+				id: product_id_val,
+				name: product_name,
+				barcode: product_barcode,
+				category_id: product_category_id,
+				description: product_description,
+				sku: product_sku,
+				shelf: product_shelf,
+				created_at: product_created_at
+			} : undefined;
+			
+			return {
+				...stockData,
+				products
+			};
+		});
+		
+		res.json(formattedResult);
 	} catch (err) {
 		console.error('Daily inventory error:', err);
 		res.status(500).json({ error: err.message });
@@ -1481,40 +1563,53 @@ router.get('/inventory/daily', async (req, res) => {
 router.get('/inventory/today', async (req, res) => {
 	try {
 		const today = getTodayLocal();
-		console.log(`Inventory Today: Fetching live quantities for date: ${today}`);
 		
-		const stock = await query('SELECT * FROM daily_stock WHERE date = $1 ORDER BY updated_at DESC', [{ date: today }]);
-		const products = await query('SELECT * FROM products', []);
-		
-		// Get latest prices for all products
-		const prices = await query(`
-			SELECT pp1.product_id, pp1.wholesale_price, pp1.retail_price
-			FROM product_prices pp1
-			INNER JOIN (
-				SELECT product_id, MAX(effective_date) as max_date
+		// Use JOINs to get products and prices in one query (more efficient)
+		const result = await query(
+			`SELECT 
+				ds.*,
+				p.id as product_id_val, p.name as product_name, p.barcode as product_barcode, p.category_id as product_category_id,
+				p.description as product_description, p.sku as product_sku, p.shelf as product_shelf, p.created_at as product_created_at,
+				COALESCE(pp.wholesale_price, 0) as wholesale_price,
+				COALESCE(pp.retail_price, 0) as retail_price
+			FROM daily_stock ds
+			LEFT JOIN products p ON ds.product_id = p.id
+			LEFT JOIN LATERAL (
+				SELECT wholesale_price, retail_price
 				FROM product_prices
-				GROUP BY product_id
-			) pp2 ON pp1.product_id = pp2.product_id AND pp1.effective_date = pp2.max_date
-		`, []);
+				WHERE product_id = ds.product_id
+				ORDER BY effective_date DESC, created_at DESC
+				LIMIT 1
+			) pp ON true
+			WHERE ds.date = $1
+			ORDER BY ds.updated_at DESC`,
+			[{ date: today }]
+		);
 		
-		const idToProduct = new Map(products.recordset.map((p) => [p.id, p]));
-		const idToPrices = new Map(prices.recordset.map((p) => [p.product_id, p]));
-		
-		const result = stock.recordset.map((d) => {
-			const product = idToProduct.get(d.product_id);
-			const price = idToPrices.get(d.product_id);
+		const formattedResult = result.recordset.map((row) => {
+			const { product_id_val, product_name, product_barcode, product_category_id, product_description, 
+				product_sku, product_shelf, product_created_at, wholesale_price, retail_price, ...stockData } = row;
+			
+			const products = product_id_val ? {
+				id: product_id_val,
+				name: product_name,
+				barcode: product_barcode,
+				category_id: product_category_id,
+				description: product_description,
+				sku: product_sku,
+				shelf: product_shelf,
+				created_at: product_created_at,
+				wholesale_price: wholesale_price || 0,
+				retail_price: retail_price || 0
+			} : undefined;
+			
 			return {
-				...d,
-				products: product ? {
-					...product,
-					wholesale_price: price?.wholesale_price || 0,
-					retail_price: price?.retail_price || 0,
-				} : undefined,
+				...stockData,
+				products
 			};
 		});
 		
-		console.log(`Inventory Today: Returning ${result.length} products for ${today}`);
-		res.json(result);
+		res.json(formattedResult);
 	} catch (err) {
 		console.error('Today inventory error:', err);
 		res.status(500).json({ error: err.message });
@@ -1523,14 +1618,40 @@ router.get('/inventory/today', async (req, res) => {
 
 router.get('/inventory/daily-history', async (req, res) => {
 	try {
-		const stock = await query('SELECT * FROM daily_stock ORDER BY date DESC, product_id ASC', []);
-		const products = await query('SELECT * FROM products', []);
-		const idToProduct = new Map(products.recordset.map((p) => [p.id, p]));
-		const result = stock.recordset.map((d) => ({
-			...d,
-			products: idToProduct.get(d.product_id),
-		}));
-		res.json(result);
+		// Use JOIN to get products with stock data (more efficient)
+		const result = await query(
+			`SELECT 
+				ds.*,
+				p.id as product_id_val, p.name as product_name, p.barcode as product_barcode, p.category_id as product_category_id,
+				p.description as product_description, p.sku as product_sku, p.shelf as product_shelf, p.created_at as product_created_at
+			FROM daily_stock ds
+			LEFT JOIN products p ON ds.product_id = p.id
+			ORDER BY ds.date DESC, ds.product_id ASC`,
+			[]
+		);
+		
+		const formattedResult = result.recordset.map((row) => {
+			const { product_id_val, product_name, product_barcode, product_category_id, product_description, 
+				product_sku, product_shelf, product_created_at, ...stockData } = row;
+			
+			const products = product_id_val ? {
+				id: product_id_val,
+				name: product_name,
+				barcode: product_barcode,
+				category_id: product_category_id,
+				description: product_description,
+				sku: product_sku,
+				shelf: product_shelf,
+				created_at: product_created_at
+			} : undefined;
+			
+			return {
+				...stockData,
+				products
+			};
+		});
+		
+		res.json(formattedResult);
 	} catch (err) {
 		console.error('Daily history error:', err);
 		res.status(500).json({ error: err.message });
@@ -1541,14 +1662,43 @@ router.get('/inventory/daily-history', async (req, res) => {
 router.get('/stock-movements/recent/:limit', async (req, res) => {
 	try {
 		const limit = parseInt(req.params.limit) || 20;
-		const movements = await query(`SELECT * FROM stock_movements ORDER BY invoice_date DESC LIMIT $1`, [{ limit }]);
-		const products = await query('SELECT * FROM products', []);
-		const idToProduct = new Map(products.recordset.map((p) => [p.id, p]));
-		const result = movements.recordset.map((m) => ({
-			...m,
-			products: idToProduct.get(m.product_id),
-		}));
-		res.json(result);
+		
+		// Use JOIN to only get products for the limited movements (more efficient)
+		const result = await query(
+			`SELECT 
+				sm.*,
+				p.id as product_id_val, p.name as product_name, p.barcode as product_barcode, p.category_id as product_category_id,
+				p.description as product_description, p.sku as product_sku, p.shelf as product_shelf, p.created_at as product_created_at
+			FROM (
+				SELECT * FROM stock_movements ORDER BY invoice_date DESC LIMIT $1
+			) sm
+			LEFT JOIN products p ON sm.product_id = p.id
+			ORDER BY sm.invoice_date DESC`,
+			[{ limit }]
+		);
+		
+		const formattedResult = result.recordset.map((row) => {
+			const { product_id_val, product_name, product_barcode, product_category_id, product_description, 
+				product_sku, product_shelf, product_created_at, ...movementData } = row;
+			
+			const products = product_id_val ? {
+				id: product_id_val,
+				name: product_name,
+				barcode: product_barcode,
+				category_id: product_category_id,
+				description: product_description,
+				sku: product_sku,
+				shelf: product_shelf,
+				created_at: product_created_at
+			} : undefined;
+			
+			return {
+				...movementData,
+				products
+			};
+		});
+		
+		res.json(formattedResult);
 	} catch (err) {
 		console.error('Recent stock movements error:', err);
 		res.status(500).json({ error: err.message });
