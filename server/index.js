@@ -17,7 +17,8 @@ if (process.env.NODE_ENV === 'production') {
 	allowedOrigins.push(/^https:\/\/.*\.onrender\.com$/);
 }
 
-app.use(cors({ 
+// Optimize CORS for faster preflight responses
+const corsOptions = {
 	origin: function (origin, callback) {
 		// Allow requests with no origin (like mobile apps or curl requests)
 		if (!origin) return callback(null, true);
@@ -47,31 +48,63 @@ app.use(cors({
 	},
 	credentials: true,
 	methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-	allowedHeaders: ['Content-Type', 'Authorization']
-}));
+	allowedHeaders: ['Content-Type', 'Authorization'],
+	// Cache preflight requests for 24 hours to reduce OPTIONS requests
+	maxAge: 86400, // 24 hours in seconds
+	// Preflight requests should complete quickly
+	preflightContinue: false,
+	optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Cache control for API responses
 app.use('/api', (req, res, next) => {
-	// For GET requests to /api/auth/me, disable caching to prevent stale admin status
-	// Admin status can change and we need fresh data on every request
-	if (req.method === 'GET' && req.path === '/auth/me') {
+	// Always disable caching for admin routes to prevent stale data
+	// Admin routes need fresh data for proper rendering and state management
+	if (req.path.startsWith('/admin/')) {
 		res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
 		res.set('Pragma', 'no-cache');
 		res.set('Expires', '0');
-	} else {
-		// For other endpoints, disable caching in development
-		if (process.env.NODE_ENV === 'development') {
-			res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-			res.set('Pragma', 'no-cache');
-			res.set('Expires', '0');
-		} else {
-			// In production, allow short caching for GET requests
-			if (req.method === 'GET') {
-				res.set('Cache-Control', 'private, max-age=60'); // 1 minute cache
-			}
-		}
+		return next();
 	}
+	
+	// Always disable caching for auth endpoints to prevent stale admin status
+	// Admin status can change and we need fresh data on every request
+	if (req.path.startsWith('/auth/')) {
+		res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+		res.set('Pragma', 'no-cache');
+		res.set('Expires', '0');
+		return next();
+	}
+	
+	// Disable caching for POST, PUT, DELETE requests (they modify data)
+	if (req.method !== 'GET') {
+		res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+		res.set('Pragma', 'no-cache');
+		res.set('Expires', '0');
+		return next();
+	}
+	
+	// In development, disable all caching
+	if (process.env.NODE_ENV === 'development') {
+		res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+		res.set('Pragma', 'no-cache');
+		res.set('Expires', '0');
+		return next();
+	}
+	
+	// In production, apply strategic caching for GET requests only
+	// Cache stats endpoints for 30 seconds (balance between performance and freshness)
+	if (req.path === '/invoices/stats' || req.path.startsWith('/invoices/recent/')) {
+		res.set('Cache-Control', 'private, max-age=30'); // 30 second cache for stats
+		return next();
+	}
+	
+	// Cache other read-only GET endpoints for 60 seconds
+	res.set('Cache-Control', 'private, max-age=60'); // 1 minute cache for other GET requests
+	
 	next();
 });
 

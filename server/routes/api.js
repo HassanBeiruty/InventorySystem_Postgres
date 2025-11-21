@@ -558,20 +558,50 @@ router.get('/invoices', async (req, res) => {
 router.get('/invoices/recent/:limit', async (req, res) => {
 	try {
 		const limit = parseInt(req.params.limit) || 10;
-		const invoices = await query(`SELECT * FROM invoices ORDER BY invoice_date DESC LIMIT $1`, [{ limit }]);
-		const customers = await query('SELECT * FROM customers', []);
-		const suppliers = await query('SELECT * FROM suppliers', []);
-		const invoiceItems = await query('SELECT * FROM invoice_items', []);
-		const idToCustomer = new Map(customers.recordset.map((c) => [c.id, c]));
-		const idToSupplier = new Map(suppliers.recordset.map((s) => [s.id, s]));
+		
+		// Use a subquery to get only the needed invoices with JOINs
+		// This avoids loading all customers, suppliers, and invoice_items
+		const invoicesResult = await query(
+			`SELECT 
+				i.*,
+				c.id as customer_id_val, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, c.credit_limit as customer_credit_limit, c.created_at as customer_created_at,
+				s.id as supplier_id_val, s.name as supplier_name, s.phone as supplier_phone, s.address as supplier_address, s.created_at as supplier_created_at
+			FROM (
+				SELECT * FROM invoices ORDER BY invoice_date DESC LIMIT $1
+			) i
+			LEFT JOIN customers c ON i.customer_id = c.id
+			LEFT JOIN suppliers s ON i.supplier_id = s.id
+			ORDER BY i.invoice_date DESC`,
+			[{ limit }]
+		);
+		
+		if (invoicesResult.recordset.length === 0) {
+			return res.json([]);
+		}
+		
+		const invoiceIds = invoicesResult.recordset.map(r => r.id);
+		
+		// Fetch invoice items only for these specific invoices
+		// Build query with proper parameterization
+		const placeholders = invoiceIds.map((_, i) => `$${i + 1}`).join(',');
+		const invoiceItemsResult = await query(
+			`SELECT * FROM invoice_items 
+			WHERE invoice_id IN (${placeholders})
+			ORDER BY invoice_id, id`,
+			invoiceIds.map(id => ({ invoice_id: id }))
+		);
+		
+		// Group invoice items by invoice_id
 		const idToItems = new Map();
-		invoiceItems.recordset.forEach(item => {
+		invoiceItemsResult.recordset.forEach(item => {
 			if (!idToItems.has(item.invoice_id)) {
 				idToItems.set(item.invoice_id, []);
 			}
 			idToItems.get(item.invoice_id).push(item);
 		});
-		const result = invoices.recordset.map((inv) => {
+		
+		// Build result with customer/supplier objects
+		const result = invoicesResult.recordset.map((inv) => {
 			const amountPaid = inv.amount_paid || 0;
 			const totalAmount = inv.total_amount || 0;
 			const remainingBalance = totalAmount - amountPaid;
@@ -584,17 +614,42 @@ router.get('/invoices/recent/:limit', async (req, res) => {
 			} else {
 				paymentStatus = 'pending';
 			}
+			
+			// Build customer object if exists
+			const customers = inv.customer_id_val ? {
+				id: inv.customer_id_val,
+				name: inv.customer_name,
+				phone: inv.customer_phone,
+				address: inv.customer_address,
+				credit_limit: inv.customer_credit_limit,
+				created_at: inv.customer_created_at
+			} : undefined;
+			
+			// Build supplier object if exists
+			const suppliers = inv.supplier_id_val ? {
+				id: inv.supplier_id_val,
+				name: inv.supplier_name,
+				phone: inv.supplier_phone,
+				address: inv.supplier_address,
+				created_at: inv.supplier_created_at
+			} : undefined;
+			
+			// Remove JOIN columns from invoice object
+			const { customer_id_val, customer_name, customer_phone, customer_address, customer_credit_limit, customer_created_at,
+				supplier_id_val, supplier_name, supplier_phone, supplier_address, supplier_created_at, ...invoiceData } = inv;
+			
 			return {
-				...inv,
+				...invoiceData,
 				is_paid: !!inv.is_paid,
 				amount_paid: amountPaid,
 				payment_status: paymentStatus,
 				remaining_balance: remainingBalance,
-				customers: inv.customer_id ? idToCustomer.get(inv.customer_id) : undefined,
-				suppliers: inv.supplier_id ? idToSupplier.get(inv.supplier_id) : undefined,
+				customers,
+				suppliers,
 				invoice_items: idToItems.get(inv.id) || [],
 			};
 		});
+		
 		res.json(result);
 	} catch (err) {
 		console.error('Recent invoices error:', err);
@@ -606,56 +661,67 @@ router.get('/invoices/stats', async (req, res) => {
 	try {
 		const today = getTodayLocal();
 		
-		console.log(`Dashboard stats: Fetching data for today: ${today}`);
-		
-		// Today's invoices - READ FROM INVOICES TABLE (not daily_stock)
-		const todayInvoices = await query(
-			'SELECT * FROM invoices WHERE CAST(invoice_date AS DATE) = $1', 
-			[{ today }]
-		);
-		
-		// Today's inventory - READ FROM DAILY_STOCK TABLE (today's records only)
-		const todayStock = await query(
-			'SELECT COUNT(DISTINCT product_id) as product_count, SUM(available_qty) as total_qty FROM daily_stock WHERE date = $1', 
-			[{ today }]
-		);
-		
-		// All time data (for reference)
-		const [invoices, products, customers, suppliers] = await Promise.all([
-			query('SELECT * FROM invoices', []),
-			query('SELECT * FROM products', []),
-			query('SELECT * FROM customers', []),
-			query('SELECT * FROM suppliers', []),
+		// Run all queries in parallel for better performance
+		const [
+			todayInvoices,
+			todayStock,
+			invoicesCount,
+			productsCount,
+			customersCount,
+			suppliersCount,
+			totalRevenueResult
+		] = await Promise.all([
+			// Today's invoices - only count and sum revenue
+			query(
+				`SELECT 
+					COUNT(*) as invoice_count,
+					COALESCE(SUM(CASE WHEN invoice_type = 'sell' THEN total_amount ELSE 0 END), 0) as today_revenue
+				FROM invoices 
+				WHERE CAST(invoice_date AS DATE) = $1`, 
+				[{ today }]
+			),
+			// Today's inventory - READ FROM DAILY_STOCK TABLE (today's records only)
+			query(
+				'SELECT COUNT(DISTINCT product_id) as product_count, COALESCE(SUM(available_qty), 0) as total_qty FROM daily_stock WHERE date = $1', 
+				[{ today }]
+			),
+			// All time counts - use COUNT(*) instead of loading all records
+			query('SELECT COUNT(*) as count FROM invoices', []),
+			query('SELECT COUNT(*) as count FROM products', []),
+			query('SELECT COUNT(*) as count FROM customers', []),
+			query('SELECT COUNT(*) as count FROM suppliers', []),
+			// Total revenue - use SUM directly in SQL
+			query(
+				`SELECT COALESCE(SUM(total_amount), 0) as revenue 
+				FROM invoices 
+				WHERE invoice_type = 'sell'`,
+				[]
+			)
 		]);
 		
-		// Calculate totals
-		const totalRevenue = invoices.recordset
-			.filter((inv) => inv.invoice_type === 'sell')
-			.reduce((sum, inv) => sum + parseFloat(inv.total_amount || 0), 0);
-		
-		// Today's revenue - FROM INVOICES TABLE
-		const todayRevenue = todayInvoices.recordset
-			.filter((inv) => inv.invoice_type === 'sell')
-			.reduce((sum, inv) => sum + parseFloat(inv.total_amount || 0), 0);
-		
-		// Today's inventory stats - FROM DAILY_STOCK TABLE
-		const todayProductsCount = todayStock.recordset[0]?.product_count || 0;
-		const todayTotalQuantity = todayStock.recordset[0]?.total_qty || 0;
-		
-		console.log(`Dashboard stats: Today invoices=${todayInvoices.recordset.length}, Today products=${todayProductsCount}, Today revenue=$${todayRevenue}`);
+		// Extract results
+		const todayInvoicesCount = parseInt(todayInvoices.recordset[0]?.invoice_count || 0);
+		const todayRevenue = parseFloat(todayInvoices.recordset[0]?.today_revenue || 0);
+		const todayProductsCount = parseInt(todayStock.recordset[0]?.product_count || 0);
+		const todayTotalQuantity = parseFloat(todayStock.recordset[0]?.total_qty || 0);
+		const invoicesCountAll = parseInt(invoicesCount.recordset[0]?.count || 0);
+		const productsCountAll = parseInt(productsCount.recordset[0]?.count || 0);
+		const customersCountAll = parseInt(customersCount.recordset[0]?.count || 0);
+		const suppliersCountAll = parseInt(suppliersCount.recordset[0]?.count || 0);
+		const totalRevenue = parseFloat(totalRevenueResult.recordset[0]?.revenue || 0);
 		
 		res.json({
 			// All time stats (for reference)
-			invoicesCount: invoices.recordset.length,
-			productsCount: products.recordset.length,
-			customersCount: customers.recordset.length,
-			suppliersCount: suppliers.recordset.length,
+			invoicesCount: invoicesCountAll,
+			productsCount: productsCountAll,
+			customersCount: customersCountAll,
+			suppliersCount: suppliersCountAll,
 			revenue: totalRevenue,
 			// Today's live data
-			todayInvoicesCount: todayInvoices.recordset.length, // FROM INVOICES TABLE
-			todayProductsCount: todayProductsCount, // FROM DAILY_STOCK TABLE
-			todayRevenue: todayRevenue, // FROM INVOICES TABLE
-			todayTotalQuantity: todayTotalQuantity, // FROM DAILY_STOCK TABLE
+			todayInvoicesCount: todayInvoicesCount,
+			todayProductsCount: todayProductsCount,
+			todayRevenue: todayRevenue,
+			todayTotalQuantity: todayTotalQuantity,
 		});
 	} catch (err) {
 		console.error('Invoice stats error:', err);
@@ -667,12 +733,6 @@ router.get('/invoices/stats', async (req, res) => {
 router.put('/invoices/:id', async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
-		console.log('PUT /invoices/:id called with:', { 
-			paramId: req.params.id, 
-			parsedId: id, 
-			body: req.body,
-			method: req.method 
-		});
 		
 		if (isNaN(id) || id <= 0) {
 			return res.status(400).json({ error: `Invalid invoice ID: ${req.params.id}` });
@@ -683,11 +743,6 @@ router.put('/invoices/:id', async (req, res) => {
 
 		// Get existing invoice with its date
 		const existingInvoice = await query('SELECT * FROM invoices WHERE id = $1', [{ id }]);
-		console.log('Invoice lookup result:', { 
-			id, 
-			found: existingInvoice.recordset.length > 0,
-			invoice: existingInvoice.recordset.length > 0 ? existingInvoice.recordset[0] : null
-		});
 		
 		if (existingInvoice.recordset.length === 0) {
 			return res.status(404).json({ error: `Invoice not found with id: ${id}` });
@@ -695,13 +750,6 @@ router.put('/invoices/:id', async (req, res) => {
 		const oldInvoice = existingInvoice.recordset[0];
 		// Get the original invoice date (might be in the past) - convert to local timezone
 		const invoiceDate = oldInvoice.invoice_date ? toLocalDateString(oldInvoice.invoice_date) : today;
-		
-		console.log('=== INVOICE UPDATE DEBUG ===');
-		console.log('Invoice ID:', id);
-		console.log('Old invoice date:', oldInvoice.invoice_date);
-		console.log('Parsed invoice date:', invoiceDate);
-		console.log('Today:', today);
-		console.log('Date comparison:', { invoiceDate, today, isToday: invoiceDate === today });
 
 		// Get existing invoice items
 		const oldItemsResult = await query('SELECT * FROM invoice_items WHERE invoice_id = $1', [{ invoice_id: id }]);
@@ -749,8 +797,6 @@ router.put('/invoices/:id', async (req, res) => {
 
 		// Call the function to recalculate stock for each affected product
 		// The function will update existing stock movements and recalculate all later movements
-		console.log('Recalculating stock for products using function:', Array.from(affectedProducts));
-		
 		for (const productId of affectedProducts) {
 			const item = items.find(item => parseInt(item.product_id) === productId);
 			if (item) {
@@ -768,8 +814,6 @@ router.put('/invoices/:id', async (req, res) => {
 						{ new_unit_cost: unitCost }
 					]
 				);
-				
-				console.log(`  Recalculated stock for product ${productId} using function`);
 			}
 		}
 
@@ -856,13 +900,6 @@ router.post('/invoices', async (req, res) => {
 		const invoice_date = nowIso();
 		const today = getTodayLocal();
 
-		console.log('=== CREATING NEW INVOICE ===');
-		console.log('Server time:', new Date().toString());
-		console.log('Invoice type:', invoice_type);
-		console.log('Invoice date:', invoice_date);
-		console.log('Today (calculated):', today);
-		console.log('Items count:', items?.length || 0);
-
 		// Create invoice
 		const invoiceResult = await query(
 			'INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, is_paid, invoice_date, due_date, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
@@ -878,12 +915,9 @@ router.post('/invoices', async (req, res) => {
 			]
 		);
 		const invoiceId = invoiceResult.recordset[0].id;
-		console.log('Created invoice ID:', invoiceId);
 
 		// Create invoice items and update stock
 		for (const item of items) {
-			console.log(`Processing item: product_id=${item.product_id}, quantity=${item.quantity}`);
-			
 			await query(
 				'INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
 				[
@@ -911,8 +945,6 @@ router.post('/invoices', async (req, res) => {
 			let qtyBefore = stockBefore.recordset[0]?.available_qty || 0;
 			let prevAvgCost = stockBefore.recordset[0]?.avg_cost || 0;
 			
-			console.log(`  Product ${item.product_id}: qtyBefore=${qtyBefore}, prevAvgCost=${prevAvgCost}`);
-			
 			const change = invoice_type === 'sell' ? -item.quantity : item.quantity;
 			const qtyAfter = qtyBefore + change;
 
@@ -924,8 +956,6 @@ router.post('/invoices', async (req, res) => {
 				const denominator = (qtyBefore || 0) + buyQty;
 				newAvgCost = denominator > 0 ? (((prevAvgCost || 0) * (qtyBefore || 0)) + (buyCost * buyQty)) / denominator : buyCost;
 			}
-
-			console.log(`  Calculated: change=${change}, qtyAfter=${qtyAfter}, newAvgCost=${newAvgCost}`);
 
 			// Calculate unit_cost and avg_cost_after
 			const unitCost = parseFloat(item.unit_price);
@@ -946,9 +976,6 @@ router.post('/invoices', async (req, res) => {
 					{ created_at: nowIso() },
 				]
 			);
-			
-			const movementId = movementResult.recordset[0]?.id;
-			console.log(`  Created stock_movement ID=${movementId}, invoice_date=${invoice_date}, qtyBefore=${qtyBefore}, change=${change}, qtyAfter=${qtyAfter}, unit_cost=${unitCost}, avg_cost_after=${avgCostAfter}`);
 
 			// Update daily_stock with quantity_after and avg_cost_after
 			await query(
@@ -967,7 +994,6 @@ router.post('/invoices', async (req, res) => {
 			);
 		}
 
-		console.log('=== INVOICE CREATION COMPLETE ===');
 		res.json({ id: invoiceId, invoice_date });
 	} catch (err) {
 		console.error('Create invoice error:', err);
