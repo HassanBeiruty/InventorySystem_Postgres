@@ -56,47 +56,8 @@ const corsOptions = {
 	optionsSuccessStatus: 204
 };
 
-// Apply CORS middleware
+// Apply CORS middleware (handles OPTIONS requests automatically)
 app.use(cors(corsOptions));
-
-// Handle preflight requests explicitly to avoid blocking issues
-app.options('*', (req, res) => {
-	// Set CORS headers explicitly
-	const origin = req.headers.origin;
-	if (origin) {
-		// Check if origin is allowed
-		let allowed = false;
-		
-		if (process.env.NODE_ENV !== 'production') {
-			allowed = true;
-		} else {
-			for (const allowedOrigin of allowedOrigins) {
-				if (typeof allowedOrigin === 'string') {
-					if (origin === allowedOrigin) {
-						allowed = true;
-						break;
-					}
-				} else if (allowedOrigin instanceof RegExp) {
-					if (allowedOrigin.test(origin)) {
-						allowed = true;
-						break;
-					}
-				}
-			}
-		}
-		
-		if (allowed || !origin) {
-			res.setHeader('Access-Control-Allow-Origin', origin || '*');
-			res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-			res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-			res.setHeader('Access-Control-Allow-Credentials', 'true');
-			res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
-		}
-	}
-	
-	res.status(204).end();
-});
-
 app.use(express.json());
 
 
