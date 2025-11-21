@@ -19,7 +19,8 @@ import {
   HardDrive,
   Users,
   Shield,
-  ShieldOff
+  ShieldOff,
+  Trash2
 } from "lucide-react";
 import { RecomputePositionsDialog } from "@/components/RecomputePositionsDialog";
 import { useAdmin } from "@/hooks/useAdmin";
@@ -86,6 +87,20 @@ const Settings = () => {
     },
     onError: (error: Error) => {
       toast.error(error.message || t("settings.failedToUpdateAdminStatus"));
+    },
+  });
+
+  // Delete user mutation
+  const deleteUserMutation = useMutation({
+    mutationFn: (userId: number) => adminRepo.deleteUser(userId),
+    onSuccess: (data) => {
+      toast.success(data.message || t("settings.userDeleted") || "User deleted successfully");
+      refetchUsers();
+      // Refresh admin status if deleting current user (shouldn't happen, but just in case)
+      queryClient.invalidateQueries({ queryKey: ["user", "me"] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || t("settings.failedToDeleteUser") || "Failed to delete user");
     },
   });
 
@@ -172,14 +187,14 @@ const Settings = () => {
                       <div className="flex items-center gap-2">
                         {health.database.status === "connected" ? (
                           <>
-                            <CheckCircle2 className="w-5 h-5 text-green-500" />
-                            <Badge variant="default" className="bg-green-500">
+                            <CheckCircle2 className="w-5 h-5 text-success" />
+                            <Badge variant="success">
                               {t("settings.connected")}
                             </Badge>
                           </>
                         ) : (
                           <>
-                            <XCircle className="w-5 h-5 text-red-500" />
+                            <XCircle className="w-5 h-5 text-destructive" />
                             <Badge variant="destructive">{t("settings.disconnected")}</Badge>
                           </>
                         )}
@@ -362,49 +377,85 @@ const Settings = () => {
                               {t("settings.joined")}: {new Date(user.created_at).toLocaleDateString()}
                             </p>
                           </div>
-                          <div className="flex items-center gap-2">
-                            {isUserAdmin ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  if (isCurrentUser) {
-                                    toast.error(t("settings.cannotRemoveYourself") || "Cannot remove admin status from yourself");
-                                    return;
-                                  }
-                                  if (
-                                    confirm(
-                                      t("settings.removeAdminConfirm", { email: user.email }) || `Are you sure you want to remove admin status from ${user.email}?`
-                                    )
-                                  ) {
-                                    updateAdminMutation.mutate({ userId: user.id, isAdmin: false });
-                                  }
-                                }}
-                                disabled={updateAdminMutation.isPending || isCurrentUser}
-                              >
-                                <ShieldOff className="w-4 h-4 mr-1" />
-                                {t("settings.removeAdmin")}
-                              </Button>
-                            ) : (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  if (
-                                    confirm(
-                                      t("settings.makeAdminConfirm", { email: user.email }) || `Are you sure you want to grant admin status to ${user.email}?`
-                                    )
-                                  ) {
-                                    updateAdminMutation.mutate({ userId: user.id, isAdmin: true });
-                                  }
-                                }}
-                                disabled={updateAdminMutation.isPending}
-                              >
-                                <Shield className="w-4 h-4 mr-1" />
-                                {t("settings.makeAdmin")}
-                              </Button>
-                            )}
-                          </div>
+                          {!isCurrentUser && (
+                            <div className="flex items-center gap-2">
+                              {isUserAdmin ? (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      if (
+                                        confirm(
+                                          t("settings.removeAdminConfirm", { email: user.email }) || `Are you sure you want to remove admin status from ${user.email}?`
+                                        )
+                                      ) {
+                                        updateAdminMutation.mutate({ userId: user.id, isAdmin: false });
+                                      }
+                                    }}
+                                    disabled={updateAdminMutation.isPending}
+                                  >
+                                    <ShieldOff className="w-4 h-4 mr-1" />
+                                    {t("settings.removeAdmin")}
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => {
+                                      if (
+                                        confirm(
+                                          t("settings.deleteUserConfirm", { email: user.email }) || `Are you sure you want to delete user ${user.email}? This action cannot be undone.`
+                                        )
+                                      ) {
+                                        deleteUserMutation.mutate(user.id);
+                                      }
+                                    }}
+                                    disabled={deleteUserMutation.isPending}
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-1" />
+                                    {t("settings.removeUser") || "Remove User"}
+                                  </Button>
+                                </>
+                              ) : (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      if (
+                                        confirm(
+                                          t("settings.makeAdminConfirm", { email: user.email }) || `Are you sure you want to grant admin status to ${user.email}?`
+                                        )
+                                      ) {
+                                        updateAdminMutation.mutate({ userId: user.id, isAdmin: true });
+                                      }
+                                    }}
+                                    disabled={updateAdminMutation.isPending}
+                                  >
+                                    <Shield className="w-4 h-4 mr-1" />
+                                    {t("settings.makeAdmin")}
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => {
+                                      if (
+                                        confirm(
+                                          t("settings.deleteUserConfirm", { email: user.email }) || `Are you sure you want to delete user ${user.email}? This action cannot be undone.`
+                                        )
+                                      ) {
+                                        deleteUserMutation.mutate(user.id);
+                                      }
+                                    }}
+                                    disabled={deleteUserMutation.isPending}
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-1" />
+                                    {t("settings.removeUser") || "Remove User"}
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}

@@ -2412,6 +2412,52 @@ router.post('/admin/users/clear', authenticateToken, requireAdmin, async (req, r
 	}
 });
 
+// Admin: Delete user
+router.delete('/admin/users/:id', authenticateToken, requireAdmin, async (req, res) => {
+	try {
+		const userId = parseInt(req.params.id);
+		
+		if (isNaN(userId)) {
+			return res.status(400).json({ error: 'Invalid user ID' });
+		}
+		
+		// Prevent deleting yourself
+		if (userId === req.user.userId) {
+			return res.status(400).json({ error: 'Cannot delete yourself' });
+		}
+		
+		// Check if user exists and get admin status
+		const userCheck = await query('SELECT id, email, is_admin FROM users WHERE id = $1', [{ id: userId }]);
+		if (userCheck.recordset.length === 0) {
+			return res.status(404).json({ error: 'User not found' });
+		}
+		
+		const user = userCheck.recordset[0];
+		
+		// If deleting an admin, ensure at least one admin remains
+		if (user.is_admin === true || user.is_admin === 1) {
+			const adminCountResult = await query('SELECT COUNT(*) as count FROM users WHERE is_admin = true', []);
+			const adminCount = adminCountResult.recordset[0]?.count || 0;
+			if (adminCount <= 1) {
+				return res.status(400).json({ error: 'Cannot delete last admin. At least one admin must exist.' });
+			}
+		}
+		
+		// Delete the user
+		await query('DELETE FROM users WHERE id = $1', [{ id: userId }]);
+		
+		console.log(`[Admin] User deleted: ${user.email} (ID: ${userId})`);
+		
+		res.json({ 
+			success: true, 
+			message: `User ${user.email} has been deleted successfully.` 
+		});
+	} catch (err) {
+		console.error('[Admin] Delete user error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
 // Admin: Update user admin status
 router.put('/admin/users/:id/admin', authenticateToken, requireAdmin, async (req, res) => {
 	try {

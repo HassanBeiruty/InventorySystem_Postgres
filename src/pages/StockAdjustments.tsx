@@ -254,7 +254,7 @@ const StockAdjustments = () => {
                         </TableCell>
                         <TableCell>{adj.quantity_before}</TableCell>
                         <TableCell>
-                          <span className={`flex items-center gap-1 ${adj.quantity_change >= 0 ? "text-green-600" : "text-red-600"}`}>
+                          <span className={`flex items-center gap-1 ${adj.quantity_change >= 0 ? "text-success" : "text-destructive"}`}>
                             {adj.quantity_change >= 0 ? (
                               <TrendingUp className="w-4 h-4" />
                             ) : (

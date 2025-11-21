@@ -50,7 +50,6 @@ const InvoicesList = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      console.log('Fetching invoices data...');
       const [invoicesData, productsData, customersData, suppliersData] = await Promise.all([
         invoicesRepo.listWithRelations(),
         productsRepo.list(),
@@ -215,7 +214,7 @@ const InvoicesList = () => {
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
              <Button
                onClick={() => navigate("/invoices/new/buy")}
-               className="gap-1.5 sm:gap-2 bg-gradient-to-r from-emerald-600 via-teal-500 to-cyan-500 hover:from-emerald-700 hover:via-teal-600 hover:to-cyan-600 text-white hover:shadow-lg hover:shadow-emerald-500/50 transition-all duration-300 hover:scale-105 border-0 text-xs sm:text-sm flex-1 sm:flex-initial"
+               className="gap-1.5 sm:gap-2 bg-gradient-success text-white hover:shadow-lg hover:shadow-success/50 transition-all duration-300 hover:scale-105 border-0 text-xs sm:text-sm flex-1 sm:flex-initial"
              >
                <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                <span className="hidden sm:inline">{t('invoices.newBuyInvoice')}</span>
@@ -384,18 +383,18 @@ const InvoicesList = () => {
 
           <div className="border rounded-lg p-3">
             <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="w-4 h-4 text-green-600" />
+              <DollarSign className="w-4 h-4 text-success" />
               <span className="text-xs font-medium text-muted-foreground">{t('invoices.totalPaid')}</span>
             </div>
-            <div className="text-lg font-bold text-green-600">${stats.totalPaid.toFixed(2)}</div>
+            <div className="text-lg font-bold text-success">${stats.totalPaid.toFixed(2)}</div>
           </div>
 
           <div className="border rounded-lg p-3">
             <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="w-4 h-4 text-orange-600" />
+              <DollarSign className="w-4 h-4 text-warning" />
               <span className="text-xs font-medium text-muted-foreground">{t('invoices.totalOutstanding')}</span>
             </div>
-            <div className="text-lg font-bold text-orange-600">${stats.totalOutstanding.toFixed(2)}</div>
+            <div className="text-lg font-bold text-warning">${stats.totalOutstanding.toFixed(2)}</div>
           </div>
 
           <div className="border rounded-lg p-3">
@@ -408,24 +407,24 @@ const InvoicesList = () => {
 
           <div className="border rounded-lg p-3">
             <div className="flex items-center gap-2 mb-1">
-              <TrendingDown className="w-4 h-4 text-teal-600" />
+              <TrendingDown className="w-4 h-4 text-success" />
               <span className="text-xs font-medium text-muted-foreground">{t('invoices.buy')}</span>
             </div>
-            <div className="text-2xl font-bold text-teal-600">{stats.buy}</div>
+            <div className="text-2xl font-bold text-success">{stats.buy}</div>
           </div>
 
           <div className="border rounded-lg p-3">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-xs font-medium text-muted-foreground">Paid</span>
             </div>
-            <div className="text-2xl font-bold text-green-600">{stats.paid}</div>
+            <div className="text-2xl font-bold text-success">{stats.paid}</div>
           </div>
 
           <div className="border rounded-lg p-3">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-xs font-medium text-muted-foreground">Pending</span>
             </div>
-            <div className="text-2xl font-bold text-orange-600">{stats.pending + stats.partial}</div>
+            <div className="text-2xl font-bold text-warning">{stats.pending + stats.partial}</div>
           </div>
         </div>
 
@@ -482,7 +481,7 @@ const InvoicesList = () => {
                     <TableCell className="text-xs sm:text-sm whitespace-nowrap hidden md:table-cell">
                       {invoice.due_date ? (
                         <span className={new Date(invoice.due_date) < new Date() && invoice.payment_status !== 'paid' 
-                          ? 'text-red-600 font-semibold' 
+                          ? 'text-destructive font-semibold' 
                           : 'text-muted-foreground'}>
                           {formatDateTimeLebanon(invoice.due_date, "MMM dd, yyyy")}
                         </span>
@@ -492,11 +491,7 @@ const InvoicesList = () => {
                     </TableCell>
                     <TableCell>
                       <Badge 
-                        className={
-                          invoice.invoice_type === 'sell'
-                            ? 'bg-primary hover:bg-primary/90 text-primary-foreground border-primary'
-                            : 'bg-teal-500 hover:bg-teal-600 text-white border-teal-600'
-                        }
+                        variant={invoice.invoice_type === 'sell' ? 'default' : 'success'}
                       >
                         {invoice.invoice_type === 'sell' ? t('invoices.sell') : t('invoices.buy')}
                       </Badge>
@@ -509,21 +504,19 @@ const InvoicesList = () => {
                     </TableCell>
                     <TableCell className={`text-right font-bold text-base sm:text-lg whitespace-nowrap ${
                       invoice.payment_status === 'paid' 
-                        ? 'text-green-600' 
-                        : invoice.payment_status === 'partial'
-                        ? 'text-orange-600'
-                        : 'text-orange-600'
+                        ? 'text-success' 
+                        : 'text-warning'
                     }`}>
                       ${Number(invoice.total_amount).toFixed(2)}
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge 
-                        className={
+                        variant={
                           invoice.payment_status === 'paid' 
-                            ? 'bg-green-500 hover:bg-green-600 text-white border-green-600' :
+                            ? 'success' :
                           invoice.payment_status === 'partial'
-                            ? 'bg-orange-500 hover:bg-orange-600 text-white border-orange-600' :
-                          'bg-orange-100 hover:bg-orange-200 text-orange-800 border-orange-300'
+                            ? 'warning' :
+                          'warning'
                         }
                       >
                         {invoice.payment_status === 'paid' ? t('invoices.paid') : 

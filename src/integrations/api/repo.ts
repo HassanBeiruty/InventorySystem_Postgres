@@ -522,6 +522,11 @@ export const adminRepo = {
       body: JSON.stringify({ isAdmin }),
     });
   },
+  async deleteUser(userId: number): Promise<AdminActionResponse> {
+    return fetchJson<AdminActionResponse>(`/api/admin/users/${userId}`, {
+      method: "DELETE",
+    });
+  },
   async clearUsers(): Promise<AdminActionResponse> {
     return fetchJson<AdminActionResponse>("/api/admin/users/clear", {
       method: "POST",

@@ -11,6 +11,7 @@ import {
 import { LogOut, Receipt, Package, Users, UserPlus, FileText, TrendingUp, Home, History, Warehouse, ChevronDown, Database, BarChart3, Calendar, DollarSign, AlertTriangle, FolderTree, AlertCircle, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useTranslation } from "react-i18next";
 type LocalUser = { email: string } | null;
 
@@ -65,6 +66,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             </div>
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <ThemeToggle />
             <LanguageSwitcher />
             <Button 
               variant="outline" 
@@ -88,7 +90,11 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-primary/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap"
+                className={`gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap ${
+                  location.pathname === "/" 
+                    ? "dark:text-primary dark:[&_svg]:text-primary" 
+                    : "dark:text-white dark:[&_svg]:text-white hover:bg-primary/20 hover:text-foreground"
+                }`}
               >
                 <Home className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 {t('nav.dashboard')}
@@ -101,7 +107,15 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-accent/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap"
+                  className={`gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap ${
+                    location.pathname.startsWith("/products") || 
+                    location.pathname.startsWith("/categories") || 
+                    location.pathname.startsWith("/customers") || 
+                    location.pathname.startsWith("/suppliers") || 
+                    location.pathname.startsWith("/exchange-rates")
+                      ? "dark:text-primary dark:[&_svg]:text-primary" 
+                      : "dark:text-white dark:[&_svg]:text-white hover:bg-accent/20 hover:text-foreground"
+                  }`}
                 >
                   <Database className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   {t('nav.masterData')}
@@ -148,7 +162,11 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-success/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap"
+                  className={`gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap ${
+                    location.pathname.startsWith("/invoices") 
+                      ? "dark:text-primary dark:[&_svg]:text-primary" 
+                      : "dark:text-white dark:[&_svg]:text-white hover:bg-success/20 hover:text-foreground"
+                  }`}
                 >
                   <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   {t('nav.invoices')}
@@ -164,7 +182,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to="/invoices/overdue" className="cursor-pointer flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-red-600" />
+                    <AlertCircle className="w-4 h-4 text-destructive" />
                     <span className="font-medium">Overdue Invoices</span>
                   </Link>
                 </DropdownMenuItem>
@@ -177,7 +195,14 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-warning/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap"
+                  className={`gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap ${
+                    location.pathname.startsWith("/inventory") || 
+                    location.pathname.startsWith("/daily-stocks") || 
+                    location.pathname.startsWith("/stock-movements") || 
+                    location.pathname.startsWith("/low-stock")
+                      ? "dark:text-primary dark:[&_svg]:text-primary" 
+                      : "dark:text-white dark:[&_svg]:text-white hover:bg-warning/20 hover:text-foreground"
+                  }`}
                 >
                   <Warehouse className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   {t('nav.stockTracking')}
@@ -230,7 +255,12 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-success/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap"
+                  className={`gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap ${
+                    location.pathname.startsWith("/product-costs") || 
+                    location.pathname.startsWith("/product-prices")
+                      ? "dark:text-primary dark:[&_svg]:text-primary" 
+                      : "dark:text-white dark:[&_svg]:text-white hover:bg-success/20 hover:text-foreground"
+                  }`}
                 >
                   <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   Prices & Costs
@@ -264,7 +294,11 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-accent/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap"
+                className={`gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap ${
+                  location.pathname === "/reports" 
+                    ? "dark:text-primary dark:[&_svg]:text-primary" 
+                    : "dark:text-white dark:[&_svg]:text-white hover:bg-accent/20 hover:text-foreground"
+                }`}
               >
                 <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 {t('nav.reports')}
@@ -276,7 +310,11 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md hover:bg-accent/20 hover:text-foreground rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap"
+                className={`gap-1.5 sm:gap-2 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-xl font-semibold pointer-events-auto text-xs sm:text-sm whitespace-nowrap ${
+                  location.pathname === "/settings" 
+                    ? "dark:text-primary dark:[&_svg]:text-primary" 
+                    : "dark:text-white dark:[&_svg]:text-white hover:bg-accent/20 hover:text-foreground"
+                }`}
               >
                 <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 {t("settings.title")}

@@ -102,7 +102,7 @@ const OverdueInvoices = () => {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-red-600 via-orange-500 to-red-600 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-destructive via-warning to-destructive bg-clip-text text-transparent">
               Overdue Invoices
             </h1>
             <p className="text-muted-foreground">
@@ -113,36 +113,36 @@ const OverdueInvoices = () => {
 
         {/* Summary Stats */}
         <div className="grid gap-3 md:grid-cols-3">
-          <div className="border rounded-lg p-3 bg-red-50 border-red-200">
+          <div className="border rounded-lg p-3 bg-destructive/10 dark:bg-destructive/20 border-destructive/30 dark:border-destructive/40">
             <div className="flex items-center gap-2 mb-1">
-              <AlertCircle className="w-4 h-4 text-red-600" />
-              <span className="text-xs font-medium text-red-700">Overdue Invoices</span>
+              <AlertCircle className="w-4 h-4 text-destructive" />
+              <span className="text-xs font-medium text-destructive">Overdue Invoices</span>
             </div>
-            <div className="text-2xl font-bold text-red-600">{stats.total}</div>
+            <div className="text-2xl font-bold text-destructive">{stats.total}</div>
           </div>
 
-          <div className="border rounded-lg p-3 bg-orange-50 border-orange-200">
+          <div className="border rounded-lg p-3 bg-warning/10 dark:bg-warning/20 border-warning/30 dark:border-warning/40">
             <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="w-4 h-4 text-orange-600" />
-              <span className="text-xs font-medium text-orange-700">Total Amount</span>
+              <DollarSign className="w-4 h-4 text-warning" />
+              <span className="text-xs font-medium text-warning">Total Amount</span>
             </div>
-            <div className="text-lg font-bold text-orange-600">${stats.totalAmount.toFixed(2)}</div>
+            <div className="text-lg font-bold text-warning">${stats.totalAmount.toFixed(2)}</div>
           </div>
 
-          <div className="border rounded-lg p-3 bg-red-50 border-red-200">
+          <div className="border rounded-lg p-3 bg-destructive/10 dark:bg-destructive/20 border-destructive/30 dark:border-destructive/40">
             <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="w-4 h-4 text-red-600" />
-              <span className="text-xs font-medium text-red-700">Outstanding Balance</span>
+              <DollarSign className="w-4 h-4 text-destructive" />
+              <span className="text-xs font-medium text-destructive">Outstanding Balance</span>
             </div>
-            <div className="text-lg font-bold text-red-600">${stats.totalOutstanding.toFixed(2)}</div>
+            <div className="text-lg font-bold text-destructive">${stats.totalOutstanding.toFixed(2)}</div>
           </div>
         </div>
 
         {/* Table */}
-        <div className="border-2 rounded-lg overflow-hidden border-red-200">
+        <div className="border-2 rounded-lg overflow-hidden border-destructive/30 dark:border-destructive/40">
           <Table>
             <TableHeader>
-              <TableRow className="bg-gradient-to-r from-red-50 to-orange-50">
+              <TableRow className="bg-gradient-to-r from-destructive/10 to-warning/10 dark:from-destructive/20 dark:to-warning/20">
                 <TableHead className="font-bold">Invoice#</TableHead>
                 <TableHead className="font-bold">Date</TableHead>
                 <TableHead className="font-bold">Due Date</TableHead>
@@ -189,7 +189,7 @@ const OverdueInvoices = () => {
                   return (
                     <TableRow 
                       key={invoice.id}
-                      className="hover:bg-red-50/50 transition-colors animate-fade-in"
+                      className="hover:bg-destructive/10 dark:hover:bg-destructive/20 transition-colors animate-fade-in"
                       style={{ animationDelay: `${idx * 0.01}s` }}
                     >
                       <TableCell className="font-bold text-primary">
@@ -199,7 +199,7 @@ const OverdueInvoices = () => {
                         {formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}
                       </TableCell>
                       <TableCell className="text-sm">
-                        <span className="text-red-600 font-semibold">
+                        <span className="text-destructive font-semibold">
                           {formatDateTimeLebanon(invoice.due_date, "MMM dd, yyyy")}
                         </span>
                       </TableCell>
@@ -210,11 +210,7 @@ const OverdueInvoices = () => {
                       </TableCell>
                       <TableCell>
                         <Badge 
-                          className={
-                            invoice.invoice_type === 'sell'
-                              ? 'bg-primary hover:bg-primary/90 text-primary-foreground border-primary'
-                              : 'bg-teal-500 hover:bg-teal-600 text-white border-teal-600'
-                          }
+                          variant={invoice.invoice_type === 'sell' ? 'default' : 'success'}
                         >
                           {invoice.invoice_type === 'sell' ? t('invoices.sell') : t('invoices.buy')}
                         </Badge>
@@ -225,19 +221,15 @@ const OverdueInvoices = () => {
                       <TableCell className="text-muted-foreground">
                         {invoice.invoice_items?.length || 0} items
                       </TableCell>
-                      <TableCell className="text-right font-bold text-lg text-orange-600">
+                      <TableCell className="text-right font-bold text-lg text-warning">
                         ${Number(invoice.total_amount).toFixed(2)}
                       </TableCell>
-                      <TableCell className="text-right font-bold text-lg text-red-600">
+                      <TableCell className="text-right font-bold text-lg text-destructive">
                         ${Number(invoice.remaining_balance || 0).toFixed(2)}
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge 
-                          className={
-                            invoice.payment_status === 'partial'
-                              ? 'bg-orange-500 hover:bg-orange-600 text-white border-orange-600' :
-                              'bg-orange-100 hover:bg-orange-200 text-orange-800 border-orange-300'
-                          }
+                          variant="warning"
                         >
                           {invoice.payment_status === 'partial' ? t('invoices.partial') : t('invoices.pending')}
                         </Badge>
@@ -266,7 +258,7 @@ const OverdueInvoices = () => {
                             variant="default"
                             size="sm"
                             onClick={() => handleRecordPayment(invoice.id)}
-                            className="gap-1 bg-green-600 hover:bg-green-700"
+                            className="gap-1 bg-success hover:bg-success/90"
                           >
                             <CreditCard className="w-4 h-4" />
                             Payment

@@ -10,12 +10,24 @@ import { Receipt } from "lucide-react";
 import { z } from "zod";
 import { useTranslation } from "react-i18next";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
-const authSchema = z.object({
+const loginSchema = z.object({
   email: z.string().trim().email("Invalid email address"),
   password: z.string()
     .min(8, "Password must be at least 8 characters")
     .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, "Password must contain at least one uppercase letter, one lowercase letter, and one number"),
+});
+
+const signUpSchema = z.object({
+  email: z.string().trim().email("Invalid email address"),
+  password: z.string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, "Password must contain at least one uppercase letter, one lowercase letter, and one number"),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
 });
 
 const Auth = () => {
@@ -24,6 +36,7 @@ const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -41,10 +54,18 @@ const Auth = () => {
     e.preventDefault();
     
     try {
-      const validation = authSchema.safeParse({ email, password });
-      if (!validation.success) {
-        toast.error(validation.error.errors[0].message);
-        return;
+      if (isLogin) {
+        const validation = loginSchema.safeParse({ email, password });
+        if (!validation.success) {
+          toast.error(validation.error.errors[0].message);
+          return;
+        }
+      } else {
+        const validation = signUpSchema.safeParse({ email, password, confirmPassword });
+        if (!validation.success) {
+          toast.error(validation.error.errors[0].message);
+          return;
+        }
       }
 
       setLoading(true);
@@ -65,8 +86,9 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-primary/10 to-accent/10 p-4 relative overflow-hidden">
-      {/* Language switcher */}
-      <div className="absolute top-4 right-4 z-20">
+      {/* Theme and Language switchers */}
+      <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+        <ThemeToggle />
         <LanguageSwitcher />
       </div>
 
@@ -115,10 +137,31 @@ const Auth = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 disabled={loading}
-                minLength={6}
+                minLength={8}
                 className="h-11 border-2 focus:border-primary/50 transition-all"
               />
+              {!isLogin && (
+                <p className="text-xs text-muted-foreground">
+                  Must be at least 8 characters with uppercase, lowercase, and a number
+                </p>
+              )}
             </div>
+            {!isLogin && (
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className="text-sm font-semibold">Confirm Password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  disabled={loading}
+                  minLength={8}
+                  className="h-11 border-2 focus:border-primary/50 transition-all"
+                />
+              </div>
+            )}
             {isLogin && (
               <div className="text-right">
                 <Link to="/forgot-password" className="text-sm text-primary hover:underline">
@@ -137,7 +180,10 @@ const Auth = () => {
           <div className="text-center">
             <button
               type="button"
-              onClick={() => setIsLogin(!isLogin)}
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setConfirmPassword(""); // Clear confirm password when switching modes
+              }}
               className="text-primary hover:underline font-medium transition-colors"
               disabled={loading}
             >

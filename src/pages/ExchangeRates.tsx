@@ -300,9 +300,9 @@ const ExchangeRates = () => {
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-semibold">{currency}</span>
                   {currentRate ? (
-                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    <CheckCircle2 className="h-4 w-4 text-success" />
                   ) : (
-                    <XCircle className="h-4 w-4 text-red-600" />
+                    <XCircle className="h-4 w-4 text-destructive" />
                   )}
                 </div>
                 {currentRate ? (
@@ -401,7 +401,7 @@ const ExchangeRates = () => {
                     <TableCell>{formatDateTimeLebanon(rate.effective_date, "MM/dd/yyyy")}</TableCell>
                     <TableCell>
                       {rate.is_active ? (
-                        <span className="text-green-600">{t("exchangeRates.activeStatus")}</span>
+                        <span className="text-success">{t("exchangeRates.activeStatus")}</span>
                       ) : (
                         <span className="text-muted-foreground">{t("exchangeRates.inactiveStatus")}</span>
                       )}

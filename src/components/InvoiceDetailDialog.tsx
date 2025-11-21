@@ -79,6 +79,39 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
     }
   };
 
+  // Helper to get theme color as hex for print
+  const getThemeColorHex = (varName: string): string => {
+    if (typeof window === "undefined") return "#000000";
+    const root = document.documentElement;
+    const hsl = getComputedStyle(root).getPropertyValue(varName).trim();
+    if (!hsl) return "#000000";
+    
+    const match = hsl.match(/(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%/);
+    if (!match) return "#000000";
+    
+    const h = parseFloat(match[1]) / 360;
+    const s = parseFloat(match[2]) / 100;
+    const l = parseFloat(match[3]) / 100;
+    
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs(((h * 6) % 2) - 1));
+    const m = l - c / 2;
+    
+    let r = 0, g = 0, b = 0;
+    if (h < 1/6) { r = c; g = x; b = 0; }
+    else if (h < 2/6) { r = x; g = c; b = 0; }
+    else if (h < 3/6) { r = 0; g = c; b = x; }
+    else if (h < 4/6) { r = 0; g = x; b = c; }
+    else if (h < 5/6) { r = x; g = 0; b = c; }
+    else { r = c; g = 0; b = x; }
+    
+    r = Math.round((r + m) * 255);
+    g = Math.round((g + m) * 255);
+    b = Math.round((b + m) * 255);
+    
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+  };
+
   const handlePrint = () => {
     if (!invoice) return;
     
@@ -89,6 +122,13 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
     const entityPhone = invoice.customers?.phone || invoice.suppliers?.phone || "N/A";
     const entityAddress = invoice.customers?.address || invoice.suppliers?.address || "N/A";
     const remainingBalance = Number(invoice.total_amount || 0) - Number(invoice.amount_paid || 0);
+    
+    // Get theme colors for print
+    const successColor = getThemeColorHex('--success');
+    const warningColor = getThemeColorHex('--warning');
+    const destructiveColor = getThemeColorHex('--destructive');
+    const primaryColor = getThemeColorHex('--primary');
+    const secondaryColor = getThemeColorHex('--secondary');
 
     const printContent = `
       <!DOCTYPE html>
@@ -168,11 +208,11 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
               font-size: 12px;
               font-weight: bold;
             }
-            .badge-sell { background-color: #4CAF50; color: white; }
-            .badge-buy { background-color: #2196F3; color: white; }
-            .badge-paid { background-color: #4CAF50; color: white; }
-            .badge-partial { background-color: #FF9800; color: white; }
-            .badge-pending { background-color: #f44336; color: white; }
+            .badge-sell { background-color: ${primaryColor}; color: white; }
+            .badge-buy { background-color: ${successColor}; color: white; }
+            .badge-paid { background-color: ${successColor}; color: white; }
+            .badge-partial { background-color: ${warningColor}; color: white; }
+            .badge-pending { background-color: ${warningColor}; color: white; }
             @media print {
               body { padding: 0; }
               .no-print { display: none; }
@@ -232,11 +272,11 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
             </div>
             <div class="summary-item">
               <div class="summary-label">Amount Paid</div>
-              <div class="summary-value" style="color: #4CAF50;">$${Number(invoice.amount_paid || 0).toFixed(2)}</div>
+              <div class="summary-value" style="color: ${successColor};">$${Number(invoice.amount_paid || 0).toFixed(2)}</div>
             </div>
             <div class="summary-item">
               <div class="summary-label">Remaining Balance</div>
-              <div class="summary-value" style="color: #FF9800;">$${Number(remainingBalance || 0).toFixed(2)}</div>
+              <div class="summary-value" style="color: ${warningColor};">$${Number(remainingBalance || 0).toFixed(2)}</div>
             </div>
           </div>
         </body>
@@ -337,7 +377,7 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                       {invoice.due_date ? (
                         <span className={`ml-2 font-medium ${
                           new Date(invoice.due_date) < new Date() && invoice.payment_status !== 'paid' 
-                            ? 'text-red-600 font-semibold' 
+                            ? 'text-destructive font-semibold' 
                             : ''
                         }`}>
                           {formatDateTimeLebanon(invoice.due_date, "MMM dd, yyyy")}
@@ -351,14 +391,14 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                     </div>
                     <div>
                       <span className="text-muted-foreground">Type:</span>
-                      <Badge variant={invoice.invoice_type === 'sell' ? 'default' : 'secondary'} className="ml-2">
+                      <Badge variant={invoice.invoice_type === 'sell' ? 'default' : 'success'} className="ml-2">
                         {invoice.invoice_type.toUpperCase()}
                       </Badge>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Status:</span>
                       <Badge 
-                        variant={invoice.payment_status === 'paid' ? 'default' : invoice.payment_status === 'partial' ? 'secondary' : 'outline'}
+                        variant={invoice.payment_status === 'paid' ? 'success' : invoice.payment_status === 'partial' ? 'warning' : 'warning'}
                         className="ml-2"
                       >
                         {invoice.payment_status === 'paid' ? 'Paid' : invoice.payment_status === 'partial' ? 'Partial' : 'Pending'}
@@ -439,12 +479,12 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                         <div className="text-2xl font-bold">${Number(invoice.total_amount || 0).toFixed(2)}</div>
                       </div>
                       <div>
-                        <div className="text-sm text-green-600">Amount Paid</div>
-                        <div className="text-2xl font-bold text-green-600">${Number(invoice.amount_paid || 0).toFixed(2)}</div>
+                        <div className="text-sm text-success">Amount Paid</div>
+                        <div className="text-2xl font-bold text-success">${Number(invoice.amount_paid || 0).toFixed(2)}</div>
                       </div>
                       <div>
-                        <div className="text-sm text-orange-600">Remaining Balance</div>
-                        <div className="text-2xl font-bold text-orange-600">${Number(remainingBalance || 0).toFixed(2)}</div>
+                        <div className="text-sm text-warning">Remaining Balance</div>
+                        <div className="text-2xl font-bold text-warning">${Number(remainingBalance || 0).toFixed(2)}</div>
                       </div>
                     </div>
                   </div>

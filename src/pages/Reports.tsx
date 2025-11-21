@@ -7,7 +7,51 @@ import { useToast } from "@/hooks/use-toast";
 import { FileText, TrendingUp, TrendingDown, Package, Download, BarChart3, DollarSign } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
-const COLORS = ['#10b981', '#f59e0b', '#ef4444'];
+// Helper function to get CSS variable color as hex
+const getThemeColor = (varName: string): string => {
+  if (typeof window === "undefined") return "#000000";
+  const root = document.documentElement;
+  const hsl = getComputedStyle(root).getPropertyValue(varName).trim();
+  if (!hsl) return "#000000";
+  
+  // Convert HSL to RGB to Hex
+  const match = hsl.match(/(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%/);
+  if (!match) return "#000000";
+  
+  const h = parseFloat(match[1]) / 360;
+  const s = parseFloat(match[2]) / 100;
+  const l = parseFloat(match[3]) / 100;
+  
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h * 6) % 2) - 1));
+  const m = l - c / 2;
+  
+  let r = 0, g = 0, b = 0;
+  
+  if (h < 1/6) { r = c; g = x; b = 0; }
+  else if (h < 2/6) { r = x; g = c; b = 0; }
+  else if (h < 3/6) { r = 0; g = c; b = x; }
+  else if (h < 4/6) { r = 0; g = x; b = c; }
+  else if (h < 5/6) { r = x; g = 0; b = c; }
+  else { r = c; g = 0; b = x; }
+  
+  r = Math.round((r + m) * 255);
+  g = Math.round((g + m) * 255);
+  b = Math.round((b + m) * 255);
+  
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+};
+
+// Get theme colors for charts
+const getChartColors = () => {
+  return {
+    success: getThemeColor('--success'),
+    warning: getThemeColor('--warning'),
+    destructive: getThemeColor('--destructive'),
+    primary: getThemeColor('--primary'),
+    secondary: getThemeColor('--secondary'),
+  };
+};
 
 const Reports = () => {
   const { toast } = useToast();
@@ -27,6 +71,7 @@ const Reports = () => {
   const [topProducts, setTopProducts] = useState<any[]>([]);
   const [topCustomers, setTopCustomers] = useState<any[]>([]);
   const [paymentStatusData, setPaymentStatusData] = useState<any[]>([]);
+  const chartColors = getChartColors();
 
   useEffect(() => {
     fetchReports();
@@ -121,9 +166,9 @@ const Reports = () => {
         else statusCounts.pending++;
       });
       setPaymentStatusData([
-        { name: 'Paid', value: statusCounts.paid, color: COLORS[0] },
-        { name: 'Partial', value: statusCounts.partial, color: COLORS[1] },
-        { name: 'Pending', value: statusCounts.pending, color: COLORS[2] },
+        { name: 'Paid', value: statusCounts.paid, color: chartColors.success },
+        { name: 'Partial', value: statusCounts.partial, color: chartColors.warning },
+        { name: 'Pending', value: statusCounts.pending, color: chartColors.warning },
       ]);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -268,9 +313,9 @@ const Reports = () => {
                       <YAxis />
                       <Tooltip />
                       <Legend />
-                      <Line type="monotone" dataKey="sales" stroke="#10b981" name="Sales" />
-                      <Line type="monotone" dataKey="purchases" stroke="#ef4444" name="Purchases" />
-                      <Line type="monotone" dataKey="profit" stroke="#3b82f6" name="Profit" />
+                      <Line type="monotone" dataKey="sales" stroke={chartColors.success} name="Sales" />
+                      <Line type="monotone" dataKey="purchases" stroke={chartColors.destructive} name="Purchases" />
+                      <Line type="monotone" dataKey="profit" stroke={chartColors.secondary} name="Profit" />
                     </LineChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -286,7 +331,7 @@ const Reports = () => {
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
-                      <Pie data={paymentStatusData} cx="50%" cy="50%" labelLine={false} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} outerRadius={80} fill="#8884d8" dataKey="value">
+                      <Pie data={paymentStatusData} cx="50%" cy="50%" labelLine={false} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} outerRadius={80} fill={chartColors.primary} dataKey="value">
                         {paymentStatusData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
@@ -310,9 +355,9 @@ const Reports = () => {
                     <YAxis />
                     <Tooltip />
                     <Legend />
-                    <Bar dataKey="sales" fill="#10b981" name="Sales" />
-                    <Bar dataKey="purchases" fill="#ef4444" name="Purchases" />
-                    <Bar dataKey="profit" fill="#3b82f6" name="Profit" />
+                    <Bar dataKey="sales" fill={chartColors.success} name="Sales" />
+                    <Bar dataKey="purchases" fill={chartColors.destructive} name="Purchases" />
+                    <Bar dataKey="profit" fill={chartColors.secondary} name="Profit" />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -330,7 +375,7 @@ const Reports = () => {
                       <XAxis type="number" />
                       <YAxis dataKey="name" type="category" width={150} />
                       <Tooltip />
-                      <Bar dataKey="revenue" fill="#8b5cf6" />
+                      <Bar dataKey="revenue" fill={chartColors.primary} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -347,7 +392,7 @@ const Reports = () => {
                       <XAxis type="number" />
                       <YAxis dataKey="name" type="category" width={150} />
                       <Tooltip />
-                      <Bar dataKey="total" fill="#f59e0b" />
+                      <Bar dataKey="total" fill={chartColors.warning} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>

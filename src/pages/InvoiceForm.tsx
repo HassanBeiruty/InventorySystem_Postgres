@@ -1072,7 +1072,7 @@ const InvoiceForm = () => {
                           id={`private-${index}`}
                           checked={item.is_private_price}
                           onChange={(e) => handlePrivatePriceToggle(index, e.target.checked)}
-                          className="rounded border-gray-300"
+                          className="rounded border-input"
                         />
                         <Label htmlFor={`private-${index}`} className="cursor-pointer font-medium">
                           {t('invoiceForm.useCustomPrice')} {item.price_type === 'retail' ? t('invoiceForm.retail') : t('invoiceForm.wholesale')})

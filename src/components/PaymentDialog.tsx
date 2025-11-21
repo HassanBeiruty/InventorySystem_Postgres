@@ -284,12 +284,12 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
                         <div className="text-lg font-bold">${totalAmount.toFixed(2)}</div>
                       </div>
                       <div className="border rounded-lg p-3">
-                        <div className="text-xs text-green-600">Total Paid</div>
-                        <div className="text-lg font-bold text-green-600">${amountPaid.toFixed(2)}</div>
+                        <div className="text-xs text-success">Total Paid</div>
+                        <div className="text-lg font-bold text-success">${amountPaid.toFixed(2)}</div>
                       </div>
                       <div className="border rounded-lg p-3">
-                        <div className="text-xs text-orange-600">Remaining</div>
-                        <div className="text-lg font-bold text-orange-600">${remainingBalance.toFixed(2)}</div>
+                        <div className="text-xs text-warning">Remaining</div>
+                        <div className="text-lg font-bold text-warning">${remainingBalance.toFixed(2)}</div>
                       </div>
                     </div>
                   </div>
@@ -324,7 +324,7 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
                                 <TableCell className="text-sm">
                                   {parseFloat(String(payment.exchange_rate_on_payment || 1)).toFixed(6)}
                                 </TableCell>
-                                <TableCell className="font-medium text-green-600">
+                                <TableCell className="font-medium text-success">
                                   ${parseFloat(String(payment.usd_equivalent_amount || 0)).toFixed(2)}
                                 </TableCell>
                                 <TableCell>{payment.payment_method || "-"}</TableCell>

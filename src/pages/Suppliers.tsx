@@ -102,7 +102,7 @@ const Suppliers = () => {
           </div>
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-              <Button className="gradient-secondary hover:shadow-glow-pink transition-all duration-300 hover:scale-105 font-semibold">
+              <Button className="gradient-secondary hover:shadow-glow-blue transition-all duration-300 hover:scale-105 font-semibold">
                 <Plus className="w-4 h-4 mr-2" />
                 {t('suppliers.addSupplier')}
               </Button>
