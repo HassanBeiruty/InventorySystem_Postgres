@@ -59,12 +59,22 @@ pool.on('error', (err) => {
 	console.error('[DB] Unexpected error on idle client', err);
 });
 
+// Set timezone for all connections to Asia/Beirut (Lebanon timezone)
+pool.on('connect', async (client) => {
+	try {
+		await client.query("SET TIMEZONE = 'Asia/Beirut'");
+	} catch (err) {
+		console.error('[DB] Failed to set timezone:', err.message);
+	}
+});
+
 // Test connection on startup
 (async () => {
 	try {
-		const result = await pool.query('SELECT NOW()');
+		const result = await pool.query('SELECT NOW(), current_setting(\'timezone\') as tz');
 		console.log('[DB] ✅ Connected to PostgreSQL successfully!');
 		console.log('[DB] Server time:', result.rows[0].now);
+		console.log('[DB] Timezone:', result.rows[0].tz);
 	} catch (err) {
 		console.error('[DB] ❌ Connection failed:', err.message);
 	}
@@ -76,6 +86,9 @@ pool.on('error', (err) => {
  * @param {Array} params - Array of parameter values (not objects)
  * @returns {Promise} Query result with rows property
  */
+// Track which clients have had timezone set
+const timezoneSetClients = new WeakSet();
+
 async function query(text, params = []) {
 	// Convert params array of objects to array of values
 	// SQL Server used [{name: value}, {name2: value2}] or [{name1: value1, name2: value2}]
@@ -96,13 +109,26 @@ async function query(text, params = []) {
 	}
 
 	try {
-		const result = await pool.query(text, paramValues);
-		// Return in a format similar to SQL Server (with recordset property for compatibility)
-		return {
-			rows: result.rows,
-			recordset: result.rows, // For backward compatibility
-			rowCount: result.rowCount,
-		};
+		// Get a client from the pool
+		const client = await pool.connect();
+		try {
+			// Set timezone for this client if not already set
+			if (!timezoneSetClients.has(client)) {
+				await client.query("SET TIMEZONE = 'Asia/Beirut'");
+				timezoneSetClients.add(client);
+			}
+			// Execute the query
+			const result = await client.query(text, paramValues);
+			// Return in a format similar to SQL Server (with recordset property for compatibility)
+			return {
+				rows: result.rows,
+				recordset: result.rows, // For backward compatibility
+				rowCount: result.rowCount,
+			};
+		} finally {
+			// Release the client back to the pool
+			client.release();
+		}
 	} catch (err) {
 		console.error('[DB] Query error:', err.message);
 		console.error('[DB] Query:', text);
