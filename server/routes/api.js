@@ -19,40 +19,20 @@ if (!process.env.JWT_SECRET) {
 // Lebanon timezone: Asia/Beirut (GMT+2 in winter, GMT+3 in summer with DST)
 // Returns ISO string representing current time in Lebanon timezone
 // Note: SQL Server DATETIME2 doesn't store timezone, so we store Lebanon local time directly
-function nowLebanonIso() {
-	const now = new Date();
-	
-	// Get current time components in Lebanon timezone
-	const lebanonParts = new Intl.DateTimeFormat('en-US', {
-		timeZone: 'Asia/Beirut',
-		year: 'numeric',
-		month: '2-digit',
-		day: '2-digit',
-		hour: '2-digit',
-		minute: '2-digit',
-		second: '2-digit',
-		hour12: false
-	}).formatToParts(now);
-	
-	const year = parseInt(lebanonParts.find(p => p.type === 'year')?.value || '0');
-	const month = parseInt(lebanonParts.find(p => p.type === 'month')?.value || '0');
-	const day = parseInt(lebanonParts.find(p => p.type === 'day')?.value || '0');
-	const hour = parseInt(lebanonParts.find(p => p.type === 'hour')?.value || '0');
-	const minute = parseInt(lebanonParts.find(p => p.type === 'minute')?.value || '0');
-	const second = parseInt(lebanonParts.find(p => p.type === 'second')?.value || '0');
-	const ms = now.getMilliseconds();
-	
-	// Create ISO string with Lebanon time components
-	// Since DATETIME2 doesn't store timezone, we store the Lebanon local time directly
-	// Format: YYYY-MM-DDTHH:mm:ss.sss (no Z suffix, as it's local time)
-	const isoStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
-	
-	return isoStr;
+function lebanonISO() {
+	const date = new Date();
+	const local = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Beirut" }));
+	const offsetMinutes = -local.getTimezoneOffset();
+	const sign = offsetMinutes >= 0 ? "+" : "-";
+	const pad = (n) => String(n).padStart(2, "0");
+	const offset = `${sign}${pad(Math.floor(Math.abs(offsetMinutes) / 60))}:${pad(Math.abs(offsetMinutes) % 60)}`;
+	return `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())}` +
+		`T${pad(local.getHours())}:${pad(local.getMinutes())}:${pad(local.getSeconds())}${offset}`;
 }
 
 function nowIso() {
-	// Return current time in Lebanon timezone (Asia/Beirut) as ISO string
-	return nowLebanonIso();
+	// Return current time in Lebanon timezone (Asia/Beirut) as ISO string with timezone offset
+	return lebanonISO();
 }
 
 // Helper function to get today's date in Lebanon timezone (Asia/Beirut - GMT+2/GMT+3)
@@ -936,31 +916,19 @@ router.post('/invoices', async (req, res) => {
 		// Use PostgreSQL's NOW() with timezone conversion to get current time in Lebanon timezone
 		const today = getTodayLocal();
 
-		// Create invoice - use JavaScript nowIso() which matches the clock display
-		// Parse the timestamp string and construct it explicitly to avoid timezone conversion
+		// Create invoice - use lebanonISO() which includes timezone offset
+		// PostgreSQL will correctly interpret the timestamp with timezone and convert to TIMESTAMP
 		const invoiceTimestamp = nowIso();
-		// Extract components from the ISO string (already in Lebanon time)
-		const match = invoiceTimestamp.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
-		if (!match) {
-			throw new Error('Invalid timestamp format');
-		}
-		const [, year, month, day, hour, minute, second] = match;
-		// Use make_timestamp to create timestamp without timezone conversion
 		const invoiceResult = await query(
 			`INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, is_paid, invoice_date, due_date, created_at) 
-			 VALUES ($1, $2, $3, $4, $5, make_timestamp($6::int, $7::int, $8::int, $9::int, $10::int, $11::double precision), $12, make_timestamp($6::int, $7::int, $8::int, $9::int, $10::int, $11::double precision)) RETURNING id, invoice_date`,
+			 VALUES ($1, $2, $3, $4, $5, $6::timestamptz AT TIME ZONE 'Asia/Beirut', $7, $6::timestamptz AT TIME ZONE 'Asia/Beirut') RETURNING id, invoice_date`,
 			[
 				{ invoice_type },
 				{ customer_id: customer_id ? parseInt(customer_id) : null },
 				{ supplier_id: supplier_id ? parseInt(supplier_id) : null },
 				{ total_amount },
 				{ is_paid: is_paid ? 1 : 0 },
-				{ year: parseInt(year) },
-				{ month: parseInt(month) },
-				{ day: parseInt(day) },
-				{ hour: parseInt(hour) },
-				{ minute: parseInt(minute) },
-				{ second: parseFloat(second) },
+				{ invoice_date: invoiceTimestamp },
 				{ due_date: due_date || null },
 			]
 		);
@@ -1013,16 +981,11 @@ router.post('/invoices', async (req, res) => {
 			const avgCostAfter = newAvgCost;
 			
 			// Record stock movement with today's date, including unit_cost and avg_cost_after
-			// Use JavaScript nowIso() to match the clock display, parse and construct explicitly
+			// Use lebanonISO() which includes timezone offset
 			const movementTimestamp = nowIso();
-			const match = movementTimestamp.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
-			if (!match) {
-				throw new Error('Invalid timestamp format');
-			}
-			const [, year, month, day, hour, minute, second] = match;
 			const movementResult = await query(
 				`INSERT INTO stock_movements (product_id, invoice_id, invoice_date, quantity_before, quantity_change, quantity_after, unit_cost, avg_cost_after, created_at) 
-				 VALUES ($1, $2, (SELECT invoice_date FROM invoices WHERE id = $2), $3, $4, $5, $6, $7, make_timestamp($8::int, $9::int, $10::int, $11::int, $12::int, $13::double precision)) RETURNING id`,
+				 VALUES ($1, $2, (SELECT invoice_date FROM invoices WHERE id = $2), $3, $4, $5, $6, $7, $8::timestamptz AT TIME ZONE 'Asia/Beirut') RETURNING id`,
 				[
 					{ product_id: parseInt(item.product_id) },
 					{ invoice_id: invoiceId },
@@ -1031,12 +994,7 @@ router.post('/invoices', async (req, res) => {
 					{ quantity_after: qtyAfter },
 					{ unit_cost: unitCost },
 					{ avg_cost_after: avgCostAfter },
-					{ year: parseInt(year) },
-					{ month: parseInt(month) },
-					{ day: parseInt(day) },
-					{ hour: parseInt(hour) },
-					{ minute: parseInt(minute) },
-					{ second: parseFloat(second) },
+					{ created_at: movementTimestamp },
 				]
 			);
 
