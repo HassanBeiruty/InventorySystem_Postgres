@@ -302,14 +302,19 @@ async function seedMasterData() {
 	}
 }
 
-// Run the seeding
-seedMasterData()
-	.then(() => {
-		console.log('✅ Seeding completed successfully');
-		process.exit(0);
-	})
-	.catch((err) => {
-		console.error('❌ Seeding failed:', err);
-		process.exit(1);
-	});
+// Export the function so it can be called from API
+module.exports = { seedMasterData };
+
+// Only run automatically if called directly (not required as module)
+if (require.main === module) {
+	seedMasterData()
+		.then(() => {
+			console.log('✅ Seeding completed successfully');
+			process.exit(0);
+		})
+		.catch((err) => {
+			console.error('❌ Seeding failed:', err);
+			process.exit(1);
+		});
+}
 

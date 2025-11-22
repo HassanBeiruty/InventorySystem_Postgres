@@ -2312,6 +2312,42 @@ router.post('/admin/init', authenticateToken, requireAdmin, async (req, res) => 
 	}
 });
 
+// Manual trigger for seed master data
+router.post('/admin/seed-master-data', authenticateToken, requireAdmin, async (req, res) => {
+	try {
+		console.log('[Admin] Manual seed master data requested');
+		
+		// Dynamically require and run the seed script
+		const seedScript = require('../scripts/seed_master_data');
+		
+		// The script runs automatically when required, but we need to handle it properly
+		// Since it's async, we'll need to call it differently
+		res.json({
+			success: true,
+			message: 'Seed master data script execution started. Check server logs for progress.',
+			note: 'The script will clear invoices and seed fresh master data.'
+		});
+		
+		// Run the seed script in the background (don't await to avoid blocking)
+		setTimeout(async () => {
+			try {
+				const { seedMasterData } = require('../scripts/seed_master_data');
+				await seedMasterData();
+			} catch (err) {
+				console.error('[Admin] Seed script error:', err);
+			}
+		}, 100);
+		
+	} catch (err) {
+		console.error('[Admin] Seed master data error:', err);
+		res.status(500).json({ 
+			success: false,
+			error: 'Failed to start seed script', 
+			details: err.message 
+		});
+	}
+});
+
 // Manual trigger for daily stock snapshot
 router.post('/admin/daily-stock-snapshot', authenticateToken, requireAdmin, async (req, res) => {
 	try {
