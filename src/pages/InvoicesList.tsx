@@ -214,7 +214,7 @@ const InvoicesList = () => {
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
              <Button
                onClick={() => navigate("/invoices/new/buy")}
-               className="gap-1.5 sm:gap-2 bg-gradient-success text-white hover:shadow-lg hover:shadow-success/50 transition-all duration-300 hover:scale-105 border-0 text-xs sm:text-sm flex-1 sm:flex-initial"
+               className="gap-1.5 sm:gap-2 bg-gradient-success text-white hover:shadow-lg hover:shadow-success/50 transition-all duration-300 hover:scale-105 border-0 text-xs sm:text-sm flex-1 sm:flex-initial dark:text-white [&_svg]:text-white"
              >
                <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                <span className="hidden sm:inline">{t('invoices.newBuyInvoice')}</span>

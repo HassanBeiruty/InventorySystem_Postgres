@@ -320,8 +320,18 @@ const InvoiceForm = () => {
       if (invoiceType === 'sell') {
         // For SELL invoices, default to retail price from product_prices
         const lp = latestPrices[productId];
-        newItems[index].unit_price = lp?.retail_price != null ? Number(lp.retail_price) : 0;
+        const retailPrice = lp?.retail_price != null ? Number(lp.retail_price) : 0;
+        newItems[index].unit_price = retailPrice;
         newItems[index].price_type = 'retail';
+        
+        // Warn if product has no price set
+        if (retailPrice === 0 && (!lp || lp.retail_price === null)) {
+          toast({
+            title: "Price Not Set",
+            description: `Product "${product.name}" has no price set. Please add a price in the Product Prices page before selling this product.`,
+            variant: "destructive",
+          });
+        }
       } else {
         // For BUY invoices, start with wholesale as reference but user must enter actual cost
         newItems[index].unit_price = 0; // User must enter
@@ -420,9 +430,21 @@ const InvoiceForm = () => {
       newItems[index].price_type = priceType;
       // Try to find price by both string and number product_id
       const lp = latestPrices[productId] || latestPrices[Number(productId)];
-      newItems[index].unit_price = priceType === 'retail'
+      const selectedPrice = priceType === 'retail'
         ? (lp?.retail_price != null ? Number(lp.retail_price) : 0)
         : (lp?.wholesale_price != null ? Number(lp.wholesale_price) : 0);
+      newItems[index].unit_price = selectedPrice;
+      
+      // Warn if switching to a price type that has no price set (only for sell invoices)
+      if (invoiceType === 'sell' && selectedPrice === 0) {
+        const product = products.find(p => String(p.id) === productId);
+        const priceTypeName = priceType === 'retail' ? 'retail' : 'wholesale';
+        toast({
+          title: "Price Not Set",
+          description: `Product "${product?.name || 'Product'}" has no ${priceTypeName} price set. Please add a price in the Product Prices page before selling this product.`,
+          variant: "destructive",
+        });
+      }
       
       if (!newItems[index].is_private_price) {
         newItems[index].total_price = newItems[index].unit_price * newItems[index].quantity;
@@ -676,6 +698,27 @@ const InvoiceForm = () => {
         variant: "destructive",
       });
       return;
+    }
+
+    // For sell invoices, validate that products have prices set (not 0)
+    if (invoiceType === 'sell') {
+      const itemsWithoutPrice: string[] = [];
+      validItems.forEach((item) => {
+        const effectivePrice = item.is_private_price ? item.private_price_amount : item.unit_price;
+        if (!effectivePrice || effectivePrice <= 0) {
+          const product = products.find(p => String(p.id) === String(item.product_id));
+          itemsWithoutPrice.push(product?.name || `Product #${item.product_id}`);
+        }
+      });
+
+      if (itemsWithoutPrice.length > 0) {
+        toast({
+          title: "Price Required",
+          description: `The following products need a price before selling: ${itemsWithoutPrice.join(', ')}. Please add prices in the Product Prices page first.`,
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     // Validate stock availability for sell invoices

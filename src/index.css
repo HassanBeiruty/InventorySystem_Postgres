@@ -389,6 +389,43 @@ All colors MUST be HSL.
     box-shadow: 0 4px 12px -2px currentColor;
   }
 
+  /* Date input calendar picker icon visibility */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 1;
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+  }
+
+  /* Dark mode - make calendar icon bright white with strong filter */
+  .dark input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(3) contrast(1.5);
+    opacity: 1 !important;
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+  }
+
+  .dark input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    filter: invert(1) brightness(4) contrast(1.5);
+    opacity: 1 !important;
+  }
+
+  /* Ensure date input text is visible in dark mode */
+  .dark input[type="date"] {
+    color: hsl(var(--foreground));
+  }
+
+  /* Ensure Buy button gradient is visible in light mode */
+  .bg-gradient-success {
+    background: var(--gradient-success);
+    color: white;
+  }
+
+  .bg-gradient-success svg {
+    color: white;
+  }
+
   /* Mobile-specific utilities */
   @media (max-width: 640px) {
     .container {
