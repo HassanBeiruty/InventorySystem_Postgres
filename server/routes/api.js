@@ -22,8 +22,6 @@ if (!process.env.JWT_SECRET) {
 // Note: SQL Server DATETIME2 doesn't store timezone, so we store Lebanon local time directly
 function lebanonTime() {
 	const now = new Date();
-	// Manually subtract 2 hours to match the clock display
-	const offset = -2; // Subtract 2 hours manually
 	
 	// Get UTC components directly
 	let year = now.getUTCFullYear();
