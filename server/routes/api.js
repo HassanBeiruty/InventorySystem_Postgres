@@ -20,14 +20,26 @@ if (!process.env.JWT_SECRET) {
 // Returns ISO string representing current time in Lebanon timezone
 // Note: SQL Server DATETIME2 doesn't store timezone, so we store Lebanon local time directly
 function lebanonISO() {
-	const date = new Date();
-	const local = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Beirut" }));
+	const formatter = new Intl.DateTimeFormat("en-CA", {
+		timeZone: "Asia/Beirut",
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+		hour: "2-digit",
+		minute: "2-digit",
+		second: "2-digit",
+		hour12: false
+	});
+	const parts = formatter.formatToParts(new Date());
+	const values = Object.fromEntries(parts.map(p => [p.type, p.value]));
+	// Calculate offset
+	const temp = new Date();
+	const local = new Date(temp.toLocaleString("en-US", { timeZone: "Asia/Beirut" }));
 	const offsetMinutes = -local.getTimezoneOffset();
 	const sign = offsetMinutes >= 0 ? "+" : "-";
 	const pad = (n) => String(n).padStart(2, "0");
 	const offset = `${sign}${pad(Math.floor(Math.abs(offsetMinutes) / 60))}:${pad(Math.abs(offsetMinutes) % 60)}`;
-	return `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())}` +
-		`T${pad(local.getHours())}:${pad(local.getMinutes())}:${pad(local.getSeconds())}${offset}`;
+	return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}:${values.second}${offset}`;
 }
 
 function nowIso() {
