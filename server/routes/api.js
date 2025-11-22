@@ -24,40 +24,25 @@ function lebanonTime() {
 	const now = new Date();
 	const offset = 2; // Lebanon UTC+2 (2025)
 	
-	// Get UTC components
-	const utcYear = now.getUTCFullYear();
-	const utcMonth = now.getUTCMonth();
-	const utcDate = now.getUTCDate();
-	let utcHours = now.getUTCHours() + offset;
-	const utcMinutes = now.getUTCMinutes();
-	const utcSeconds = now.getUTCSeconds();
+	// Get UTC time in milliseconds
+	const utcTime = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
 	
-	// Handle day overflow (if hours >= 24, move to next day)
-	if (utcHours >= 24) {
-		utcHours -= 24;
-		// Create a date to handle month/year overflow correctly
-		const nextDay = new Date(Date.UTC(utcYear, utcMonth, utcDate + 1));
-		const year = nextDay.getUTCFullYear();
-		const month = nextDay.getUTCMonth();
-		const day = nextDay.getUTCDate();
-		const pad = (n) => String(n).padStart(2, "0");
-		return `${year}-${pad(month + 1)}-${pad(day)} ${pad(utcHours)}:${pad(utcMinutes)}:${pad(utcSeconds)}`;
-	}
+	// Add Lebanon offset (2 hours = 2 * 60 * 60 * 1000 milliseconds)
+	const beirutTime = utcTime + (offset * 60 * 60 * 1000);
 	
-	// Handle day underflow (if hours < 0, move to previous day)
-	if (utcHours < 0) {
-		utcHours += 24;
-		const prevDay = new Date(Date.UTC(utcYear, utcMonth, utcDate - 1));
-		const year = prevDay.getUTCFullYear();
-		const month = prevDay.getUTCMonth();
-		const day = prevDay.getUTCDate();
-		const pad = (n) => String(n).padStart(2, "0");
-		return `${year}-${pad(month + 1)}-${pad(day)} ${pad(utcHours)}:${pad(utcMinutes)}:${pad(utcSeconds)}`;
-	}
+	// Create a date object from the Beirut time (this will be in local timezone, but we'll extract UTC components)
+	const beirutDate = new Date(beirutTime);
 	
-	// Normal case - no day overflow/underflow
+	// Extract UTC components (these represent the Beirut time we want)
+	const year = beirutDate.getUTCFullYear();
+	const month = beirutDate.getUTCMonth();
+	const day = beirutDate.getUTCDate();
+	const hours = beirutDate.getUTCHours();
+	const minutes = beirutDate.getUTCMinutes();
+	const seconds = beirutDate.getUTCSeconds();
+	
 	const pad = (n) => String(n).padStart(2, "0");
-	return `${utcYear}-${pad(utcMonth + 1)}-${pad(utcDate)} ${pad(utcHours)}:${pad(utcMinutes)}:${pad(utcSeconds)}`;
+	return `${year}-${pad(month + 1)}-${pad(day)} ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 }
 
 function nowIso() {
