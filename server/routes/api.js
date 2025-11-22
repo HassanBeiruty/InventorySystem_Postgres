@@ -937,18 +937,20 @@ router.post('/invoices', async (req, res) => {
 		const today = getTodayLocal();
 
 		// Create invoice - use JavaScript nowIso() which matches the clock display
-		// Explicitly cast the timestamp string as being in Asia/Beirut timezone
+		// Convert the ISO string to a timestamp, treating it as Asia/Beirut timezone
 		const invoiceTimestamp = nowIso();
+		// Replace 'T' with space for PostgreSQL compatibility and remove milliseconds if present
+		const pgTimestamp = invoiceTimestamp.replace('T', ' ').replace(/\.\d{3}$/, '');
 		const invoiceResult = await query(
 			`INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, is_paid, invoice_date, due_date, created_at) 
-			 VALUES ($1, $2, $3, $4, $5, ($6::timestamp AT TIME ZONE 'Asia/Beirut')::timestamp, $7, ($6::timestamp AT TIME ZONE 'Asia/Beirut')::timestamp) RETURNING id, invoice_date`,
+			 VALUES ($1, $2, $3, $4, $5, to_timestamp($6, 'YYYY-MM-DD HH24:MI:SS') AT TIME ZONE 'Asia/Beirut', $7, to_timestamp($6, 'YYYY-MM-DD HH24:MI:SS') AT TIME ZONE 'Asia/Beirut') RETURNING id, invoice_date`,
 			[
 				{ invoice_type },
 				{ customer_id: customer_id ? parseInt(customer_id) : null },
 				{ supplier_id: supplier_id ? parseInt(supplier_id) : null },
 				{ total_amount },
 				{ is_paid: is_paid ? 1 : 0 },
-				{ invoice_date: invoiceTimestamp },
+				{ invoice_date: pgTimestamp },
 				{ due_date: due_date || null },
 			]
 		);
@@ -1001,11 +1003,12 @@ router.post('/invoices', async (req, res) => {
 			const avgCostAfter = newAvgCost;
 			
 			// Record stock movement with today's date, including unit_cost and avg_cost_after
-			// Use JavaScript nowIso() to match the clock display, explicitly cast as Asia/Beirut timezone
+			// Use JavaScript nowIso() to match the clock display, convert to PostgreSQL format
 			const movementTimestamp = nowIso();
+			const pgMovementTimestamp = movementTimestamp.replace('T', ' ').replace(/\.\d{3}$/, '');
 			const movementResult = await query(
 				`INSERT INTO stock_movements (product_id, invoice_id, invoice_date, quantity_before, quantity_change, quantity_after, unit_cost, avg_cost_after, created_at) 
-				 VALUES ($1, $2, (SELECT invoice_date FROM invoices WHERE id = $2), $3, $4, $5, $6, $7, ($8::timestamp AT TIME ZONE 'Asia/Beirut')::timestamp) RETURNING id`,
+				 VALUES ($1, $2, (SELECT invoice_date FROM invoices WHERE id = $2), $3, $4, $5, $6, $7, to_timestamp($8, 'YYYY-MM-DD HH24:MI:SS') AT TIME ZONE 'Asia/Beirut') RETURNING id`,
 				[
 					{ product_id: parseInt(item.product_id) },
 					{ invoice_id: invoiceId },
@@ -1014,7 +1017,7 @@ router.post('/invoices', async (req, res) => {
 					{ quantity_after: qtyAfter },
 					{ unit_cost: unitCost },
 					{ avg_cost_after: avgCostAfter },
-					{ created_at: movementTimestamp },
+					{ created_at: pgMovementTimestamp },
 				]
 			);
 
