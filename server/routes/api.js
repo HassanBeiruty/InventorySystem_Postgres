@@ -936,11 +936,11 @@ router.post('/invoices', async (req, res) => {
 		// Use PostgreSQL's NOW() with timezone conversion to get current time in Lebanon timezone
 		const today = getTodayLocal();
 
-		// Create invoice - explicitly convert UTC time to Asia/Beirut timezone
-		// NOW() returns server time (likely UTC), convert to Lebanon time explicitly
+		// Create invoice - use session timezone (already set to Asia/Beirut in db.js)
+		// CURRENT_TIMESTAMP respects the session timezone when casting to TIMESTAMP
 		const invoiceResult = await query(
 			`INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, is_paid, invoice_date, due_date, created_at) 
-			 VALUES ($1, $2, $3, $4, $5, (NOW() AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Beirut')::timestamp, $6, (NOW() AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Beirut')::timestamp) RETURNING id, invoice_date`,
+			 VALUES ($1, $2, $3, $4, $5, (NOW() AT TIME ZONE current_setting('timezone'))::timestamp, $6, (NOW() AT TIME ZONE current_setting('timezone'))::timestamp) RETURNING id, invoice_date`,
 			[
 				{ invoice_type },
 				{ customer_id: customer_id ? parseInt(customer_id) : null },
@@ -999,10 +999,10 @@ router.post('/invoices', async (req, res) => {
 			const avgCostAfter = newAvgCost;
 			
 			// Record stock movement with today's date, including unit_cost and avg_cost_after
-			// Explicitly convert UTC time to Asia/Beirut timezone
+			// Use session timezone (already set to Asia/Beirut in db.js)
 			const movementResult = await query(
 				`INSERT INTO stock_movements (product_id, invoice_id, invoice_date, quantity_before, quantity_change, quantity_after, unit_cost, avg_cost_after, created_at) 
-				 VALUES ($1, $2, (SELECT invoice_date FROM invoices WHERE id = $2), $3, $4, $5, $6, $7, (NOW() AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Beirut')::timestamp) RETURNING id`,
+				 VALUES ($1, $2, (SELECT invoice_date FROM invoices WHERE id = $2), $3, $4, $5, $6, $7, (NOW() AT TIME ZONE current_setting('timezone'))::timestamp) RETURNING id`,
 				[
 					{ product_id: parseInt(item.product_id) },
 					{ invoice_id: invoiceId },
