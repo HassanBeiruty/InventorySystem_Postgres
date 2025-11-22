@@ -22,9 +22,8 @@ if (!process.env.JWT_SECRET) {
 // Note: SQL Server DATETIME2 doesn't store timezone, so we store Lebanon local time directly
 function lebanonISO() {
 	// Use moment-timezone to get current time in Asia/Beirut timezone
-	// Format: YYYY-MM-DDTHH:mm:ss+HH:mm (ISO 8601 with timezone offset)
-	// This matches the clock display and includes timezone offset for PostgreSQL
-	return moment().tz("Asia/Beirut").format("YYYY-MM-DDTHH:mm:ssZ");
+	// Format: YYYY-MM-DD HH:mm (PostgreSQL compatible format)
+	return moment().tz("Asia/Beirut").format("YYYY-MM-DD HH:mm");
 }
 
 function nowIso() {
@@ -933,12 +932,9 @@ router.post('/invoices', async (req, res) => {
 		// Use PostgreSQL's NOW() with timezone conversion to get current time in Lebanon timezone
 		const today = getTodayLocal();
 
-		// Create invoice - use lebanonISO() which includes timezone offset
-		// Convert to PostgreSQL timestamp format (space instead of T, remove timezone for TIMESTAMP column)
+		// Create invoice - use lebanonISO() which returns PostgreSQL compatible format
 		const invoiceTimestamp = nowIso();
-		// Extract just the date-time part without timezone for TIMESTAMP column
-		// Format: "2025-11-23T00:18:00+02:00" -> "2025-11-23 00:18:00"
-		const pgTimestamp = invoiceTimestamp.replace('T', ' ').replace(/[+-]\d{2}:\d{2}$/, '');
+		// Format is already "YYYY-MM-DD HH:mm" - directly usable for PostgreSQL TIMESTAMP
 		const invoiceResult = await query(
 			`INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, is_paid, invoice_date, due_date, created_at) 
 			 VALUES ($1, $2, $3, $4, $5, $6::timestamp, $7, $6::timestamp) RETURNING id, invoice_date`,
@@ -948,7 +944,7 @@ router.post('/invoices', async (req, res) => {
 				{ supplier_id: supplier_id ? parseInt(supplier_id) : null },
 				{ total_amount },
 				{ is_paid: is_paid ? 1 : 0 },
-				{ invoice_date: pgTimestamp },
+				{ invoice_date: invoiceTimestamp },
 				{ due_date: due_date || null },
 			]
 		);
@@ -1021,7 +1017,6 @@ router.post('/invoices', async (req, res) => {
 
 			// Update daily_stock with quantity_after and avg_cost_after
 			const stockTimestamp = nowIso();
-			const pgStockTimestamp = stockTimestamp.replace('T', ' ').replace(/[+-]\d{2}:\d{2}$/, '');
 			await query(
 				`INSERT INTO daily_stock (product_id, available_qty, avg_cost, date, created_at, updated_at) 
 				 VALUES ($1, $2, $3, $4, $5, $5)
@@ -1032,7 +1027,7 @@ router.post('/invoices', async (req, res) => {
 					{ available_qty: qtyAfter },
 					{ avg_cost: avgCostAfter },
 					{ date: today },
-					{ updated_at: pgStockTimestamp },
+					{ updated_at: stockTimestamp },
 				]
 			);
 		}
