@@ -1000,18 +1000,19 @@ router.post('/invoices', async (req, res) => {
 			);
 
 			// Update daily_stock with quantity_after and avg_cost_after
+			const stockTimestamp = nowIso();
+			const pgStockTimestamp = stockTimestamp.replace('T', ' ').replace(/[+-]\d{2}:\d{2}$/, '');
 			await query(
 				`INSERT INTO daily_stock (product_id, available_qty, avg_cost, date, created_at, updated_at) 
-				 VALUES ($1, $2, $3, $4, $5, $6)
+				 VALUES ($1, $2, $3, $4, $5, $5)
 				 ON CONFLICT (product_id, date) 
-				 DO UPDATE SET available_qty = $2, avg_cost = $3, updated_at = $6`,
+				 DO UPDATE SET available_qty = $2, avg_cost = $3, updated_at = $5`,
 				[
 					{ product_id: parseInt(item.product_id) },
-					{ qty: qtyAfter },
-					{ avgCost: avgCostAfter },
+					{ available_qty: qtyAfter },
+					{ avg_cost: avgCostAfter },
 					{ date: today },
-					{ created_at: nowIso() },
-					{ updated_at: nowIso() }
+					{ updated_at: pgStockTimestamp },
 				]
 			);
 		}
