@@ -933,21 +933,20 @@ router.get('/invoices/overdue', async (req, res) => {
 router.post('/invoices', async (req, res) => {
 	try {
 		const { invoice_type, customer_id, supplier_id, total_amount, is_paid, due_date, items } = req.body;
-		const invoice_date = nowIso();
+		// Use PostgreSQL's NOW() with timezone conversion to get current time in Lebanon timezone
 		const today = getTodayLocal();
 
-		// Create invoice
+		// Create invoice - use PostgreSQL's timezone conversion for invoice_date
 		const invoiceResult = await query(
-			'INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, is_paid, invoice_date, due_date, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
+			`INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, is_paid, invoice_date, due_date, created_at) 
+			 VALUES ($1, $2, $3, $4, $5, (NOW() AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Beirut')::timestamp, $6, (NOW() AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Beirut')::timestamp) RETURNING id`,
 			[
 				{ invoice_type },
 				{ customer_id: customer_id ? parseInt(customer_id) : null },
 				{ supplier_id: supplier_id ? parseInt(supplier_id) : null },
 				{ total_amount },
 				{ is_paid: is_paid ? 1 : 0 },
-				{ invoice_date },
 				{ due_date: due_date || null },
-				{ created_at: nowIso() },
 			]
 		);
 		const invoiceId = invoiceResult.recordset[0].id;
