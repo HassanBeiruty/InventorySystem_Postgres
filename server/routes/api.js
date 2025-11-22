@@ -936,18 +936,21 @@ router.post('/invoices', async (req, res) => {
 		// Use PostgreSQL's NOW() with timezone conversion to get current time in Lebanon timezone
 		const today = getTodayLocal();
 
-		// Create invoice - use session timezone (already set to Asia/Beirut in db.js)
-		// CURRENT_TIMESTAMP respects the session timezone when casting to TIMESTAMP
+		// Create invoice - use JavaScript nowIso() which matches the clock display
+		// This ensures the stored time matches exactly what the user sees in the clock
+		const invoiceTimestamp = nowIso();
 		const invoiceResult = await query(
 			`INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, is_paid, invoice_date, due_date, created_at) 
-			 VALUES ($1, $2, $3, $4, $5, (NOW() AT TIME ZONE current_setting('timezone'))::timestamp, $6, (NOW() AT TIME ZONE current_setting('timezone'))::timestamp) RETURNING id, invoice_date`,
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, invoice_date`,
 			[
 				{ invoice_type },
 				{ customer_id: customer_id ? parseInt(customer_id) : null },
 				{ supplier_id: supplier_id ? parseInt(supplier_id) : null },
 				{ total_amount },
 				{ is_paid: is_paid ? 1 : 0 },
+				{ invoice_date: invoiceTimestamp },
 				{ due_date: due_date || null },
+				{ created_at: invoiceTimestamp },
 			]
 		);
 		const invoiceId = invoiceResult.recordset[0].id;
@@ -999,10 +1002,11 @@ router.post('/invoices', async (req, res) => {
 			const avgCostAfter = newAvgCost;
 			
 			// Record stock movement with today's date, including unit_cost and avg_cost_after
-			// Use session timezone (already set to Asia/Beirut in db.js)
+			// Use JavaScript nowIso() to match the clock display
+			const movementTimestamp = nowIso();
 			const movementResult = await query(
 				`INSERT INTO stock_movements (product_id, invoice_id, invoice_date, quantity_before, quantity_change, quantity_after, unit_cost, avg_cost_after, created_at) 
-				 VALUES ($1, $2, (SELECT invoice_date FROM invoices WHERE id = $2), $3, $4, $5, $6, $7, (NOW() AT TIME ZONE current_setting('timezone'))::timestamp) RETURNING id`,
+				 VALUES ($1, $2, (SELECT invoice_date FROM invoices WHERE id = $2), $3, $4, $5, $6, $7, $8) RETURNING id`,
 				[
 					{ product_id: parseInt(item.product_id) },
 					{ invoice_id: invoiceId },
@@ -1011,6 +1015,7 @@ router.post('/invoices', async (req, res) => {
 					{ quantity_after: qtyAfter },
 					{ unit_cost: unitCost },
 					{ avg_cost_after: avgCostAfter },
+					{ created_at: movementTimestamp },
 				]
 			);
 
