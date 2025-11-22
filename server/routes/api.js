@@ -504,6 +504,9 @@ router.get('/invoices', async (req, res) => {
 			query('SELECT * FROM invoice_items ORDER BY invoice_id, id', [])
 		]);
 		
+		// Log the count for debugging
+		console.log(`[Invoices] Total invoices fetched: ${invoicesResult.recordset.length}`);
+		
 		// Group invoice items by invoice_id
 		const idToItems = new Map();
 		invoiceItemsResult.recordset.forEach(item => {
@@ -514,6 +517,7 @@ router.get('/invoices', async (req, res) => {
 		});
 		
 		const result = invoicesResult.recordset.map((inv) => {
+			try {
 			const amountPaid = inv.amount_paid || 0;
 			const totalAmount = inv.total_amount || 0;
 			const remainingBalance = totalAmount - amountPaid;
@@ -550,17 +554,33 @@ router.get('/invoices', async (req, res) => {
 			const { customer_id_val, customer_name, customer_phone, customer_address, customer_credit_limit, customer_created_at,
 				supplier_id_val, supplier_name, supplier_phone, supplier_address, supplier_created_at, ...invoiceData } = inv;
 			
-			return {
-				...invoiceData,
-				is_paid: !!inv.is_paid,
-				amount_paid: amountPaid,
-				payment_status: paymentStatus,
-				remaining_balance: remainingBalance,
-				customers,
-				suppliers,
-				invoice_items: idToItems.get(inv.id) || [],
-			};
+				return {
+					...invoiceData,
+					is_paid: !!inv.is_paid,
+					amount_paid: amountPaid,
+					payment_status: paymentStatus,
+					remaining_balance: remainingBalance,
+					customers,
+					suppliers,
+					invoice_items: idToItems.get(inv.id) || [],
+				};
+			} catch (err) {
+				console.error(`[Invoices] Error processing invoice ${inv.id}:`, err);
+				// Return a basic invoice object even if processing fails
+				return {
+					...inv,
+					is_paid: !!inv.is_paid,
+					amount_paid: inv.amount_paid || 0,
+					payment_status: 'pending',
+					remaining_balance: (inv.total_amount || 0) - (inv.amount_paid || 0),
+					customers: undefined,
+					suppliers: undefined,
+					invoice_items: idToItems.get(inv.id) || [],
+				};
+			}
 		});
+		
+		console.log(`[Invoices] Total invoices returned: ${result.length}`);
 		res.json(result);
 	} catch (err) {
 		console.error('List invoices error:', err);
