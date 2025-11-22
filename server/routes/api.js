@@ -27,7 +27,7 @@ function lebanonTime() {
 	let year = now.getUTCFullYear();
 	let month = now.getUTCMonth();
 	let day = now.getUTCDate();
-	let hours = now.getUTCHours() + offset;
+	let hours = now.getUTCHours();
 	let minutes = now.getUTCMinutes();
 	let seconds = now.getUTCSeconds();
 	
