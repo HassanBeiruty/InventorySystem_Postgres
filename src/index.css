@@ -118,16 +118,16 @@ All colors MUST be HSL.
     --accent-foreground: 0 0% 100%;
     --accent-light: 217 92% 12%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 60% 42%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 71% 65%;
+    --success: 160 45% 40%;
     --success-foreground: 0 0% 100%;
-    --success-light: 142 71% 12%;
+    --success-light: 160 45% 15%;
 
-    --warning: 38 92% 65%;
+    --warning: 35 65% 42%;
     --warning-foreground: 0 0% 100%;
-    --warning-light: 38 92% 12%;
+    --warning-light: 35 65% 15%;
 
     --border: 220 20% 15%;
     --input: 220 20% 12%;
@@ -135,18 +135,18 @@ All colors MUST be HSL.
 
     --gradient-primary: linear-gradient(135deg, hsl(270 91% 68%) 0%, hsl(217 92% 68%) 100%);
     --gradient-secondary: linear-gradient(135deg, hsl(217 92% 68%) 0%, hsl(270 91% 68%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(217 92% 68%) 0%, hsl(142 71% 60%) 100%);
-    --gradient-success: linear-gradient(135deg, hsl(142 71% 65%) 0%, hsl(162 75% 60%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(217 92% 68%) 0%, hsl(160 45% 40%) 100%);
+    --gradient-success: linear-gradient(135deg, hsl(160 45% 40%) 0%, hsl(170 50% 40%) 100%);
     --gradient-mesh: radial-gradient(at 0% 0%, hsl(270 91% 68% / 0.08) 0, transparent 50%),
                      radial-gradient(at 100% 0%, hsl(217 92% 68% / 0.08) 0, transparent 50%),
-                     radial-gradient(at 100% 100%, hsl(142 71% 60% / 0.06) 0, transparent 50%),
+                     radial-gradient(at 100% 100%, hsl(160 45% 40% / 0.06) 0, transparent 50%),
                      radial-gradient(at 0% 100%, hsl(270 91% 68% / 0.08) 0, transparent 50%);
     --gradient-card: linear-gradient(to bottom right, hsl(222 47% 6% / 0.95), hsl(222 47% 8% / 0.95));
     --shadow-elegant: 0 20px 50px -12px hsl(270 91% 68% / 0.25);
     --shadow-card: 0 4px 16px -2px hsl(0 0% 0% / 0.6);
     --shadow-glow: 0 0 50px hsl(270 91% 68% / 0.5);
     --shadow-glow-blue: 0 0 50px hsl(217 92% 68% / 0.5);
-    --shadow-glow-green: 0 0 50px hsl(142 71% 60% / 0.4);
+    --shadow-glow-green: 0 0 50px hsl(160 45% 40% / 0.4);
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
