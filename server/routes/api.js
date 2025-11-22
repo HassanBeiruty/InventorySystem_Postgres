@@ -24,22 +24,45 @@ function lebanonTime() {
 	const now = new Date();
 	const offset = 2; // Lebanon UTC+2 (2025)
 	
-	// Get UTC time in milliseconds
-	const utcTime = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
+	// Get UTC components directly
+	let year = now.getUTCFullYear();
+	let month = now.getUTCMonth();
+	let day = now.getUTCDate();
+	let hours = now.getUTCHours() + offset;
+	let minutes = now.getUTCMinutes();
+	let seconds = now.getUTCSeconds();
 	
-	// Add Lebanon offset (2 hours = 2 * 60 * 60 * 1000 milliseconds)
-	const beirutTime = utcTime + (offset * 60 * 60 * 1000);
+	// Handle hour overflow (if hours >= 24, move to next day)
+	if (hours >= 24) {
+		hours -= 24;
+		day += 1;
+		// Handle day overflow
+		const daysInMonth = new Date(year, month + 1, 0).getDate();
+		if (day > daysInMonth) {
+			day = 1;
+			month += 1;
+			// Handle month overflow
+			if (month > 11) {
+				month = 0;
+				year += 1;
+			}
+		}
+	}
 	
-	// Create a date object from the Beirut time (this will be in local timezone, but we'll extract UTC components)
-	const beirutDate = new Date(beirutTime);
-	
-	// Extract UTC components (these represent the Beirut time we want)
-	const year = beirutDate.getUTCFullYear();
-	const month = beirutDate.getUTCMonth();
-	const day = beirutDate.getUTCDate();
-	const hours = beirutDate.getUTCHours();
-	const minutes = beirutDate.getUTCMinutes();
-	const seconds = beirutDate.getUTCSeconds();
+	// Handle hour underflow (if hours < 0, move to previous day)
+	if (hours < 0) {
+		hours += 24;
+		day -= 1;
+		// Handle day underflow
+		if (day < 1) {
+			month -= 1;
+			if (month < 0) {
+				month = 11;
+				year -= 1;
+			}
+			day = new Date(year, month + 1, 0).getDate();
+		}
+	}
 	
 	const pad = (n) => String(n).padStart(2, "0");
 	return `${year}-${pad(month + 1)}-${pad(day)} ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
