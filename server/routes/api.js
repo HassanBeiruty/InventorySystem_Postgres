@@ -23,19 +23,41 @@ if (!process.env.JWT_SECRET) {
 function lebanonTime() {
 	const now = new Date();
 	const offset = 2; // Lebanon UTC+2 (2025)
-	const beirut = new Date(
-		Date.UTC(
-			now.getUTCFullYear(),
-			now.getUTCMonth(),
-			now.getUTCDate(),
-			now.getUTCHours() + offset,
-			now.getUTCMinutes(),
-			now.getUTCSeconds()
-		)
-	);
+	
+	// Get UTC components
+	const utcYear = now.getUTCFullYear();
+	const utcMonth = now.getUTCMonth();
+	const utcDate = now.getUTCDate();
+	let utcHours = now.getUTCHours() + offset;
+	const utcMinutes = now.getUTCMinutes();
+	const utcSeconds = now.getUTCSeconds();
+	
+	// Handle day overflow (if hours >= 24, move to next day)
+	if (utcHours >= 24) {
+		utcHours -= 24;
+		// Create a date to handle month/year overflow correctly
+		const nextDay = new Date(Date.UTC(utcYear, utcMonth, utcDate + 1));
+		const year = nextDay.getUTCFullYear();
+		const month = nextDay.getUTCMonth();
+		const day = nextDay.getUTCDate();
+		const pad = (n) => String(n).padStart(2, "0");
+		return `${year}-${pad(month + 1)}-${pad(day)} ${pad(utcHours)}:${pad(utcMinutes)}:${pad(utcSeconds)}`;
+	}
+	
+	// Handle day underflow (if hours < 0, move to previous day)
+	if (utcHours < 0) {
+		utcHours += 24;
+		const prevDay = new Date(Date.UTC(utcYear, utcMonth, utcDate - 1));
+		const year = prevDay.getUTCFullYear();
+		const month = prevDay.getUTCMonth();
+		const day = prevDay.getUTCDate();
+		const pad = (n) => String(n).padStart(2, "0");
+		return `${year}-${pad(month + 1)}-${pad(day)} ${pad(utcHours)}:${pad(utcMinutes)}:${pad(utcSeconds)}`;
+	}
+	
+	// Normal case - no day overflow/underflow
 	const pad = (n) => String(n).padStart(2, "0");
-	return `${beirut.getFullYear()}-${pad(beirut.getMonth() + 1)}-${pad(beirut.getDate())} ` +
-		`${pad(beirut.getHours())}:${pad(beirut.getMinutes())}:${pad(beirut.getSeconds())}`;
+	return `${utcYear}-${pad(utcMonth + 1)}-${pad(utcDate)} ${pad(utcHours)}:${pad(utcMinutes)}:${pad(utcSeconds)}`;
 }
 
 function nowIso() {
