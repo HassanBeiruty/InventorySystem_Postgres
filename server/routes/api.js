@@ -937,20 +937,30 @@ router.post('/invoices', async (req, res) => {
 		const today = getTodayLocal();
 
 		// Create invoice - use JavaScript nowIso() which matches the clock display
-		// Convert ISO format to PostgreSQL timestamp format (replace T with space, remove milliseconds)
-		// Since session timezone is set to Asia/Beirut, PostgreSQL will interpret the string correctly
+		// Parse the timestamp string and construct it explicitly to avoid timezone conversion
 		const invoiceTimestamp = nowIso();
-		const pgTimestamp = invoiceTimestamp.replace('T', ' ').replace(/\.\d{3}$/, '');
+		// Extract components from the ISO string (already in Lebanon time)
+		const match = invoiceTimestamp.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+		if (!match) {
+			throw new Error('Invalid timestamp format');
+		}
+		const [, year, month, day, hour, minute, second] = match;
+		// Use make_timestamp to create timestamp without timezone conversion
 		const invoiceResult = await query(
 			`INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, is_paid, invoice_date, due_date, created_at) 
-			 VALUES ($1, $2, $3, $4, $5, $6::timestamp, $7, $6::timestamp) RETURNING id, invoice_date`,
+			 VALUES ($1, $2, $3, $4, $5, make_timestamp($6::int, $7::int, $8::int, $9::int, $10::int, $11::double precision), $12, make_timestamp($6::int, $7::int, $8::int, $9::int, $10::int, $11::double precision)) RETURNING id, invoice_date`,
 			[
 				{ invoice_type },
 				{ customer_id: customer_id ? parseInt(customer_id) : null },
 				{ supplier_id: supplier_id ? parseInt(supplier_id) : null },
 				{ total_amount },
 				{ is_paid: is_paid ? 1 : 0 },
-				{ invoice_date: pgTimestamp },
+				{ year: parseInt(year) },
+				{ month: parseInt(month) },
+				{ day: parseInt(day) },
+				{ hour: parseInt(hour) },
+				{ minute: parseInt(minute) },
+				{ second: parseFloat(second) },
 				{ due_date: due_date || null },
 			]
 		);
@@ -1003,12 +1013,16 @@ router.post('/invoices', async (req, res) => {
 			const avgCostAfter = newAvgCost;
 			
 			// Record stock movement with today's date, including unit_cost and avg_cost_after
-			// Use JavaScript nowIso() to match the clock display, convert to PostgreSQL format
+			// Use JavaScript nowIso() to match the clock display, parse and construct explicitly
 			const movementTimestamp = nowIso();
-			const pgMovementTimestamp = movementTimestamp.replace('T', ' ').replace(/\.\d{3}$/, '');
+			const match = movementTimestamp.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+			if (!match) {
+				throw new Error('Invalid timestamp format');
+			}
+			const [, year, month, day, hour, minute, second] = match;
 			const movementResult = await query(
 				`INSERT INTO stock_movements (product_id, invoice_id, invoice_date, quantity_before, quantity_change, quantity_after, unit_cost, avg_cost_after, created_at) 
-				 VALUES ($1, $2, (SELECT invoice_date FROM invoices WHERE id = $2), $3, $4, $5, $6, $7, $8::timestamp) RETURNING id`,
+				 VALUES ($1, $2, (SELECT invoice_date FROM invoices WHERE id = $2), $3, $4, $5, $6, $7, make_timestamp($8::int, $9::int, $10::int, $11::int, $12::int, $13::double precision)) RETURNING id`,
 				[
 					{ product_id: parseInt(item.product_id) },
 					{ invoice_id: invoiceId },
@@ -1017,7 +1031,12 @@ router.post('/invoices', async (req, res) => {
 					{ quantity_after: qtyAfter },
 					{ unit_cost: unitCost },
 					{ avg_cost_after: avgCostAfter },
-					{ created_at: pgMovementTimestamp },
+					{ year: parseInt(year) },
+					{ month: parseInt(month) },
+					{ day: parseInt(day) },
+					{ hour: parseInt(hour) },
+					{ minute: parseInt(minute) },
+					{ second: parseFloat(second) },
 				]
 			);
 
