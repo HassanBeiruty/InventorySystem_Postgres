@@ -940,7 +940,7 @@ router.post('/invoices', async (req, res) => {
 		// Since session timezone is set to Asia/Beirut, CURRENT_TIMESTAMP will be in Lebanon time
 		const invoiceResult = await query(
 			`INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, is_paid, invoice_date, due_date, created_at) 
-			 VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6, CURRENT_TIMESTAMP) RETURNING id`,
+			 VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6, CURRENT_TIMESTAMP) RETURNING id, invoice_date`,
 			[
 				{ invoice_type },
 				{ customer_id: customer_id ? parseInt(customer_id) : null },
@@ -951,6 +951,7 @@ router.post('/invoices', async (req, res) => {
 			]
 		);
 		const invoiceId = invoiceResult.recordset[0].id;
+		const invoice_date = invoiceResult.recordset[0].invoice_date;
 
 		// Create invoice items and update stock
 		for (const item of items) {

@@ -12,6 +12,7 @@ import { LogOut, Receipt, Package, Users, UserPlus, FileText, TrendingUp, Home, 
 import { toast } from "sonner";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LiveClock } from "@/components/LiveClock";
 import { useTranslation } from "react-i18next";
 type LocalUser = { email: string } | null;
 
@@ -66,6 +67,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             </div>
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <LiveClock />
             <ThemeToggle />
             <LanguageSwitcher />
             <Button 
