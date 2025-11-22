@@ -1,7 +1,6 @@
 const express = require('express');
 const { query } = require('../db');
 const jwt = require('jsonwebtoken');
-const moment = require('moment-timezone');
 const router = express.Router();
 
 // JWT secret - MUST be set in environment variables for production
