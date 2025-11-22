@@ -936,10 +936,11 @@ router.post('/invoices', async (req, res) => {
 		// Use PostgreSQL's NOW() with timezone conversion to get current time in Lebanon timezone
 		const today = getTodayLocal();
 
-		// Create invoice - use PostgreSQL's timezone conversion for invoice_date
+		// Create invoice - use PostgreSQL's CURRENT_TIMESTAMP with timezone conversion
+		// Since session timezone is set to Asia/Beirut, CURRENT_TIMESTAMP will be in Lebanon time
 		const invoiceResult = await query(
 			`INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, is_paid, invoice_date, due_date, created_at) 
-			 VALUES ($1, $2, $3, $4, $5, (NOW() AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Beirut')::timestamp, $6, (NOW() AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Beirut')::timestamp) RETURNING id`,
+			 VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6, CURRENT_TIMESTAMP) RETURNING id`,
 			[
 				{ invoice_type },
 				{ customer_id: customer_id ? parseInt(customer_id) : null },
@@ -997,18 +998,18 @@ router.post('/invoices', async (req, res) => {
 			const avgCostAfter = newAvgCost;
 			
 			// Record stock movement with today's date, including unit_cost and avg_cost_after
+			// Use PostgreSQL's CURRENT_TIMESTAMP (session timezone is already set to Asia/Beirut)
 			const movementResult = await query(
-				'INSERT INTO stock_movements (product_id, invoice_id, invoice_date, quantity_before, quantity_change, quantity_after, unit_cost, avg_cost_after, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
+				`INSERT INTO stock_movements (product_id, invoice_id, invoice_date, quantity_before, quantity_change, quantity_after, unit_cost, avg_cost_after, created_at) 
+				 VALUES ($1, $2, (SELECT invoice_date FROM invoices WHERE id = $2), $3, $4, $5, $6, $7, CURRENT_TIMESTAMP) RETURNING id`,
 				[
 					{ product_id: parseInt(item.product_id) },
 					{ invoice_id: invoiceId },
-					{ invoice_date }, // This is nowIso() which includes today's date
-					{ qtyBefore },
-					{ change },
-					{ qtyAfter },
+					{ quantity_before: qtyBefore },
+					{ quantity_change: change },
+					{ quantity_after: qtyAfter },
 					{ unit_cost: unitCost },
 					{ avg_cost_after: avgCostAfter },
-					{ created_at: nowIso() },
 				]
 			);
 
