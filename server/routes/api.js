@@ -937,11 +937,11 @@ router.post('/invoices', async (req, res) => {
 		const today = getTodayLocal();
 
 		// Create invoice - use JavaScript nowIso() which matches the clock display
-		// This ensures the stored time matches exactly what the user sees in the clock
+		// Explicitly cast the timestamp string as being in Asia/Beirut timezone
 		const invoiceTimestamp = nowIso();
 		const invoiceResult = await query(
 			`INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, is_paid, invoice_date, due_date, created_at) 
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, invoice_date`,
+			 VALUES ($1, $2, $3, $4, $5, ($6::timestamp AT TIME ZONE 'Asia/Beirut')::timestamp, $7, ($6::timestamp AT TIME ZONE 'Asia/Beirut')::timestamp) RETURNING id, invoice_date`,
 			[
 				{ invoice_type },
 				{ customer_id: customer_id ? parseInt(customer_id) : null },
@@ -950,7 +950,6 @@ router.post('/invoices', async (req, res) => {
 				{ is_paid: is_paid ? 1 : 0 },
 				{ invoice_date: invoiceTimestamp },
 				{ due_date: due_date || null },
-				{ created_at: invoiceTimestamp },
 			]
 		);
 		const invoiceId = invoiceResult.recordset[0].id;
@@ -1002,11 +1001,11 @@ router.post('/invoices', async (req, res) => {
 			const avgCostAfter = newAvgCost;
 			
 			// Record stock movement with today's date, including unit_cost and avg_cost_after
-			// Use JavaScript nowIso() to match the clock display
+			// Use JavaScript nowIso() to match the clock display, explicitly cast as Asia/Beirut timezone
 			const movementTimestamp = nowIso();
 			const movementResult = await query(
 				`INSERT INTO stock_movements (product_id, invoice_id, invoice_date, quantity_before, quantity_change, quantity_after, unit_cost, avg_cost_after, created_at) 
-				 VALUES ($1, $2, (SELECT invoice_date FROM invoices WHERE id = $2), $3, $4, $5, $6, $7, $8) RETURNING id`,
+				 VALUES ($1, $2, (SELECT invoice_date FROM invoices WHERE id = $2), $3, $4, $5, $6, $7, ($8::timestamp AT TIME ZONE 'Asia/Beirut')::timestamp) RETURNING id`,
 				[
 					{ product_id: parseInt(item.product_id) },
 					{ invoice_id: invoiceId },
