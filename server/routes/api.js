@@ -22,9 +22,17 @@ if (!process.env.JWT_SECRET) {
 // Note: SQL Server DATETIME2 doesn't store timezone, so we store Lebanon local time directly
 function lebanonTime() {
 	const now = new Date();
-	// Lebanon REAL OFFSET (Winter = UTC+2)
-	const offset = 2; // change to 3 if DST is active
-	const beirut = new Date(now.getTime() + offset * 60 * 60 * 1000);
+	const offset = 2; // Lebanon UTC+2 (2025)
+	const beirut = new Date(
+		Date.UTC(
+			now.getUTCFullYear(),
+			now.getUTCMonth(),
+			now.getUTCDate(),
+			now.getUTCHours() + offset,
+			now.getUTCMinutes(),
+			now.getUTCSeconds()
+		)
+	);
 	const pad = (n) => String(n).padStart(2, "0");
 	return `${beirut.getFullYear()}-${pad(beirut.getMonth() + 1)}-${pad(beirut.getDate())} ` +
 		`${pad(beirut.getHours())}:${pad(beirut.getMinutes())}:${pad(beirut.getSeconds())}`;
