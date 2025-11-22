@@ -23,11 +23,12 @@ if (!process.env.JWT_SECRET) {
 function lebanonTime() {
 	const now = new Date();
 	
+	
 	// Get UTC components directly
 	let year = now.getUTCFullYear();
 	let month = now.getUTCMonth();
 	let day = now.getUTCDate();
-	let hours = now.getUTCHours();
+	let hours = now.getUTCHours() ;
 	let minutes = now.getUTCMinutes();
 	let seconds = now.getUTCSeconds();
 	
