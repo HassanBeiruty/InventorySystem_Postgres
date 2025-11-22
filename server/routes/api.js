@@ -20,14 +20,27 @@ if (!process.env.JWT_SECRET) {
 // Lebanon timezone: Asia/Beirut (GMT+2 in winter, GMT+3 in summer with DST)
 // Returns ISO string representing current time in Lebanon timezone
 // Note: SQL Server DATETIME2 doesn't store timezone, so we store Lebanon local time directly
+function beirutNow() {
+	const utc = new Date();
+	const offset = 2; // set 3 if DST is active
+	utc.setHours(utc.getHours() + offset);
+	return utc;
+}
+
 function lebanonISO() {
-	// Use moment-timezone to get current time in Asia/Beirut timezone
+	// Use beirutNow() to get current time in Beirut timezone
 	// Format: YYYY-MM-DD HH:mm (PostgreSQL compatible format)
-	return moment().tz("Asia/Beirut").format("YYYY-MM-DD HH:mm");
+	const beirutDate = beirutNow();
+	const year = beirutDate.getFullYear();
+	const month = String(beirutDate.getMonth() + 1).padStart(2, '0');
+	const day = String(beirutDate.getDate()).padStart(2, '0');
+	const hours = String(beirutDate.getHours()).padStart(2, '0');
+	const minutes = String(beirutDate.getMinutes()).padStart(2, '0');
+	return `${year}-${month}-${day} ${hours}:${minutes}`;
 }
 
 function nowIso() {
-	// Return current time in Lebanon timezone (Asia/Beirut) as ISO string with timezone offset
+	// Return current time in Lebanon timezone (Asia/Beirut) as formatted string
 	return lebanonISO();
 }
 
