@@ -40,7 +40,20 @@ export function formatDateLebanon(date: Date | string): string {
  * Uses date-fns format string patterns (e.g., "MMM dd, yyyy", "HH:mm:ss")
  */
 export function formatDateTimeLebanon(date: Date | string, formatStr: string): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
+  let d: Date;
+  
+  if (typeof date === 'string') {
+    // If the string doesn't have timezone info, treat it as UTC and convert to Lebanon time
+    // PostgreSQL timestamps are typically in UTC
+    if (date.includes('T') && !date.includes('+') && !date.includes('Z') && !date.includes('-', date.indexOf('T') + 1)) {
+      // ISO string without timezone - treat as UTC
+      d = new Date(date + 'Z');
+    } else {
+      d = new Date(date);
+    }
+  } else {
+    d = date;
+  }
   
   // Get date components in Lebanon timezone
   const formatter = new Intl.DateTimeFormat('en-US', {

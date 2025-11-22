@@ -257,9 +257,9 @@ app.get('/api/admin/init-status', async (req, res) => {
 		const cron = require('node-cron');
 		const { query } = require('./db');
 		
-		// Run daily at 12:05 AM (00:05) - adjust timezone as needed
-		// Cron format: '5 0 * * *' = minute 5, hour 0, every day, every month, every day of week
-		cron.schedule('5 0 * * *', async () => {
+		// Run daily at 12:05 PM (noon) - Lebanon timezone
+		// Cron format: '5 12 * * *' = minute 5, hour 12, every day, every month, every day of week
+		cron.schedule('5 12 * * *', async () => {
 			try {
 				const startTime = new Date().toISOString();
 				console.log(`[Cron] Running daily stock snapshot at ${startTime}`);
@@ -301,7 +301,7 @@ app.get('/api/admin/init-status', async (req, res) => {
 			timezone: "Asia/Beirut" // Change to your timezone if needed
 		});
 		
-		console.log('✓ Scheduled job: Daily stock snapshot (runs daily at 12:05 AM Beirut time)');
+		console.log('✓ Scheduled job: Daily stock snapshot (runs daily at 12:05 PM Beirut time)');
 	} catch (error) {
 		// node-cron might not be installed, that's okay
 		if (error.code !== 'MODULE_NOT_FOUND') {
