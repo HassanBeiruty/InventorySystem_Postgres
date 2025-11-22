@@ -997,9 +997,8 @@ router.post('/invoices', async (req, res) => {
 			const avgCostAfter = newAvgCost;
 			
 			// Record stock movement with today's date, including unit_cost and avg_cost_after
-			// Use lebanonISO() and convert to PostgreSQL format
+			// Use lebanonISO() which returns PostgreSQL compatible format
 			const movementTimestamp = nowIso();
-			const pgMovementTimestamp = movementTimestamp.replace('T', ' ').replace(/[+-]\d{2}:\d{2}$/, '');
 			const movementResult = await query(
 				`INSERT INTO stock_movements (product_id, invoice_id, invoice_date, quantity_before, quantity_change, quantity_after, unit_cost, avg_cost_after, created_at) 
 				 VALUES ($1, $2, (SELECT invoice_date FROM invoices WHERE id = $2), $3, $4, $5, $6, $7, $8::timestamp) RETURNING id`,
@@ -1011,7 +1010,7 @@ router.post('/invoices', async (req, res) => {
 					{ quantity_after: qtyAfter },
 					{ unit_cost: unitCost },
 					{ avg_cost_after: avgCostAfter },
-					{ created_at: pgMovementTimestamp },
+					{ created_at: movementTimestamp },
 				]
 			);
 
