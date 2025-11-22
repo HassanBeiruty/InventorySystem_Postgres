@@ -203,8 +203,7 @@ async function seedMasterData() {
 		const exchangeRates = [
 			{ currency_code: 'USD', rate_to_usd: 1.0, is_active: true },
 			{ currency_code: 'LBP', rate_to_usd: 15000.0, is_active: true },
-			{ currency_code: 'EUR', rate_to_usd: 0.92, is_active: true },
-			{ currency_code: 'GBP', rate_to_usd: 0.79, is_active: true }
+			{ currency_code: 'EUR', rate_to_usd: 0.92, is_active: true }
 		];
 		
 		for (const rate of exchangeRates) {
