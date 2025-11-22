@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { stockRepo } from "@/integrations/api/repo";
 import { useTranslation } from "react-i18next";
+import { formatDateTimeLebanon } from "@/utils/dateUtils";
 
 const StockAdjustments = () => {
   const { t } = useTranslation();
@@ -245,7 +246,7 @@ const StockAdjustments = () => {
                   <TableBody>
                     {recentAdjustments.map((adj) => (
                       <TableRow key={adj.id}>
-                        <TableCell>{new Date(adj.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell>{formatDateTimeLebanon(adj.created_at, "MMM dd, yyyy HH:mm")}</TableCell>
                         <TableCell>{adj.product_name || `Product #${adj.product_id}`}</TableCell>
                         <TableCell>
                           <span className="px-2 py-1 text-xs rounded-full bg-primary/10 text-primary">

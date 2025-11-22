@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { invoicesRepo, productsRepo, productCostsRepo, customersRepo, suppliersRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { FileText, TrendingUp, TrendingDown, Package, Download, BarChart3, DollarSign } from "lucide-react";
+import { formatDateTimeLebanon } from "@/utils/dateUtils";
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 // Helper function to get CSS variable color as hex
@@ -120,8 +121,9 @@ const Reports = () => {
       const monthlyMap = new Map<string, { sales: number; purchases: number; profit: number; month: string }>();
       all?.forEach((inv: any) => {
         const date = new Date(inv.invoice_date);
+        // Get month name in Lebanon timezone
+        const monthName = formatDateTimeLebanon(inv.invoice_date, "MMM yyyy");
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        const monthName = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
         if (!monthlyMap.has(monthKey)) {
           monthlyMap.set(monthKey, { sales: 0, purchases: 0, profit: 0, month: monthName });
         }
@@ -186,7 +188,7 @@ const Reports = () => {
       doc.setFontSize(20);
       doc.text('Business Analytics Report', 14, 22);
       doc.setFontSize(12);
-      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 30);
+      doc.text(`Generated: ${formatDateTimeLebanon(new Date(), "MMM dd, yyyy")}`, 14, 30);
       
       autoTable(doc, {
         startY: 40,

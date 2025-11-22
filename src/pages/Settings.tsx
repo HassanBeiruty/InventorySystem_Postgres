@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
+import { formatDateTimeLebanon } from "@/utils/dateUtils";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -107,7 +108,7 @@ const Settings = () => {
   const formatDate = (dateString: string | null) => {
     if (!dateString) return t("settings.never");
     try {
-      return new Date(dateString).toLocaleString();
+      return formatDateTimeLebanon(dateString, "MMM dd, yyyy HH:mm");
     } catch {
       return dateString;
     }
@@ -374,7 +375,7 @@ const Settings = () => {
                               )}
                             </div>
                             <p className="text-xs text-muted-foreground mt-1">
-                              {t("settings.joined")}: {new Date(user.created_at).toLocaleDateString()}
+                              {t("settings.joined")}: {formatDateTimeLebanon(user.created_at, "MMM dd, yyyy")}
                             </p>
                           </div>
                           {!isCurrentUser && (
