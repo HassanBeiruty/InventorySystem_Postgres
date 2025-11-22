@@ -1,6 +1,7 @@
 const express = require('express');
 const { query } = require('../db');
 const jwt = require('jsonwebtoken');
+const moment = require('moment-timezone');
 const router = express.Router();
 
 // JWT secret - MUST be set in environment variables for production
@@ -20,26 +21,10 @@ if (!process.env.JWT_SECRET) {
 // Returns ISO string representing current time in Lebanon timezone
 // Note: SQL Server DATETIME2 doesn't store timezone, so we store Lebanon local time directly
 function lebanonISO() {
-	const formatter = new Intl.DateTimeFormat("en-CA", {
-		timeZone: "Asia/Beirut",
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-		hour: "2-digit",
-		minute: "2-digit",
-		second: "2-digit",
-		hour12: false
-	});
-	const parts = formatter.formatToParts(new Date());
-	const values = Object.fromEntries(parts.map(p => [p.type, p.value]));
-	// Calculate offset
-	const temp = new Date();
-	const local = new Date(temp.toLocaleString("en-US", { timeZone: "Asia/Beirut" }));
-	const offsetMinutes = -local.getTimezoneOffset();
-	const sign = offsetMinutes >= 0 ? "+" : "-";
-	const pad = (n) => String(n).padStart(2, "0");
-	const offset = `${sign}${pad(Math.floor(Math.abs(offsetMinutes) / 60))}:${pad(Math.abs(offsetMinutes) % 60)}`;
-	return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}:${values.second}${offset}`;
+	// Use moment-timezone to get current time in Asia/Beirut timezone
+	// Format: YYYY-MM-DDTHH:mm:ss+HH:mm (ISO 8601 with timezone offset)
+	// This matches the clock display and includes timezone offset for PostgreSQL
+	return moment().tz("Asia/Beirut").format("YYYY-MM-DDTHH:mm:ssZ");
 }
 
 function nowIso() {
