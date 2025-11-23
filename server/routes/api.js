@@ -2274,7 +2274,7 @@ router.post('/admin/recompute-positions', authenticateToken, requireAdmin, async
 
 router.post('/admin/init', authenticateToken, requireAdmin, async (req, res) => {
 	try {
-		console.log('[Admin] Manual database initialization requested');
+		console.log(`[Admin] Manual database initialization requested at ${lebanonTimeForLog()} (Lebanon time)`);
 		
 		// Test database connection first
 		try {
@@ -2322,7 +2322,7 @@ router.post('/admin/init', authenticateToken, requireAdmin, async (req, res) => 
 // Manual trigger for seed master data
 router.post('/admin/seed-master-data', authenticateToken, requireAdmin, async (req, res) => {
 	try {
-		console.log('[Admin] Manual seed master data requested');
+		console.log(`[Admin] Manual seed master data requested at ${lebanonTimeForLog()} (Lebanon time)`);
 		
 		// Import and run the seed script function
 		const { seedMasterData } = require('../scripts/seed_master_data');
@@ -2330,7 +2330,7 @@ router.post('/admin/seed-master-data', authenticateToken, requireAdmin, async (r
 		// Run the seed script
 		await seedMasterData();
 		
-		console.log('[Admin] ✓ Seed master data completed successfully');
+		console.log(`[Admin] ✓ Seed master data completed successfully at ${lebanonTimeForLog()} (Lebanon time)`);
 		
 		res.json({
 			success: true,
@@ -2350,7 +2350,7 @@ router.post('/admin/seed-master-data', authenticateToken, requireAdmin, async (r
 // Manual trigger for daily stock snapshot
 router.post('/admin/daily-stock-snapshot', authenticateToken, requireAdmin, async (req, res) => {
 	try {
-		console.log('[Admin] Manual daily stock snapshot requested');
+		console.log(`[Admin] Manual daily stock snapshot requested at ${lebanonTimeForLog()} (Lebanon time)`);
 		
 		const startTime = lebanonTimeForLog();
 		const todayLebanon = getTodayLocal();
