@@ -2185,7 +2185,28 @@ router.get('/admin/health', authenticateToken, requireAdmin, async (req, res) =>
 				FROM daily_stock 
 				WHERE date = CURRENT_DATE
 			`, []);
-			lastSnapshot = snapshotResult.recordset[0]?.last_snapshot || null;
+			const rawSnapshot = snapshotResult.recordset[0]?.last_snapshot || null;
+			// Format the timestamp using Lebanon time for display
+			// PostgreSQL returns timestamps, so we need to ensure it's formatted correctly
+			if (rawSnapshot) {
+				// If it's a Date object or ISO string, convert it properly
+				// The timestamp is stored in Lebanon time, so we format it as-is
+				if (rawSnapshot instanceof Date) {
+					// Convert Date to Lebanon time string
+					const year = rawSnapshot.getUTCFullYear();
+					const month = String(rawSnapshot.getUTCMonth() + 1).padStart(2, '0');
+					const day = String(rawSnapshot.getUTCDate()).padStart(2, '0');
+					const hours = String(rawSnapshot.getUTCHours()).padStart(2, '0');
+					const minutes = String(rawSnapshot.getUTCMinutes()).padStart(2, '0');
+					const seconds = String(rawSnapshot.getUTCSeconds()).padStart(2, '0');
+					lastSnapshot = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+				} else if (typeof rawSnapshot === 'string') {
+					// If it's already a string, use it directly (PostgreSQL timestamp format)
+					lastSnapshot = rawSnapshot;
+				} else {
+					lastSnapshot = rawSnapshot;
+				}
+			}
 		} catch (err) {
 			// Ignore if table doesn't exist yet
 		}
