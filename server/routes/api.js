@@ -55,7 +55,7 @@ async function recalculateStockAfterInvoice(invoiceId, productId, actionType, ne
 			avgCostBefore = parseFloat(lastStateResult.recordset[0].avg_cost_after) || 0;
 		}
 		
-		// 3. Recalculate all later movements (including edited one)
+		// 3. Recalculate all later movements (including edited one) - OPTIMIZED with batch update
 		const laterMovementsResult = await query(
 			`SELECT id, quantity_change, unit_cost 
 			 FROM stock_movements 
@@ -64,38 +64,65 @@ async function recalculateStockAfterInvoice(invoiceId, productId, actionType, ne
 			[{ product_id: productId }, { invoice_id: invoiceId }]
 		);
 		
-		let currentQuantityBefore = quantityBefore;
-		let currentAvgCostBefore = avgCostBefore;
-		
-		for (const movement of laterMovementsResult.recordset) {
-			const qtyChange = parseFloat(movement.quantity_change) || 0;
-			const unitCost = movement.unit_cost ? parseFloat(movement.unit_cost) : null;
-			const movementId = movement.id;
+		if (laterMovementsResult.recordset.length > 0) {
+			let currentQuantityBefore = quantityBefore;
+			let currentAvgCostBefore = avgCostBefore;
+			const updates = [];
 			
-			const quantityAfter = currentQuantityBefore + qtyChange;
-			
-			let avgCostAfter = currentAvgCostBefore;
-			if (qtyChange > 0 && unitCost !== null) {
-				if (quantityAfter !== 0) {
-					avgCostAfter = ((currentQuantityBefore * currentAvgCostBefore) + (qtyChange * unitCost)) / quantityAfter;
+			// Calculate all values first (in memory, fast)
+			for (const movement of laterMovementsResult.recordset) {
+				const qtyChange = parseFloat(movement.quantity_change) || 0;
+				const unitCost = movement.unit_cost ? parseFloat(movement.unit_cost) : null;
+				const movementId = movement.id;
+				
+				const quantityAfter = currentQuantityBefore + qtyChange;
+				
+				let avgCostAfter = currentAvgCostBefore;
+				if (qtyChange > 0 && unitCost !== null) {
+					if (quantityAfter !== 0) {
+						avgCostAfter = ((currentQuantityBefore * currentAvgCostBefore) + (qtyChange * unitCost)) / quantityAfter;
+					}
 				}
+				
+				updates.push({
+					id: movementId,
+					qty_before: currentQuantityBefore,
+					qty_after: quantityAfter,
+					cost_after: avgCostAfter
+				});
+				
+				currentQuantityBefore = quantityAfter;
+				currentAvgCostBefore = avgCostAfter;
 			}
 			
-			// Update the movement
-			await query(
-				`UPDATE stock_movements 
-				 SET quantity_before = $1, quantity_after = $2, avg_cost_after = $3 
-				 WHERE id = $4`,
-				[
-					{ quantity_before: currentQuantityBefore },
-					{ quantity_after: quantityAfter },
-					{ avg_cost_after: avgCostAfter },
-					{ id: movementId }
-				]
-			);
-			
-			currentQuantityBefore = quantityAfter;
-			currentAvgCostBefore = avgCostAfter;
+			// Batch update using VALUES and JOIN (much faster than individual updates)
+			if (updates.length > 0) {
+				// Build VALUES clause with proper parameterization
+				const valueClauses = updates.map((u, idx) => {
+					const base = idx * 4;
+					return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`;
+				}).join(', ');
+				
+				// Flatten params into array format expected by query function
+				const params = [];
+				updates.forEach(u => {
+					params.push({ id: u.id });
+					params.push({ qty_before: u.qty_before });
+					params.push({ qty_after: u.qty_after });
+					params.push({ cost_after: u.cost_after });
+				});
+				
+				await query(
+					`UPDATE stock_movements sm
+					 SET 
+						quantity_before = v.qty_before::DECIMAL,
+						quantity_after = v.qty_after::DECIMAL,
+						avg_cost_after = v.cost_after::DECIMAL
+					 FROM (VALUES ${valueClauses}) AS v(id, qty_before, qty_after, cost_after)
+					 WHERE sm.id = v.id`,
+					params
+				);
+			}
 		}
 		
 		// 4. Update daily stock snapshots
@@ -1002,36 +1029,47 @@ router.put('/invoices/:id', async (req, res) => {
 			]
 		);
 
-		// Create new invoice items (stock movements already exist and will be updated by the function)
-		for (const item of items) {
+		// Create new invoice items using batch insert (much faster)
+		if (items.length > 0) {
+			const valueClauses = items.map((item, idx) => {
+				const base = idx * 9;
+				return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9})`;
+			}).join(', ');
+			
+			const params = [];
+			items.forEach(item => {
+				params.push({ invoice_id: id });
+				params.push({ product_id: parseInt(item.product_id) });
+				params.push({ quantity: item.quantity });
+				params.push({ unit_price: item.unit_price });
+				params.push({ total_price: item.total_price });
+				params.push({ price_type: item.price_type });
+				params.push({ is_private_price: item.is_private_price ? 1 : 0 });
+				params.push({ private_price_amount: item.is_private_price ? item.private_price_amount : null });
+				params.push({ private_price_note: item.is_private_price ? item.private_price_note : null });
+			});
+			
 			await query(
-				'INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
-				[
-					{ invoice_id: id },
-					{ product_id: parseInt(item.product_id) },
-					{ quantity: item.quantity },
-					{ unit_price: item.unit_price },
-					{ total_price: item.total_price },
-					{ price_type: item.price_type },
-					{ is_private_price: item.is_private_price ? 1 : 0 },
-					{ private_price_amount: item.is_private_price ? item.private_price_amount : null },
-					{ private_price_note: item.is_private_price ? item.private_price_note : null }
-				]
+				`INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) 
+				 VALUES ${valueClauses}`,
+				params
 			);
 		}
 
-		// Call the JavaScript function to recalculate stock for each affected product
-		// The function will update existing stock movements and recalculate all later movements
-		for (const productId of affectedProducts) {
-			const item = items.find(item => parseInt(item.product_id) === productId);
-			if (item) {
-				const change = invoice_type === 'sell' ? -item.quantity : item.quantity;
-				const unitCost = parseFloat(item.unit_price);
-				
-				// Call the JavaScript function to recalculate - it will update the stock movement we just created
-				await recalculateStockAfterInvoice(id, productId, 'EDIT', change, unitCost);
-			}
-		}
+		// Call the JavaScript function to recalculate stock for each affected product IN PARALLEL
+		// This is much faster than sequential processing
+		await Promise.all(
+			Array.from(affectedProducts).map(async (productId) => {
+				const item = items.find(item => parseInt(item.product_id) === productId);
+				if (item) {
+					const change = invoice_type === 'sell' ? -item.quantity : item.quantity;
+					const unitCost = parseFloat(item.unit_price);
+					
+					// Call the JavaScript function to recalculate - it will update the stock movement we just created
+					await recalculateStockAfterInvoice(id, productId, 'EDIT', change, unitCost);
+				}
+			})
+		);
 
 		// Force a commit by running a simple query to ensure all changes are committed
 		await query('SELECT 1', []);
@@ -1057,10 +1095,13 @@ router.delete('/invoices/:id', async (req, res) => {
 		const itemsResult = await query('SELECT DISTINCT product_id FROM invoice_items WHERE invoice_id = $1', [{ invoice_id: id }]);
 		const affectedProducts = itemsResult.recordset.map(row => row.product_id);
 		
-		// Call the JavaScript function for each affected product with DELETE action
-		for (const productId of affectedProducts) {
-			await recalculateStockAfterInvoice(id, productId, 'DELETE', null, null);
-		}
+		// Call the JavaScript function for each affected product with DELETE action IN PARALLEL
+		// This is much faster than sequential processing
+		await Promise.all(
+			affectedProducts.map(productId => 
+				recalculateStockAfterInvoice(id, productId, 'DELETE', null, null)
+			)
+		);
 		
 		// Delete related records (function already deleted stock_movements)
 		await query('DELETE FROM invoice_items WHERE invoice_id = $1', [{ invoice_id: id }]);
