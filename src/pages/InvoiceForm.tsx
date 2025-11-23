@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ const InvoiceForm = () => {
   const { id } = useParams<{ id: string }>();
   const isEditMode = !!id;
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   // Invoice type is determined from URL for new invoices, or loaded from data for edits
   const [invoiceType, setInvoiceType] = useState<'buy' | 'sell'>(location.pathname.includes('/buy') ? 'buy' : 'sell');
@@ -779,14 +781,32 @@ const InvoiceForm = () => {
           title: "Success",
           description: "Invoice updated successfully",
         });
+        // Invalidate all related queries to force immediate refresh
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["invoices"] }),
+          queryClient.invalidateQueries({ queryKey: ["inventory"] }),
+          queryClient.invalidateQueries({ queryKey: ["daily-stock"] }),
+          queryClient.invalidateQueries({ queryKey: ["stock-movements"] }),
+          queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
+        ]);
       } else {
         await invoicesRepo.createInvoice(invoiceData);
         toast({
           title: "Success",
           description: "Invoice created successfully",
         });
+        // Invalidate all related queries to force immediate refresh
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["invoices"] }),
+          queryClient.invalidateQueries({ queryKey: ["inventory"] }),
+          queryClient.invalidateQueries({ queryKey: ["daily-stock"] }),
+          queryClient.invalidateQueries({ queryKey: ["stock-movements"] }),
+          queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
+        ]);
       }
 
+      // Small delay to ensure stored procedures complete and data is refreshed
+      await new Promise(resolve => setTimeout(resolve, 500));
       navigate("/invoices");
     } catch (error: any) {
       toast({

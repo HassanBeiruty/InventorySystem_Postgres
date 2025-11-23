@@ -49,6 +49,13 @@ const Settings = () => {
     mutationFn: () => adminRepo.triggerDailySnapshot(),
     onSuccess: (data) => {
       toast.success(data.message || t("settings.dailyStockSnapshotTriggered"));
+      // Invalidate all related queries to force immediate refresh
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "health"] });
       refetchHealth();
     },
     onError: (error: Error) => {

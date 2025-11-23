@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
 import PaymentDialog from "@/components/PaymentDialog";
 import InvoiceDetailDialog from "@/components/InvoiceDetailDialog";
@@ -20,6 +21,7 @@ const InvoicesList = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [filteredInvoices, setFilteredInvoices] = useState<any[]>([]);
@@ -45,6 +47,24 @@ const InvoicesList = () => {
 
   useEffect(() => {
     fetchData();
+  }, []);
+
+  // Refetch when navigating back to this page (using focus event)
+  useEffect(() => {
+    const handleFocus = () => {
+      // Only refetch if we've been away for more than 1 second
+      const lastFetch = (window as any).__lastInvoiceFetch || 0;
+      const now = Date.now();
+      if (now - lastFetch > 1000) {
+        fetchData();
+        (window as any).__lastInvoiceFetch = now;
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   const fetchData = async () => {
@@ -177,6 +197,16 @@ const InvoicesList = () => {
         title: t('invoices.deleteSuccess') || "Success",
         description: t('invoices.invoiceDeleted') || "Invoice deleted successfully",
       });
+      // Invalidate all related queries to force immediate refresh
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["invoices"] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory"] }),
+        queryClient.invalidateQueries({ queryKey: ["daily-stock"] }),
+        queryClient.invalidateQueries({ queryKey: ["stock-movements"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
+      ]);
+      // Small delay to ensure stored procedures complete
+      await new Promise(resolve => setTimeout(resolve, 500));
       fetchData(); // Refresh the invoice list
     } catch (error: any) {
       toast({

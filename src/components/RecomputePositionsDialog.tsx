@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,7 @@ export function RecomputePositionsDialog({
   open,
   onOpenChange,
 }: RecomputePositionsDialogProps) {
+  const queryClient = useQueryClient();
   const [products, setProducts] = useState<any[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -76,6 +78,14 @@ export function RecomputePositionsDialog({
       toast.success("Positions recomputed successfully", {
         description: result.message || "Daily stock positions have been recalculated",
       });
+
+      // Invalidate all related queries to force immediate refresh
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "health"] });
 
       onOpenChange(false);
     } catch (error: any) {

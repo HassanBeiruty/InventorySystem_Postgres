@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
 import PaymentDialog from "@/components/PaymentDialog";
 import InvoiceDetailDialog from "@/components/InvoiceDetailDialog";
@@ -17,6 +18,7 @@ const OverdueInvoices = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<any[]>([]);
 
@@ -69,6 +71,16 @@ const OverdueInvoices = () => {
         title: "Success",
         description: "Invoice deleted successfully",
       });
+      // Invalidate all related queries to force immediate refresh
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["invoices"] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory"] }),
+        queryClient.invalidateQueries({ queryKey: ["daily-stock"] }),
+        queryClient.invalidateQueries({ queryKey: ["stock-movements"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
+      ]);
+      // Small delay to ensure stored procedures complete
+      await new Promise(resolve => setTimeout(resolve, 500));
       fetchData(); // Refresh the invoice list
     } catch (error: any) {
       toast({

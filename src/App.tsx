@@ -32,7 +32,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const queryClient = new QueryClient({
 	defaultOptions: {
 		queries: {
-			staleTime: 1000 * 60 * 5, // 5 minutes - data considered fresh
+			staleTime: 0, // Data is immediately stale - ensures fresh data after mutations
 			gcTime: 1000 * 60 * 30, // 30 minutes - garbage collection time (formerly cacheTime)
 			refetchOnWindowFocus: false, // Don't refetch on window focus
 			retry: 1, // Only retry once on failure
