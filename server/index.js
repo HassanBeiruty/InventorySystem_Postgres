@@ -257,12 +257,54 @@ app.get('/api/admin/init-status', async (req, res) => {
 		const cron = require('node-cron');
 		const { query } = require('./db');
 		
+		// Helper function to get Lebanon time formatted for logging
+		function lebanonTimeForLog() {
+			const now = new Date();
+			let year = now.getUTCFullYear();
+			let month = now.getUTCMonth();
+			let day = now.getUTCDate();
+			let hours = now.getUTCHours();
+			let minutes = now.getUTCMinutes();
+			let seconds = now.getUTCSeconds();
+			
+			if (hours >= 24) {
+				hours -= 24;
+				day += 1;
+				const daysInMonth = new Date(year, month + 1, 0).getDate();
+				if (day > daysInMonth) {
+					day = 1;
+					month += 1;
+					if (month > 11) {
+						month = 0;
+						year += 1;
+					}
+				}
+			}
+			
+			if (hours < 0) {
+				hours += 24;
+				day -= 1;
+				if (day < 1) {
+					month -= 1;
+					if (month < 0) {
+						month = 11;
+						year -= 1;
+					}
+					day = new Date(year, month + 1, 0).getDate();
+				}
+			}
+			
+			const pad = (n) => String(n).padStart(2, "0");
+			const timeStr = `${year}-${pad(month + 1)}-${pad(day)} ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+			return timeStr.replace(' ', 'T');
+		}
+
 		// Run daily at 12:05 PM (noon) - Lebanon timezone
 		// Cron format: '5 12 * * *' = minute 5, hour 12, every day, every month, every day of week
 		cron.schedule('5 12 * * *', async () => {
 			try {
-				const startTime = new Date().toISOString();
-				console.log(`[Cron] Running daily stock snapshot at ${startTime}`);
+				const startTime = lebanonTimeForLog();
+				console.log(`[Cron] Running daily stock snapshot at ${startTime} (Lebanon time)`);
 				
 				// CRITICAL: Set timezone to Lebanon for this session
 				// The stored procedure uses CURRENT_DATE which depends on session timezone
@@ -284,8 +326,8 @@ app.get('/api/admin/init-status', async (req, res) => {
 				const productsResult = await query('SELECT COUNT(*) as count FROM products', []);
 				const totalProducts = parseInt(productsResult.recordset[0]?.count || 0);
 				
-				const endTime = new Date().toISOString();
-				console.log(`[Cron] ✓ Daily stock snapshot completed successfully at ${endTime}`);
+				const endTime = lebanonTimeForLog();
+				console.log(`[Cron] ✓ Daily stock snapshot completed successfully at ${endTime} (Lebanon time)`);
 				console.log(`[Cron] Records created for today: ${recordsCreated} out of ${totalProducts} products`);
 				
 				if (recordsCreated === 0 && totalProducts > 0) {

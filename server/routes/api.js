@@ -17,28 +17,61 @@ if (!process.env.JWT_SECRET) {
 
 // Helper function to get current datetime in Lebanon timezone (ISO string)
 // Lebanon timezone: Asia/Beirut (GMT+2 in winter, GMT+3 in summer with DST)
-// Returns formatted string representing current time in Lebanon timezone
-// Note: PostgreSQL TIMESTAMP doesn't store timezone, so we store Lebanon local time directly
+// Returns ISO string representing current time in Lebanon timezone
+// Note: SQL Server DATETIME2 doesn't store timezone, so we store Lebanon local time directly
 function lebanonTime() {
 	const now = new Date();
 	
-	// Use Intl.DateTimeFormat to get Lebanon timezone components
-	const formatter = new Intl.DateTimeFormat('en-CA', {
-		timeZone: 'Asia/Beirut',
-		year: 'numeric',
-		month: '2-digit',
-		day: '2-digit',
-		hour: '2-digit',
-		minute: '2-digit',
-		second: '2-digit',
-		hour12: false
-	});
 	
-	const parts = formatter.formatToParts(now);
-	const values = Object.fromEntries(parts.map(p => [p.type, p.value]));
+	// Get UTC components directly
+	let year = now.getUTCFullYear();
+	let month = now.getUTCMonth();
+	let day = now.getUTCDate();
+	let hours = now.getUTCHours() ;
+	let minutes = now.getUTCMinutes();
+	let seconds = now.getUTCSeconds();
+	
+	// Handle hour overflow (if hours >= 24, move to next day)
+	if (hours >= 24) {
+		hours -= 24;
+		day += 1;
+		// Handle day overflow
+		const daysInMonth = new Date(year, month + 1, 0).getDate();
+		if (day > daysInMonth) {
+			day = 1;
+			month += 1;
+			// Handle month overflow
+			if (month > 11) {
+				month = 0;
+				year += 1;
+			}
+		}
+	}
+	
+	// Handle hour underflow (if hours < 0, move to previous day)
+	if (hours < 0) {
+		hours += 24;
+		day -= 1;
+		// Handle day underflow
+		if (day < 1) {
+			month -= 1;
+			if (month < 0) {
+				month = 11;
+				year -= 1;
+			}
+			day = new Date(year, month + 1, 0).getDate();
+		}
+	}
 	
 	const pad = (n) => String(n).padStart(2, "0");
-	return `${values.year}-${values.month}-${values.day} ${values.hour}:${values.minute}:${values.second}`;
+	return `${year}-${pad(month + 1)}-${pad(day)} ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+}
+
+// Helper function to get Lebanon time formatted for logging (ISO-like format)
+function lebanonTimeForLog() {
+	const timeStr = lebanonTime();
+	// Convert "YYYY-MM-DD HH:mm:ss" to "YYYY-MM-DDTHH:mm:ss" format for logging
+	return timeStr.replace(' ', 'T');
 }
 
 function nowIso() {
@@ -2165,7 +2198,7 @@ router.get('/admin/health', authenticateToken, requireAdmin, async (req, res) =>
 		
 		res.json({
 			status: 'ok',
-			timestamp: new Date().toISOString(),
+			timestamp: lebanonTimeForLog(),
 			database: {
 				status: dbStatus,
 				responseTime: `${dbResponseTime}ms`,
@@ -2319,9 +2352,9 @@ router.post('/admin/daily-stock-snapshot', authenticateToken, requireAdmin, asyn
 	try {
 		console.log('[Admin] Manual daily stock snapshot requested');
 		
-		const startTime = new Date().toISOString();
+		const startTime = lebanonTimeForLog();
 		const todayLebanon = getTodayLocal();
-		console.log(`[Admin] Running daily stock snapshot at ${startTime}`);
+		console.log(`[Admin] Running daily stock snapshot at ${startTime} (Lebanon time)`);
 		console.log(`[Admin] Today (Lebanon time): ${todayLebanon}`);
 		
 		// Set timezone to Lebanon for this session so CURRENT_DATE in the function uses Lebanon time
@@ -2341,8 +2374,8 @@ router.post('/admin/daily-stock-snapshot', authenticateToken, requireAdmin, asyn
 		const productsResult = await query('SELECT COUNT(*) as count FROM products', []);
 		const totalProducts = productsResult.recordset[0]?.count || 0;
 		
-		const endTime = new Date().toISOString();
-		console.log(`[Admin] ✓ Daily stock snapshot completed successfully at ${endTime}`);
+		const endTime = lebanonTimeForLog();
+		console.log(`[Admin] ✓ Daily stock snapshot completed successfully at ${endTime} (Lebanon time)`);
 		console.log(`[Admin] Records found for ${todayLebanon}: ${recordsCreated} out of ${totalProducts} products`);
 		
 		res.json({
