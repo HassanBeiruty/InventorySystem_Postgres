@@ -329,6 +329,36 @@ const Settings = () => {
                     </Button>
                   </div>
 
+                  {/* Seed Master Data */}
+                  <div className="p-4 border rounded-lg">
+                    <h4 className="font-medium mb-2">Seed Master Data</h4>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Clear all invoices and seed fresh master data (categories, products, prices, exchange rates, customers, suppliers)
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (confirm("⚠️ WARNING: This will DELETE ALL INVOICES and reset master data. Are you sure?")) {
+                          seedMasterDataMutation.mutate();
+                        }
+                      }}
+                      disabled={seedMasterDataMutation.isPending}
+                      className="w-full"
+                    >
+                      {seedMasterDataMutation.isPending ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          Seeding...
+                        </>
+                      ) : (
+                        <>
+                          <Database className="w-4 h-4" />
+                          Seed Master Data
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
                   {/* Recompute Positions */}
                   <div className="p-4 border rounded-lg">
                     <h4 className="font-medium mb-2">{t("settings.recomputeStockPositions")}</h4>
