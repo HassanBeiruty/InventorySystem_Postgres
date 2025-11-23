@@ -12,7 +12,10 @@ const tables = [
 	passwordHash VARCHAR(255) NOT NULL,
 	is_admin BOOLEAN NOT NULL DEFAULT false,
 	created_at TIMESTAMP NOT NULL
-);`
+);
+
+CREATE INDEX IF NOT EXISTS IX_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS IX_users_is_admin ON users(is_admin);`
 	},
 	{
 		name: 'categories',
@@ -40,8 +43,9 @@ CREATE INDEX IF NOT EXISTS IX_categories_name ON categories(name);`
 );
 
 CREATE INDEX IF NOT EXISTS IX_products_name ON products(name);
-
-CREATE INDEX IF NOT EXISTS IX_products_category ON products(category_id);`
+CREATE INDEX IF NOT EXISTS IX_products_category ON products(category_id);
+CREATE INDEX IF NOT EXISTS IX_products_barcode ON products(barcode) WHERE barcode IS NOT NULL;
+CREATE INDEX IF NOT EXISTS IX_products_sku ON products(sku) WHERE sku IS NOT NULL;`
 	},
 	{
 		name: 'product_prices',
@@ -55,7 +59,10 @@ CREATE INDEX IF NOT EXISTS IX_products_category ON products(category_id);`
 	CONSTRAINT FK_product_prices_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS IX_product_prices_product_date ON product_prices(product_id, effective_date);`
+CREATE INDEX IF NOT EXISTS IX_product_prices_product_date ON product_prices(product_id, effective_date);
+CREATE INDEX IF NOT EXISTS IX_product_prices_product ON product_prices(product_id);
+CREATE INDEX IF NOT EXISTS IX_product_prices_effective_date ON product_prices(effective_date);
+CREATE INDEX IF NOT EXISTS IX_product_prices_created_at ON product_prices(created_at);`
 	},
 	{
 		name: 'customers',
@@ -100,7 +107,13 @@ CREATE INDEX IF NOT EXISTS IX_suppliers_name ON suppliers(name);`
 	CONSTRAINT FK_invoices_supplier FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
 );
 
-CREATE INDEX IF NOT EXISTS IX_invoices_invoice_date ON invoices(invoice_date);`
+CREATE INDEX IF NOT EXISTS IX_invoices_invoice_date ON invoices(invoice_date);
+CREATE INDEX IF NOT EXISTS IX_invoices_customer_id ON invoices(customer_id) WHERE customer_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS IX_invoices_supplier_id ON invoices(supplier_id) WHERE supplier_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS IX_invoices_invoice_type ON invoices(invoice_type);
+CREATE INDEX IF NOT EXISTS IX_invoices_payment_status ON invoices(payment_status);
+CREATE INDEX IF NOT EXISTS IX_invoices_due_date ON invoices(due_date) WHERE due_date IS NOT NULL;
+CREATE INDEX IF NOT EXISTS IX_invoices_created_at ON invoices(created_at);`
 	},
 	{
 		name: 'invoice_items',
@@ -119,7 +132,9 @@ CREATE INDEX IF NOT EXISTS IX_invoices_invoice_date ON invoices(invoice_date);`
 	CONSTRAINT FK_invoice_items_product FOREIGN KEY (product_id) REFERENCES products(id)
 );
 
-CREATE INDEX IF NOT EXISTS IX_invoice_items_invoice ON invoice_items(invoice_id);`
+CREATE INDEX IF NOT EXISTS IX_invoice_items_invoice ON invoice_items(invoice_id);
+CREATE INDEX IF NOT EXISTS IX_invoice_items_product ON invoice_items(product_id);
+CREATE INDEX IF NOT EXISTS IX_invoice_items_invoice_product ON invoice_items(invoice_id, product_id);`
 	},
 	{
 		name: 'daily_stock',
@@ -136,8 +151,10 @@ CREATE INDEX IF NOT EXISTS IX_invoice_items_invoice ON invoice_items(invoice_id)
 );
 
 CREATE INDEX IF NOT EXISTS IX_daily_stock_product_date ON daily_stock(product_id, date);
-
-CREATE INDEX IF NOT EXISTS IX_daily_stock_available_qty ON daily_stock(available_qty);`
+CREATE INDEX IF NOT EXISTS IX_daily_stock_product ON daily_stock(product_id);
+CREATE INDEX IF NOT EXISTS IX_daily_stock_date ON daily_stock(date);
+CREATE INDEX IF NOT EXISTS IX_daily_stock_available_qty ON daily_stock(available_qty);
+CREATE INDEX IF NOT EXISTS IX_daily_stock_updated_at ON daily_stock(updated_at);`
 	},
 	{
 		name: 'stock_movements',
@@ -156,7 +173,12 @@ CREATE INDEX IF NOT EXISTS IX_daily_stock_available_qty ON daily_stock(available
 	CONSTRAINT FK_stock_movements_invoice FOREIGN KEY (invoice_id) REFERENCES invoices(id)
 );
 
-CREATE INDEX IF NOT EXISTS IX_stock_movements_invoice_date ON stock_movements(invoice_date);`
+CREATE INDEX IF NOT EXISTS IX_stock_movements_invoice_date ON stock_movements(invoice_date);
+CREATE INDEX IF NOT EXISTS IX_stock_movements_product_id ON stock_movements(product_id);
+CREATE INDEX IF NOT EXISTS IX_stock_movements_invoice_id ON stock_movements(invoice_id);
+CREATE INDEX IF NOT EXISTS IX_stock_movements_product_invoice ON stock_movements(product_id, invoice_id);
+CREATE INDEX IF NOT EXISTS IX_stock_movements_product_invoice_date ON stock_movements(product_id, invoice_id, invoice_date);
+CREATE INDEX IF NOT EXISTS IX_stock_movements_created_at ON stock_movements(created_at);`
 	},
 	{
 		name: 'stock_movements_add_cost_columns',
@@ -185,7 +207,9 @@ END $$;`
 	CONSTRAINT FK_invoice_payments_invoice FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS IX_invoice_payments_invoice ON invoice_payments(invoice_id);`
+CREATE INDEX IF NOT EXISTS IX_invoice_payments_invoice ON invoice_payments(invoice_id);
+CREATE INDEX IF NOT EXISTS IX_invoice_payments_payment_date ON invoice_payments(payment_date);
+CREATE INDEX IF NOT EXISTS IX_invoice_payments_created_at ON invoice_payments(created_at);`
 	},
 	{
 		name: 'invoice_payment_columns',
@@ -846,48 +870,9 @@ EXCEPTION
 		RAISE NOTICE 'pgAgent tables not found - ensure pgagent extension is properly installed';
 	WHEN OTHERS THEN
 		RAISE NOTICE 'Could not create pgAgent job: %', SQLERRM;
-	RAISE NOTICE 'You may need to set up the job manually using pgAdmin GUI';
+		RAISE NOTICE 'You may need to set up the job manually using pgAdmin GUI';
 		RAISE NOTICE 'In pgAdmin: Right-click Jobs > New Job > Set schedule to run daily at 00:05';
-	END $$;`
-	},
-	{
-		name: 'performance_indexes',
-		sql: `-- Performance indexes for faster queries
--- These indexes significantly improve query performance for common operations
-
--- Stock Movements Indexes (critical for invoice edit/delete performance)
-CREATE INDEX IF NOT EXISTS IX_stock_movements_product_invoice ON stock_movements(product_id, invoice_id);
-CREATE INDEX IF NOT EXISTS IX_stock_movements_product_invoice_desc ON stock_movements(product_id, invoice_id DESC, id DESC);
-CREATE INDEX IF NOT EXISTS IX_stock_movements_product_invoice_asc ON stock_movements(product_id, invoice_id ASC, id ASC);
-CREATE INDEX IF NOT EXISTS IX_stock_movements_product_date ON stock_movements(product_id, CAST(invoice_date AS DATE));
-CREATE INDEX IF NOT EXISTS IX_stock_movements_product ON stock_movements(product_id);
-
--- Invoices Indexes (for filtering and JOINs)
-CREATE INDEX IF NOT EXISTS IX_invoices_customer ON invoices(customer_id);
-CREATE INDEX IF NOT EXISTS IX_invoices_supplier ON invoices(supplier_id);
-CREATE INDEX IF NOT EXISTS IX_invoices_type ON invoices(invoice_type);
-CREATE INDEX IF NOT EXISTS IX_invoices_payment_status ON invoices(payment_status);
-CREATE INDEX IF NOT EXISTS IX_invoices_due_date ON invoices(due_date);
-CREATE INDEX IF NOT EXISTS IX_invoices_due_date_status ON invoices(due_date, payment_status);
-CREATE INDEX IF NOT EXISTS IX_invoices_date_desc ON invoices(invoice_date DESC);
-
--- Invoice Items Indexes
-CREATE INDEX IF NOT EXISTS IX_invoice_items_product ON invoice_items(product_id);
-CREATE INDEX IF NOT EXISTS IX_invoice_items_invoice_product ON invoice_items(invoice_id, product_id);
-
--- Daily Stock Indexes (for date filtering and latest stock queries)
-CREATE INDEX IF NOT EXISTS IX_daily_stock_date ON daily_stock(date);
-CREATE INDEX IF NOT EXISTS IX_daily_stock_date_desc ON daily_stock(date DESC, updated_at DESC);
-CREATE INDEX IF NOT EXISTS IX_daily_stock_product_date_desc ON daily_stock(product_id, date DESC, updated_at DESC);
-
--- Product Prices Indexes (for latest price queries)
-CREATE INDEX IF NOT EXISTS IX_product_prices_product_date_desc ON product_prices(product_id, effective_date DESC);
-
--- Products Indexes (for barcode lookups)
-CREATE INDEX IF NOT EXISTS IX_products_barcode ON products(barcode) WHERE barcode IS NOT NULL;
-
--- Users Indexes (for email lookups)
-CREATE INDEX IF NOT EXISTS IX_users_email ON users(email);`
+END $$;`
 	}
 ];
 

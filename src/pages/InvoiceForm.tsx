@@ -805,9 +805,9 @@ const InvoiceForm = () => {
         ]);
       }
 
-      // Small delay to ensure database commits complete (reduced since backend is optimized)
-      await new Promise(resolve => setTimeout(resolve, 500));
-      navigate("/invoices");
+       // Small delay to allow stored procedure to complete
+       await new Promise(resolve => setTimeout(resolve, 500));
+       navigate("/invoices");
     } catch (error: any) {
       toast({
         title: "Error",

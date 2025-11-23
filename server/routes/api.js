@@ -3,178 +3,6 @@ const { query } = require('../db');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
 
-// JavaScript implementation of recalculate_stock_after_invoice stored procedure
-// This replicates the exact same logic as the PostgreSQL stored procedure
-async function recalculateStockAfterInvoice(invoiceId, productId, actionType, newQty = null, newUnitCost = null) {
-	try {
-		// 1. Handle the invoice action (DELETE / EDIT)
-		if (actionType === 'DELETE') {
-			await query(
-				'DELETE FROM stock_movements WHERE product_id = $1 AND invoice_id = $2',
-				[{ product_id: productId }, { invoice_id: invoiceId }]
-			);
-		} else if (actionType === 'EDIT') {
-			// Update existing record only (no insert)
-			const updateResult = await query(
-				'UPDATE stock_movements SET quantity_change = $1, unit_cost = $2 WHERE product_id = $3 AND invoice_id = $4',
-				[
-					{ quantity_change: newQty },
-					{ unit_cost: newUnitCost },
-					{ product_id: productId },
-					{ invoice_id: invoiceId }
-				]
-			);
-			
-			if (updateResult.rowCount === 0) {
-				throw new Error('No matching stock movement found for EDIT');
-			}
-		}
-		
-		// 2. Find last correct state before this invoice
-		// Get invoice date
-		const invoiceResult = await query('SELECT invoice_date FROM invoices WHERE id = $1', [{ id: invoiceId }]);
-		if (invoiceResult.recordset.length === 0) {
-			throw new Error(`Invoice ${invoiceId} not found`);
-		}
-		const invoiceDate = invoiceResult.recordset[0].invoice_date;
-		
-		// Get last state before this invoice
-		const lastStateResult = await query(
-			`SELECT quantity_after, avg_cost_after 
-			 FROM stock_movements 
-			 WHERE product_id = $1 AND invoice_id < $2 
-			 ORDER BY invoice_id DESC, id DESC 
-			 LIMIT 1`,
-			[{ product_id: productId }, { invoice_id: invoiceId }]
-		);
-		
-		let quantityBefore = 0;
-		let avgCostBefore = 0;
-		if (lastStateResult.recordset.length > 0) {
-			quantityBefore = parseFloat(lastStateResult.recordset[0].quantity_after) || 0;
-			avgCostBefore = parseFloat(lastStateResult.recordset[0].avg_cost_after) || 0;
-		}
-		
-		// 3. Recalculate all later movements (including edited one) - OPTIMIZED with batch update
-		const laterMovementsResult = await query(
-			`SELECT id, quantity_change, unit_cost 
-			 FROM stock_movements 
-			 WHERE product_id = $1 AND invoice_id >= $2 
-			 ORDER BY invoice_id ASC, id ASC`,
-			[{ product_id: productId }, { invoice_id: invoiceId }]
-		);
-		
-		if (laterMovementsResult.recordset.length > 0) {
-			let currentQuantityBefore = quantityBefore;
-			let currentAvgCostBefore = avgCostBefore;
-			const updates = [];
-			
-			// Calculate all values first (in memory, fast)
-			for (const movement of laterMovementsResult.recordset) {
-				const qtyChange = parseFloat(movement.quantity_change) || 0;
-				const unitCost = movement.unit_cost ? parseFloat(movement.unit_cost) : null;
-				const movementId = movement.id;
-				
-				const quantityAfter = currentQuantityBefore + qtyChange;
-				
-				let avgCostAfter = currentAvgCostBefore;
-				if (qtyChange > 0 && unitCost !== null) {
-					if (quantityAfter !== 0) {
-						avgCostAfter = ((currentQuantityBefore * currentAvgCostBefore) + (qtyChange * unitCost)) / quantityAfter;
-					}
-				}
-				
-				updates.push({
-					id: movementId,
-					qty_before: currentQuantityBefore,
-					qty_after: quantityAfter,
-					cost_after: avgCostAfter
-				});
-				
-				currentQuantityBefore = quantityAfter;
-				currentAvgCostBefore = avgCostAfter;
-			}
-			
-			// Batch update using VALUES and JOIN (much faster than individual updates)
-			if (updates.length > 0) {
-				// Build VALUES clause with proper parameterization
-				const valueClauses = updates.map((u, idx) => {
-					const base = idx * 4;
-					return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`;
-				}).join(', ');
-				
-				// Flatten params into array format expected by query function
-				const params = [];
-				updates.forEach(u => {
-					params.push({ id: u.id });
-					params.push({ qty_before: u.qty_before });
-					params.push({ qty_after: u.qty_after });
-					params.push({ cost_after: u.cost_after });
-				});
-				
-				await query(
-					`UPDATE stock_movements sm
-					 SET 
-						quantity_before = v.qty_before::DECIMAL,
-						quantity_after = v.qty_after::DECIMAL,
-						avg_cost_after = v.cost_after::DECIMAL
-					 FROM (VALUES ${valueClauses}) AS v(id, qty_before, qty_after, cost_after)
-					 WHERE sm.id = v.id`,
-					params
-				);
-			}
-		}
-		
-		// 4. Update daily stock snapshots
-		// Use PostgreSQL's CAST to get date from timestamp (same as stored procedure)
-		// Delete daily_stock records from invoice date onwards
-		await query(
-			`DELETE FROM daily_stock 
-			 WHERE product_id = $1 
-			   AND date >= CAST($2 AS DATE)`,
-			[{ product_id: productId }, { invoice_date: invoiceDate }]
-		);
-		
-		// Re-insert daily_stock records based on latest movements per date (same logic as SP)
-		// This uses the exact same SQL as the stored procedure
-		await query(
-			`INSERT INTO daily_stock (product_id, available_qty, avg_cost, date, created_at, updated_at)
-			 SELECT 
-				product_id,
-				quantity_after AS quantity,
-				avg_cost_after AS avg_cost,
-				CAST(invoice_date AS DATE) AS stock_date,
-				NOW() AS created_at,
-				NOW() AS updated_at
-			 FROM (
-				SELECT 
-					product_id,
-					invoice_date,
-					quantity_after,
-					avg_cost_after,
-					ROW_NUMBER() OVER (
-						PARTITION BY product_id, CAST(invoice_date AS DATE)
-						ORDER BY invoice_date DESC, invoice_id DESC, id DESC
-					) AS rn
-				FROM stock_movements
-				WHERE product_id = $1
-				  AND CAST(invoice_date AS DATE) >= CAST($2 AS DATE)
-			 ) AS LatestMovements
-			 WHERE rn = 1
-			 ON CONFLICT (product_id, date) DO UPDATE SET
-				available_qty = EXCLUDED.available_qty,
-				avg_cost = EXCLUDED.avg_cost,
-				updated_at = EXCLUDED.updated_at`,
-			[{ product_id: productId }, { invoice_date: invoiceDate }]
-		);
-		
-		console.log(`  Recalculated stock for product ${productId} after ${actionType} using JavaScript function`);
-	} catch (error) {
-		console.error(`Error in recalculateStockAfterInvoice for product ${productId}:`, error);
-		throw error;
-	}
-}
-
 // JWT secret - MUST be set in environment variables for production
 // For development, a default is provided with a warning
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-change-in-production-do-not-use-in-production';
@@ -1029,50 +857,45 @@ router.put('/invoices/:id', async (req, res) => {
 			]
 		);
 
-		// Create new invoice items using batch insert (much faster)
-		if (items.length > 0) {
-			const valueClauses = items.map((item, idx) => {
-				const base = idx * 9;
-				return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9})`;
-			}).join(', ');
-			
-			const params = [];
-			items.forEach(item => {
-				params.push({ invoice_id: id });
-				params.push({ product_id: parseInt(item.product_id) });
-				params.push({ quantity: item.quantity });
-				params.push({ unit_price: item.unit_price });
-				params.push({ total_price: item.total_price });
-				params.push({ price_type: item.price_type });
-				params.push({ is_private_price: item.is_private_price ? 1 : 0 });
-				params.push({ private_price_amount: item.is_private_price ? item.private_price_amount : null });
-				params.push({ private_price_note: item.is_private_price ? item.private_price_note : null });
-			});
-			
+		// Create new invoice items (stock movements already exist and will be updated by the function)
+		for (const item of items) {
 			await query(
-				`INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) 
-				 VALUES ${valueClauses}`,
-				params
+				'INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
+				[
+					{ invoice_id: id },
+					{ product_id: parseInt(item.product_id) },
+					{ quantity: item.quantity },
+					{ unit_price: item.unit_price },
+					{ total_price: item.total_price },
+					{ price_type: item.price_type },
+					{ is_private_price: item.is_private_price ? 1 : 0 },
+					{ private_price_amount: item.is_private_price ? item.private_price_amount : null },
+					{ private_price_note: item.is_private_price ? item.private_price_note : null }
+				]
 			);
 		}
 
-		// Call the JavaScript function to recalculate stock for each affected product IN PARALLEL
-		// This is much faster than sequential processing
-		await Promise.all(
-			Array.from(affectedProducts).map(async (productId) => {
-				const item = items.find(item => parseInt(item.product_id) === productId);
-				if (item) {
-					const change = invoice_type === 'sell' ? -item.quantity : item.quantity;
-					const unitCost = parseFloat(item.unit_price);
-					
-					// Call the JavaScript function to recalculate - it will update the stock movement we just created
-					await recalculateStockAfterInvoice(id, productId, 'EDIT', change, unitCost);
-				}
-			})
-		);
-
-		// Force a commit by running a simple query to ensure all changes are committed
-		await query('SELECT 1', []);
+		// Call the function to recalculate stock for each affected product
+		// The function will update existing stock movements and recalculate all later movements
+		for (const productId of affectedProducts) {
+			const item = items.find(item => parseInt(item.product_id) === productId);
+			if (item) {
+				const change = invoice_type === 'sell' ? -item.quantity : item.quantity;
+				const unitCost = parseFloat(item.unit_price);
+				
+				// Call the stored procedure to recalculate - it will update the stock movement we just created
+				await query(
+					'SELECT recalculate_stock_after_invoice($1, $2, $3, $4, $5)',
+					[
+						{ invoice_id: id },
+						{ product_id: productId },
+						{ action_type: 'EDIT' },
+						{ new_qty: change },
+						{ new_unit_cost: unitCost }
+					]
+				);
+			}
+		}
 
 		res.json({ id: String(id), invoice_date: oldInvoice.invoice_date });
 	} catch (err) {
@@ -1095,40 +918,25 @@ router.delete('/invoices/:id', async (req, res) => {
 		const itemsResult = await query('SELECT DISTINCT product_id FROM invoice_items WHERE invoice_id = $1', [{ invoice_id: id }]);
 		const affectedProducts = itemsResult.recordset.map(row => row.product_id);
 		
-		// Call the JavaScript function for each affected product with DELETE action IN PARALLEL
-		// This is much faster than sequential processing
-		await Promise.all(
-			affectedProducts.map(productId => 
-				recalculateStockAfterInvoice(id, productId, 'DELETE', null, null)
-			)
-		);
+		// Call the stored procedure for each affected product with DELETE action
+		for (const productId of affectedProducts) {
+			await query(
+				'SELECT recalculate_stock_after_invoice($1, $2, $3, NULL, NULL)',
+				[
+					{ invoice_id: id },
+					{ product_id: productId },
+					{ action_type: 'DELETE' }
+				]
+			);
+			console.log(`  Recalculated stock for product ${productId} after DELETE using stored procedure`);
+		}
 		
-		// Delete related records (function already deleted stock_movements)
+		// Delete related records (stored procedure already deleted stock_movements)
 		await query('DELETE FROM invoice_items WHERE invoice_id = $1', [{ invoice_id: id }]);
 		await query('DELETE FROM invoice_payments WHERE invoice_id = $1', [{ invoice_id: id }]);
 		
 		// Delete invoice
 		await query('DELETE FROM invoices WHERE id = $1', [{ id }]);
-		
-		// Force a commit by running a simple query to ensure all changes are committed
-		// This ensures the transaction is fully committed before returning
-		await query('SELECT 1', []);
-		
-		// Verify deletion to ensure changes are visible
-		const verifyResult = await query('SELECT id FROM invoices WHERE id = $1', [{ id }]);
-		if (verifyResult.recordset.length > 0) {
-			console.error(`Warning: Invoice ${id} still exists after deletion attempt`);
-			return res.status(500).json({ error: 'Failed to delete invoice' });
-		}
-		
-		// Verify stock movements are deleted
-		const stockMovementsResult = await query(
-			'SELECT COUNT(*) as count FROM stock_movements WHERE invoice_id = $1',
-			[{ invoice_id: id }]
-		);
-		if (stockMovementsResult.recordset[0]?.count > 0) {
-			console.warn(`Warning: Some stock movements still exist for deleted invoice ${id}`);
-		}
 		
 		res.json({ success: true, id });
 	} catch (err) {

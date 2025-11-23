@@ -79,9 +79,9 @@ const OverdueInvoices = () => {
         queryClient.invalidateQueries({ queryKey: ["stock-movements"] }),
         queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
       ]);
-      // Small delay to ensure database commits complete (reduced since backend is optimized)
-      await new Promise(resolve => setTimeout(resolve, 500));
-      fetchData(); // Refresh the invoice list
+       // Small delay to allow stored procedure to complete
+       await new Promise(resolve => setTimeout(resolve, 500));
+       fetchData(); // Refresh the invoice list
     } catch (error: any) {
       toast({
         title: "Error",
