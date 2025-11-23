@@ -119,7 +119,15 @@ async function hashPassword(pw) {
 }
 
 async function comparePassword(pw, hash) {
-	return await bcrypt.compare(pw, hash);
+	if (!pw || !hash) {
+		return false;
+	}
+	try {
+		return await bcrypt.compare(pw, hash);
+	} catch (err) {
+		console.error('Password comparison error:', err);
+		return false;
+	}
 }
 
 // ===== MIDDLEWARE =====
@@ -201,7 +209,7 @@ function handleValidationErrors(req, res, next) {
 
 router.post('/auth/signup', authLimiter, [
 	body('email').isEmail().normalizeEmail(),
-	body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+	body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
 ], handleValidationErrors, async (req, res) => {
 	try {
 		const { email, password } = req.body;
@@ -218,9 +226,15 @@ router.post('/auth/signup', authLimiter, [
 		
 		// Use bcrypt for secure password hashing
 		const passwordHash = await hashPassword(password);
+		
+		// Validate hash was created
+		if (!passwordHash || passwordHash.length === 0) {
+			throw new Error('Failed to hash password');
+		}
+		
 		const createdAt = nowIso();
 		const insertResult = await query(
-			'INSERT INTO users (email, passwordHash, is_admin, created_at) VALUES ($1, $2, $3, $4) RETURNING id, is_admin',
+			'INSERT INTO users (email, passwordhash, is_admin, created_at) VALUES ($1, $2, $3, $4) RETURNING id, is_admin',
 			[email, passwordHash, isFirstUser, createdAt]
 		);
 		const user = insertResult.recordset[0];
@@ -245,15 +259,48 @@ router.post('/auth/signin', authLimiter, [
 ], handleValidationErrors, async (req, res) => {
 	try {
 		const { email, password } = req.body;
+		
+		// Validate inputs
+		if (!email || !password) {
+			return res.status(400).json({ error: 'Email and password are required' });
+		}
+		
 		// Using plain array params - get user first
-		const result = await query('SELECT id, email, is_admin, passwordHash FROM users WHERE email = $1', [email]);
+		// Use LOWER() to handle case-insensitive email matching
+		// PostgreSQL converts unquoted identifiers to lowercase, so passwordHash becomes passwordhash
+		const result = await query('SELECT id, email, is_admin, passwordhash FROM users WHERE LOWER(email) = LOWER($1)', [email]);
 		if (result.recordset.length === 0) {
 			return res.status(401).json({ error: 'Invalid credentials' });
 		}
 		const user = result.recordset[0];
 		
 		// Verify password with bcrypt
-		const passwordMatch = await comparePassword(password, user.passwordHash);
+		// PostgreSQL returns column names in lowercase, so passwordhash (not passwordHash)
+		const passwordHash = user.passwordhash || user.passwordHash; // Support both cases
+		if (!user || !passwordHash) {
+			return res.status(401).json({ error: 'Invalid credentials' });
+		}
+		
+		// Ensure passwordHash is a non-empty string
+		const hashStr = String(passwordHash || '').trim();
+		if (!hashStr || hashStr.length === 0) {
+			return res.status(401).json({ error: 'Invalid credentials' });
+		}
+		
+		// Ensure password is a non-empty string
+		const passwordStr = String(password || '').trim();
+		if (!passwordStr || passwordStr.length === 0) {
+			return res.status(401).json({ error: 'Invalid credentials' });
+		}
+		
+		// Check if this is an old hash format (numeric string) - if so, reject
+		// Old format was just a number, bcrypt hashes start with $2a$, $2b$, or $2y$
+		if (!hashStr.startsWith('$2')) {
+			// This is an old hash format - user needs to reset password
+			return res.status(401).json({ error: 'Invalid credentials' });
+		}
+		
+		const passwordMatch = await comparePassword(passwordStr, hashStr);
 		if (!passwordMatch) {
 			return res.status(401).json({ error: 'Invalid credentials' });
 		}
@@ -2452,26 +2499,26 @@ router.post('/admin/init', authenticateToken, requireAdmin, async (req, res) => 
 	}
 });
 
-// Manual trigger for seed master data
+// Manual trigger for seed data (categories, products, prices, customers, suppliers - NO invoices)
 router.post('/admin/seed-master-data', authenticateToken, requireAdmin, async (req, res) => {
 	try {
-		console.log(`[Admin] Manual seed master data requested at ${lebanonTimeForLog()} (Lebanon time)`);
+		console.log(`[Admin] Manual seed data requested at ${lebanonTimeForLog()} (Lebanon time)`);
 		
 		// Import and run the seed script function
-		const { seedMasterData } = require('../scripts/seed_master_data');
+		const { seedData } = require('../scripts/seed_data');
 		
 		// Run the seed script
-		await seedMasterData();
+		await seedData();
 		
-		console.log(`[Admin] ✓ Seed master data completed successfully at ${lebanonTimeForLog()} (Lebanon time)`);
+		console.log(`[Admin] ✓ Seed data completed successfully at ${lebanonTimeForLog()} (Lebanon time)`);
 		
 		res.json({
 			success: true,
-			message: 'Seed master data completed successfully. All invoices cleared and master data seeded.',
+			message: 'Seed data completed successfully. All master data (categories, products, prices, customers, suppliers) seeded. No invoices created.',
 		});
 		
 	} catch (err) {
-		console.error('[Admin] Seed master data error:', err);
+		console.error('[Admin] Seed data error:', err);
 		res.status(500).json({ 
 			success: false,
 			error: 'Seed script failed', 
@@ -2601,20 +2648,22 @@ router.post('/admin/setup-first-admin', async (req, res) => {
 	}
 });
 
-// Admin: Clear all users (WARNING: This will delete all users except the current admin)
+// Admin: Clear all users (WARNING: This will delete ALL users - next signup becomes admin)
 router.post('/admin/users/clear', authenticateToken, requireAdmin, async (req, res) => {
 	try {
-		// Get current admin user ID
-		const currentUserId = req.user.userId;
+		// Get user count before deletion
+		const countResult = await query('SELECT COUNT(*) as count FROM users', []);
+		const userCount = parseInt(countResult.recordset[0]?.count || 0);
 		
-		// Delete all users except the current admin
-		await query('DELETE FROM users WHERE id != $1', [{ id: currentUserId }]);
+		// Delete ALL users (including current admin)
+		await query('DELETE FROM users', []);
 		
-		console.log(`[Admin] Users table cleared (admin ${currentUserId} preserved)`);
+		console.log(`[Admin] All ${userCount} user(s) cleared from database`);
+		console.log(`[Admin] Next user to sign up will automatically become admin`);
 		
 		res.json({ 
 			success: true, 
-			message: 'All users cleared. Next user to sign up will become admin.' 
+			message: `All ${userCount} user(s) cleared. Next user to sign up will become admin.` 
 		});
 	} catch (err) {
 		console.error('[Admin] Clear users error:', err);

@@ -123,40 +123,46 @@ app.get('/', (req, res) => {
 });
 
 // Initialize SQL schema on startup (idempotent)
+// Skip in test environment to avoid async operations during Jest teardown
 let initCompleted = false;
-(async () => {
-	try {
-		// Wait for DB connection to be ready
-		console.log('Waiting for database connection...');
-		await new Promise(resolve => setTimeout(resolve, 2000));
-		
-		// Test connection first
+if (process.env.NODE_ENV !== 'test') {
+	(async () => {
 		try {
-			const { query } = require('./db');
-			await query('SELECT 1 AS test', []);
-			console.log('✓ Database connection verified');
-		} catch (connErr) {
-			console.error('✗ Database connection failed:', connErr.message);
-			return;
+			// Wait for DB connection to be ready
+			console.log('Waiting for database connection...');
+			await new Promise(resolve => setTimeout(resolve, 2000));
+			
+			// Test connection first
+			try {
+				const { query } = require('./db');
+				await query('SELECT 1 AS test', []);
+				console.log('✓ Database connection verified');
+			} catch (connErr) {
+				console.error('✗ Database connection failed:', connErr.message);
+				return;
+			}
+			
+			// Run initialization
+			console.log('Starting SQL schema initialization...');
+			const { runInit } = require('./sql/runInit');
+			const result = await runInit();
+			initCompleted = true;
+			
+			if (result?.ok) {
+				console.log(`✓ SQL init completed: ${result.batches}/${result.total} tables created${result.errors > 0 ? `, ${result.errors} errors` : ''}`);
+			} else if (result?.skipped) {
+				console.log('⚠ SQL init skipped (no init.sql file)');
+			}
+		} catch (e) {
+			console.error('✗ SQL init failed:', e.message);
+			console.error(e.stack);
+			initCompleted = false;
 		}
-		
-		// Run initialization
-		console.log('Starting SQL schema initialization...');
-		const { runInit } = require('./sql/runInit');
-		const result = await runInit();
-		initCompleted = true;
-		
-		if (result?.ok) {
-			console.log(`✓ SQL init completed: ${result.batches}/${result.total} tables created${result.errors > 0 ? `, ${result.errors} errors` : ''}`);
-		} else if (result?.skipped) {
-			console.log('⚠ SQL init skipped (no init.sql file)');
-		}
-	} catch (e) {
-		console.error('✗ SQL init failed:', e.message);
-		console.error(e.stack);
-		initCompleted = false;
-	}
-})();
+	})();
+} else {
+	// In test mode, mark as completed immediately
+	initCompleted = true;
+}
 
 // DB health check
 app.get('/api/health', async (req, res) => {
@@ -248,21 +254,23 @@ app.get('/api/admin/init-status', async (req, res) => {
 // Schedule daily stock snapshot at 12:05 AM (works on cloud databases like Render)
 // This is the alternative to pgAgent for cloud databases
 // Wait for DB initialization to complete before setting up cron job
-(async () => {
-	// Wait for database initialization to complete
-	let attempts = 0;
-	while (!initCompleted && attempts < 30) {
-		await new Promise(resolve => setTimeout(resolve, 1000));
-		attempts++;
-	}
-	
-	if (!initCompleted) {
-		console.warn('⚠ Database initialization not completed, but setting up cron job anyway...');
-	}
-	
-	try {
-		const cron = require('node-cron');
-		const { query } = require('./db');
+// Skip in test environment to prevent Jest teardown issues
+if (process.env.NODE_ENV !== 'test') {
+	(async () => {
+		// Wait for database initialization to complete
+		let attempts = 0;
+		while (!initCompleted && attempts < 30) {
+			await new Promise(resolve => setTimeout(resolve, 1000));
+			attempts++;
+		}
+		
+		if (!initCompleted) {
+			console.warn('⚠ Database initialization not completed, but setting up cron job anyway...');
+		}
+		
+		try {
+			const cron = require('node-cron');
+			const { query } = require('./db');
 		
 		// Helper function to get Lebanon time formatted for logging
 		function lebanonTimeForLog() {
@@ -351,15 +359,16 @@ app.get('/api/admin/init-status', async (req, res) => {
 		});
 		
 		console.log('✓ Scheduled job: Daily stock snapshot (runs daily at 12:05 PM Beirut time)');
-	} catch (error) {
-		// node-cron might not be installed, that's okay
-		if (error.code !== 'MODULE_NOT_FOUND') {
-			console.error('⚠ Failed to set up scheduled job:', error.message);
-		} else {
-			console.warn('⚠ node-cron not found - scheduled jobs disabled');
+		} catch (error) {
+			// node-cron might not be installed, that's okay
+			if (error.code !== 'MODULE_NOT_FOUND') {
+				console.error('⚠ Failed to set up scheduled job:', error.message);
+			} else {
+				console.warn('⚠ node-cron not found - scheduled jobs disabled');
+			}
 		}
-	}
-})();
+	})();
+}
 
 // Global error handler - must be last middleware
 // Ensures CORS headers are always sent even on errors to prevent browser blocking
@@ -416,8 +425,15 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5050;
-app.listen(PORT, () => {
-	console.log(`Backend server running on http://localhost:${PORT}`);
-});
+
+// Only start server if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+	app.listen(PORT, () => {
+		console.log(`Backend server running on http://localhost:${PORT}`);
+	});
+}
+
+// Export app for testing
+module.exports = app;
 
 

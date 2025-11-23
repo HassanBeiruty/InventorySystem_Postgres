@@ -340,12 +340,12 @@ const Settings = () => {
                   <div className="p-4 border rounded-lg">
                     <h4 className="font-medium mb-2">Seed Master Data</h4>
                     <p className="text-sm text-muted-foreground mb-4">
-                      Clear all invoices and seed fresh master data (categories, products, prices, exchange rates, customers, suppliers)
+                      Clear all data and seed fresh master data (categories, products with barcode/SKU/shelf, prices, customers, suppliers). No invoices created.
                     </p>
                     <Button
                       variant="outline"
                       onClick={() => {
-                        if (confirm("⚠️ WARNING: This will DELETE ALL INVOICES and reset master data. Are you sure?")) {
+                        if (confirm("⚠️ WARNING: This will DELETE ALL DATA (including invoices) and seed fresh master data. Are you sure?")) {
                           seedMasterDataMutation.mutate();
                         }
                       }}
