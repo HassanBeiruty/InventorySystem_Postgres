@@ -846,9 +846,48 @@ EXCEPTION
 		RAISE NOTICE 'pgAgent tables not found - ensure pgagent extension is properly installed';
 	WHEN OTHERS THEN
 		RAISE NOTICE 'Could not create pgAgent job: %', SQLERRM;
-		RAISE NOTICE 'You may need to set up the job manually using pgAdmin GUI';
+	RAISE NOTICE 'You may need to set up the job manually using pgAdmin GUI';
 		RAISE NOTICE 'In pgAdmin: Right-click Jobs > New Job > Set schedule to run daily at 00:05';
-END $$;`
+	END $$;`
+	},
+	{
+		name: 'performance_indexes',
+		sql: `-- Performance indexes for faster queries
+-- These indexes significantly improve query performance for common operations
+
+-- Stock Movements Indexes (critical for invoice edit/delete performance)
+CREATE INDEX IF NOT EXISTS IX_stock_movements_product_invoice ON stock_movements(product_id, invoice_id);
+CREATE INDEX IF NOT EXISTS IX_stock_movements_product_invoice_desc ON stock_movements(product_id, invoice_id DESC, id DESC);
+CREATE INDEX IF NOT EXISTS IX_stock_movements_product_invoice_asc ON stock_movements(product_id, invoice_id ASC, id ASC);
+CREATE INDEX IF NOT EXISTS IX_stock_movements_product_date ON stock_movements(product_id, CAST(invoice_date AS DATE));
+CREATE INDEX IF NOT EXISTS IX_stock_movements_product ON stock_movements(product_id);
+
+-- Invoices Indexes (for filtering and JOINs)
+CREATE INDEX IF NOT EXISTS IX_invoices_customer ON invoices(customer_id);
+CREATE INDEX IF NOT EXISTS IX_invoices_supplier ON invoices(supplier_id);
+CREATE INDEX IF NOT EXISTS IX_invoices_type ON invoices(invoice_type);
+CREATE INDEX IF NOT EXISTS IX_invoices_payment_status ON invoices(payment_status);
+CREATE INDEX IF NOT EXISTS IX_invoices_due_date ON invoices(due_date);
+CREATE INDEX IF NOT EXISTS IX_invoices_due_date_status ON invoices(due_date, payment_status);
+CREATE INDEX IF NOT EXISTS IX_invoices_date_desc ON invoices(invoice_date DESC);
+
+-- Invoice Items Indexes
+CREATE INDEX IF NOT EXISTS IX_invoice_items_product ON invoice_items(product_id);
+CREATE INDEX IF NOT EXISTS IX_invoice_items_invoice_product ON invoice_items(invoice_id, product_id);
+
+-- Daily Stock Indexes (for date filtering and latest stock queries)
+CREATE INDEX IF NOT EXISTS IX_daily_stock_date ON daily_stock(date);
+CREATE INDEX IF NOT EXISTS IX_daily_stock_date_desc ON daily_stock(date DESC, updated_at DESC);
+CREATE INDEX IF NOT EXISTS IX_daily_stock_product_date_desc ON daily_stock(product_id, date DESC, updated_at DESC);
+
+-- Product Prices Indexes (for latest price queries)
+CREATE INDEX IF NOT EXISTS IX_product_prices_product_date_desc ON product_prices(product_id, effective_date DESC);
+
+-- Products Indexes (for barcode lookups)
+CREATE INDEX IF NOT EXISTS IX_products_barcode ON products(barcode) WHERE barcode IS NOT NULL;
+
+-- Users Indexes (for email lookups)
+CREATE INDEX IF NOT EXISTS IX_users_email ON users(email);`
 	}
 ];
 
