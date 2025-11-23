@@ -205,8 +205,8 @@ const InvoicesList = () => {
         queryClient.invalidateQueries({ queryKey: ["stock-movements"] }),
         queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
       ]);
-      // Small delay to ensure stored procedures complete
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait longer to ensure stored procedures and database commits complete
+      await new Promise(resolve => setTimeout(resolve, 2000));
       fetchData(); // Refresh the invoice list
     } catch (error: any) {
       toast({

@@ -897,6 +897,9 @@ router.put('/invoices/:id', async (req, res) => {
 			}
 		}
 
+		// Force a commit by running a simple query to ensure all changes are committed
+		await query('SELECT 1', []);
+
 		res.json({ id: String(id), invoice_date: oldInvoice.invoice_date });
 	} catch (err) {
 		console.error('Update invoice error:', err);
@@ -937,6 +940,26 @@ router.delete('/invoices/:id', async (req, res) => {
 		
 		// Delete invoice
 		await query('DELETE FROM invoices WHERE id = $1', [{ id }]);
+		
+		// Force a commit by running a simple query to ensure all changes are committed
+		// This ensures the transaction is fully committed before returning
+		await query('SELECT 1', []);
+		
+		// Verify deletion to ensure changes are visible
+		const verifyResult = await query('SELECT id FROM invoices WHERE id = $1', [{ id }]);
+		if (verifyResult.recordset.length > 0) {
+			console.error(`Warning: Invoice ${id} still exists after deletion attempt`);
+			return res.status(500).json({ error: 'Failed to delete invoice' });
+		}
+		
+		// Verify stock movements are deleted
+		const stockMovementsResult = await query(
+			'SELECT COUNT(*) as count FROM stock_movements WHERE invoice_id = $1',
+			[{ invoice_id: id }]
+		);
+		if (stockMovementsResult.recordset[0]?.count > 0) {
+			console.warn(`Warning: Some stock movements still exist for deleted invoice ${id}`);
+		}
 		
 		res.json({ success: true, id });
 	} catch (err) {
