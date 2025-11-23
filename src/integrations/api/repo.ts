@@ -532,6 +532,11 @@ export const adminRepo = {
       method: "POST",
     });
   },
+  async seedMasterData(): Promise<AdminActionResponse> {
+    return fetchJson<AdminActionResponse>("/api/admin/seed-master-data", {
+      method: "POST",
+    });
+  },
 };
 
 

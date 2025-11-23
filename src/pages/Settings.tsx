@@ -68,6 +68,20 @@ const Settings = () => {
     },
   });
 
+  // Seed master data mutation
+  const seedMasterDataMutation = useMutation({
+    mutationFn: () => adminRepo.seedMasterData(),
+    onSuccess: (data) => {
+      toast.success(data.message || "Master data seeded successfully");
+      refetchHealth();
+      // Refresh the page to show updated data
+      setTimeout(() => window.location.reload(), 2000);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to seed master data");
+    },
+  });
+
   // Users query
   const { data: users, isLoading: usersLoading, refetch: refetchUsers } = useQuery<UserEntity[]>({
     queryKey: ["admin", "users"],
