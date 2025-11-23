@@ -7,45 +7,23 @@ const { query } = require('../db');
 function lebanonTime() {
 	const now = new Date();
 	
-	// Get UTC components directly
-	let year = now.getUTCFullYear();
-	let month = now.getUTCMonth();
-	let day = now.getUTCDate();
-	let hours = now.getUTCHours();
-	let minutes = now.getUTCMinutes();
-	let seconds = now.getUTCSeconds();
+	// Use Intl.DateTimeFormat to get Lebanon timezone components
+	const formatter = new Intl.DateTimeFormat('en-CA', {
+		timeZone: 'Asia/Beirut',
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit',
+		hour12: false
+	});
 	
-	// Handle hour overflow (if hours >= 24, move to next day)
-	if (hours >= 24) {
-		hours -= 24;
-		day += 1;
-		const daysInMonth = new Date(year, month + 1, 0).getDate();
-		if (day > daysInMonth) {
-			day = 1;
-			month += 1;
-			if (month > 11) {
-				month = 0;
-				year += 1;
-			}
-		}
-	}
-	
-	// Handle hour underflow (if hours < 0, move to previous day)
-	if (hours < 0) {
-		hours += 24;
-		day -= 1;
-		if (day < 1) {
-			month -= 1;
-			if (month < 0) {
-				month = 11;
-				year -= 1;
-			}
-			day = new Date(year, month + 1, 0).getDate();
-		}
-	}
+	const parts = formatter.formatToParts(now);
+	const values = Object.fromEntries(parts.map(p => [p.type, p.value]));
 	
 	const pad = (n) => String(n).padStart(2, "0");
-	return `${year}-${pad(month + 1)}-${pad(day)} ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+	return `${values.year}-${values.month}-${values.day} ${values.hour}:${values.minute}:${values.second}`;
 }
 
 // Helper to get today's date in Lebanon timezone (YYYY-MM-DD)
