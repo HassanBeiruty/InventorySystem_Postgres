@@ -1,8 +1,15 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 
 const app = express();
+
+// Security middleware - Helmet for security headers
+app.use(helmet({
+	contentSecurityPolicy: false, // Disable CSP for API (can be configured per route if needed)
+	crossOriginEmbedderPolicy: false,
+}));
 
 // CORS configuration - allow frontend domain in production
 const allowedOrigins = process.env.FRONTEND_URL 

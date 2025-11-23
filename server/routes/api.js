@@ -1,6 +1,9 @@
 const express = require('express');
-const { query } = require('../db');
+const { query, getPool } = require('../db');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const { body, param, query: queryValidator, validationResult } = require('express-validator');
+const rateLimit = require('express-rate-limit');
 const router = express.Router();
 
 // JWT secret - MUST be set in environment variables for production
@@ -109,10 +112,14 @@ function toLocalDateString(date) {
 // ===== AUTH =====
 const SESSION_KEY = 'local_auth_session';
 
-function hashPassword(pw) {
-	let h = 0;
-	for (let i = 0; i < pw.length; i++) h = (h << 5) - h + pw.charCodeAt(i);
-	return `${h}`;
+// Secure password hashing with bcrypt
+async function hashPassword(pw) {
+	const saltRounds = 10;
+	return await bcrypt.hash(pw, saltRounds);
+}
+
+async function comparePassword(pw, hash) {
+	return await bcrypt.compare(pw, hash);
 }
 
 // ===== MIDDLEWARE =====
@@ -147,8 +154,8 @@ async function requireAdmin(req, res, next) {
 			return res.status(401).json({ error: 'Authentication required' });
 		}
 		
-		// Check if user is admin
-		const result = await query('SELECT is_admin FROM users WHERE id = $1', [{ id: req.user.userId }]);
+		// Check if user is admin - using plain array params
+		const result = await query('SELECT is_admin FROM users WHERE id = $1', [req.user.userId]);
 		
 		if (result.recordset.length === 0) {
 			return res.status(404).json({ error: 'User not found' });
@@ -167,10 +174,39 @@ async function requireAdmin(req, res, next) {
 	}
 }
 
-router.post('/auth/signup', async (req, res) => {
+// Rate limiting middleware
+const authLimiter = rateLimit({
+	windowMs: 15 * 60 * 1000, // 15 minutes
+	max: 5, // Limit each IP to 5 requests per windowMs
+	message: 'Too many authentication attempts, please try again later.',
+	standardHeaders: true,
+	legacyHeaders: false,
+});
+
+const apiLimiter = rateLimit({
+	windowMs: 15 * 60 * 1000, // 15 minutes
+	max: 100, // Limit each IP to 100 requests per windowMs
+	standardHeaders: true,
+	legacyHeaders: false,
+});
+
+// Validation error handler
+function handleValidationErrors(req, res, next) {
+	const errors = validationResult(req);
+	if (!errors.isEmpty()) {
+		return res.status(400).json({ error: 'Validation failed', details: errors.array() });
+	}
+	next();
+}
+
+router.post('/auth/signup', authLimiter, [
+	body('email').isEmail().normalizeEmail(),
+	body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+], handleValidationErrors, async (req, res) => {
 	try {
 		const { email, password } = req.body;
-		const result = await query('SELECT id FROM users WHERE email = $1', [{ email }]);
+		// Using plain array params
+		const result = await query('SELECT id FROM users WHERE email = $1', [email]);
 		if (result.recordset.length > 0) {
 			return res.status(400).json({ error: 'User already exists' });
 		}
@@ -180,10 +216,12 @@ router.post('/auth/signup', async (req, res) => {
 		const userCount = userCountResult.recordset[0]?.count || 0;
 		const isFirstUser = userCount === 0;
 		
-		const passwordHash = hashPassword(password);
+		// Use bcrypt for secure password hashing
+		const passwordHash = await hashPassword(password);
+		const createdAt = nowIso();
 		const insertResult = await query(
 			'INSERT INTO users (email, passwordHash, is_admin, created_at) VALUES ($1, $2, $3, $4) RETURNING id, is_admin',
-			[{ email, passwordHash, is_admin: isFirstUser, created_at: nowIso() }]
+			[email, passwordHash, isFirstUser, createdAt]
 		);
 		const user = insertResult.recordset[0];
 		const isAdmin = user.is_admin === true || user.is_admin === 1;
@@ -201,17 +239,25 @@ router.post('/auth/signup', async (req, res) => {
 	}
 });
 
-router.post('/auth/signin', async (req, res) => {
+router.post('/auth/signin', authLimiter, [
+	body('email').isEmail().normalizeEmail(),
+	body('password').notEmpty(),
+], handleValidationErrors, async (req, res) => {
 	try {
 		const { email, password } = req.body;
-		const passwordHash = hashPassword(password);
-		const result = await query('SELECT id, email, is_admin FROM users WHERE email = $1 AND passwordHash = $2', [
-			{ email, passwordHash },
-		]);
+		// Using plain array params - get user first
+		const result = await query('SELECT id, email, is_admin, passwordHash FROM users WHERE email = $1', [email]);
 		if (result.recordset.length === 0) {
 			return res.status(401).json({ error: 'Invalid credentials' });
 		}
 		const user = result.recordset[0];
+		
+		// Verify password with bcrypt
+		const passwordMatch = await comparePassword(password, user.passwordHash);
+		if (!passwordMatch) {
+			return res.status(401).json({ error: 'Invalid credentials' });
+		}
+		
 		const isAdmin = user.is_admin === true || user.is_admin === 1;
 		// Generate JWT token
 		const token = jwt.sign({ userId: user.id, email: user.email, isAdmin }, JWT_SECRET, { expiresIn: '7d' });
@@ -231,7 +277,8 @@ router.post('/auth/logout', async (req, res) => {
 // Check if current user is admin
 router.get('/auth/me', authenticateToken, async (req, res) => {
 	try {
-		const result = await query('SELECT id, email, is_admin FROM users WHERE id = $1', [{ id: req.user.userId }]);
+		// Using plain array params
+		const result = await query('SELECT id, email, is_admin FROM users WHERE id = $1', [req.user.userId]);
 		if (result.recordset.length === 0) {
 			return res.status(404).json({ error: 'User not found' });
 		}
@@ -255,12 +302,16 @@ router.get('/customers', async (req, res) => {
 	}
 });
 
-router.post('/customers', async (req, res) => {
+router.post('/customers', [
+	body('name').trim().notEmpty().withMessage('Name is required'),
+], handleValidationErrors, async (req, res) => {
 	try {
 		const { name, phone, address, credit_limit } = req.body;
+		const createdAt = nowIso();
+		// Using plain array params
 		const result = await query(
 			'INSERT INTO customers (name, phone, address, credit_limit, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-			[{ name, phone: phone || null, address: address || null, credit_limit: credit_limit || 0, created_at: nowIso() }]
+			[name, phone || null, address || null, credit_limit || 0, createdAt]
 		);
 		const id = result.recordset[0].id;
 		res.json({ id });
@@ -270,32 +321,35 @@ router.post('/customers', async (req, res) => {
 	}
 });
 
-router.put('/customers/:id', async (req, res) => {
+router.put('/customers/:id', [
+	param('id').isInt().withMessage('Invalid customer ID'),
+], handleValidationErrors, async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
 		const { name, phone, address, credit_limit } = req.body;
 		const updates = [];
-		const params = [{ id }];
+		const params = [];
 		let paramIndex = 1;
 		if (name !== undefined) {
 			updates.push(`name = $${++paramIndex}`);
-			params.push({ name });
+			params.push(name);
 		}
 		if (phone !== undefined) {
 			updates.push(`phone = $${++paramIndex}`);
-			params.push({ phone: phone || null });
+			params.push(phone || null);
 		}
 		if (address !== undefined) {
 			updates.push(`address = $${++paramIndex}`);
-			params.push({ address: address || null });
+			params.push(address || null);
 		}
 		if (credit_limit !== undefined) {
 			updates.push(`credit_limit = $${++paramIndex}`);
-			params.push({ credit_limit });
+			params.push(credit_limit);
 		}
 		if (updates.length === 0) {
 			return res.json({ id });
 		}
+		params.unshift(id); // Add id as first parameter
 		await query(`UPDATE customers SET ${updates.join(', ')} WHERE id = $1`, params);
 		res.json({ id });
 	} catch (err) {
@@ -315,12 +369,16 @@ router.get('/suppliers', async (req, res) => {
 	}
 });
 
-router.post('/suppliers', async (req, res) => {
+router.post('/suppliers', [
+	body('name').trim().notEmpty().withMessage('Name is required'),
+], handleValidationErrors, async (req, res) => {
 	try {
 		const { name, phone, address } = req.body;
+		const createdAt = nowIso();
+		// Using plain array params
 		const result = await query(
 			'INSERT INTO suppliers (name, phone, address, created_at) VALUES ($1, $2, $3, $4) RETURNING id',
-			[{ name }, { phone: phone || null }, { address: address || null }, { created_at: nowIso() }]
+			[name, phone || null, address || null, createdAt]
 		);
 		const id = result.recordset[0].id;
 		res.json({ id });
@@ -330,28 +388,31 @@ router.post('/suppliers', async (req, res) => {
 	}
 });
 
-router.put('/suppliers/:id', async (req, res) => {
+router.put('/suppliers/:id', [
+	param('id').isInt().withMessage('Invalid supplier ID'),
+], handleValidationErrors, async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
 		const { name, phone, address } = req.body;
 		const updates = [];
-		const params = [{ id }];
+		const params = [];
 		let paramIndex = 1;
 		if (name !== undefined) {
 			updates.push(`name = $${++paramIndex}`);
-			params.push({ name });
+			params.push(name);
 		}
 		if (phone !== undefined) {
 			updates.push(`phone = $${++paramIndex}`);
-			params.push({ phone: phone || null });
+			params.push(phone || null);
 		}
 		if (address !== undefined) {
 			updates.push(`address = $${++paramIndex}`);
-			params.push({ address: address || null });
+			params.push(address || null);
 		}
 		if (updates.length === 0) {
 			return res.json({ id });
 		}
+		params.unshift(id); // Add id as first parameter
 		await query(`UPDATE suppliers SET ${updates.join(', ')} WHERE id = $1`, params);
 		res.json({ id });
 	} catch (err) {
@@ -371,12 +432,16 @@ router.get('/categories', async (req, res) => {
 	}
 });
 
-router.post('/categories', async (req, res) => {
+router.post('/categories', [
+	body('name').trim().notEmpty().withMessage('Name is required'),
+], handleValidationErrors, async (req, res) => {
 	try {
 		const { name, description } = req.body;
+		const createdAt = nowIso();
+		// Using plain array params
 		const result = await query(
 			'INSERT INTO categories (name, description, created_at) VALUES ($1, $2, $3) RETURNING id',
-			[{ name }, { description: description || null }, { created_at: nowIso() }]
+			[name, description || null, createdAt]
 		);
 		const id = result.recordset[0].id;
 		res.json({ id });
@@ -386,24 +451,27 @@ router.post('/categories', async (req, res) => {
 	}
 });
 
-router.put('/categories/:id', async (req, res) => {
+router.put('/categories/:id', [
+	param('id').isInt().withMessage('Invalid category ID'),
+], handleValidationErrors, async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
 		const { name, description } = req.body;
 		const updates = [];
-		const params = [{ id }];
+		const params = [];
 		let paramIndex = 1;
 		if (name !== undefined) {
 			updates.push(`name = $${++paramIndex}`);
-			params.push({ name });
+			params.push(name);
 		}
 		if (description !== undefined) {
 			updates.push(`description = $${++paramIndex}`);
-			params.push({ description: description || null });
+			params.push(description || null);
 		}
 		if (updates.length === 0) {
 			return res.json({ id });
 		}
+		params.unshift(id); // Add id as first parameter
 		await query(`UPDATE categories SET ${updates.join(', ')} WHERE id = $1`, params);
 		res.json({ id });
 	} catch (err) {
@@ -412,15 +480,17 @@ router.put('/categories/:id', async (req, res) => {
 	}
 });
 
-router.delete('/categories/:id', async (req, res) => {
+router.delete('/categories/:id', [
+	param('id').isInt().withMessage('Invalid category ID'),
+], handleValidationErrors, async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
-		// Check if any products are using this category
-		const productsResult = await query('SELECT COUNT(*) as count FROM products WHERE category_id = $1', [{ id }]);
+		// Check if any products are using this category - using plain array params
+		const productsResult = await query('SELECT COUNT(*) as count FROM products WHERE category_id = $1', [id]);
 		if (productsResult.recordset[0].count > 0) {
 			return res.status(400).json({ error: 'Cannot delete category: products are still assigned to it' });
 		}
-		await query('DELETE FROM categories WHERE id = $1', [{ id }]);
+		await query('DELETE FROM categories WHERE id = $1', [id]);
 		res.json({ success: true });
 	} catch (err) {
 		console.error('Delete category error:', err);
@@ -442,29 +512,26 @@ router.get('/products', async (req, res) => {
 	}
 });
 
-router.post('/products', async (req, res) => {
+router.post('/products', [
+	body('name').trim().notEmpty().withMessage('Product name is required'),
+], handleValidationErrors, async (req, res) => {
 	try {
 		const { name, barcode, category_id, description, sku, shelf } = req.body;
+		const createdAt = nowIso();
+		// Using plain array params
 		const result = await query(
 			'INSERT INTO products (name, barcode, category_id, description, sku, shelf, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
-			[
-				{ name }, 
-				{ barcode: barcode || null }, 
-				{ category_id: category_id ? parseInt(category_id) : null },
-				{ description: description || null },
-				{ sku: sku || null },
-				{ shelf: shelf || null },
-				{ created_at: nowIso() }
-			]
+			[name, barcode || null, category_id ? parseInt(category_id) : null, description || null, sku || null, shelf || null, createdAt]
 		);
 		const id = result.recordset[0].id;
-		// Ensure daily stock entry
+		// Ensure daily stock entry - using plain array params
 		const today = getTodayLocal();
+		const stockTimestamp = nowIso();
 		await query(
 			`INSERT INTO daily_stock (product_id, available_qty, avg_cost, date, created_at, updated_at) 
 			 VALUES ($1, 0, 0, $2, $3, $3)
 			 ON CONFLICT (product_id, date) DO NOTHING`,
-			[{ product_id: id }, { date: today }, { created_at: nowIso() }]
+			[id, today, stockTimestamp]
 		);
 		res.json({ id });
 	} catch (err) {
@@ -473,40 +540,43 @@ router.post('/products', async (req, res) => {
 	}
 });
 
-router.put('/products/:id', async (req, res) => {
+router.put('/products/:id', [
+	param('id').isInt().withMessage('Invalid product ID'),
+], handleValidationErrors, async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
 		const { name, barcode, category_id, description, sku, shelf } = req.body;
 		const updates = [];
-		const params = [{ id }];
+		const params = [];
 		let paramIndex = 1;
 		if (name !== undefined) {
 			updates.push(`name = $${++paramIndex}`);
-			params.push({ name });
+			params.push(name);
 		}
 		if (barcode !== undefined) {
 			updates.push(`barcode = $${++paramIndex}`);
-			params.push({ barcode: barcode || null });
+			params.push(barcode || null);
 		}
 		if (category_id !== undefined) {
 			updates.push(`category_id = $${++paramIndex}`);
-			params.push({ category_id: category_id ? parseInt(category_id) : null });
+			params.push(category_id ? parseInt(category_id) : null);
 		}
 		if (description !== undefined) {
 			updates.push(`description = $${++paramIndex}`);
-			params.push({ description: description || null });
+			params.push(description || null);
 		}
 		if (sku !== undefined) {
 			updates.push(`sku = $${++paramIndex}`);
-			params.push({ sku: sku || null });
+			params.push(sku || null);
 		}
 		if (shelf !== undefined) {
 			updates.push(`shelf = $${++paramIndex}`);
-			params.push({ shelf: shelf || null });
+			params.push(shelf || null);
 		}
 		if (updates.length === 0) {
 			return res.json({ id });
 		}
+		params.unshift(id); // Add id as first parameter
 		await query(`UPDATE products SET ${updates.join(', ')} WHERE id = $1`, params);
 		res.json({ id });
 	} catch (err) {
@@ -515,16 +585,18 @@ router.put('/products/:id', async (req, res) => {
 	}
 });
 
-router.delete('/products/:id', async (req, res) => {
+router.delete('/products/:id', [
+	param('id').isInt().withMessage('Invalid product ID'),
+], handleValidationErrors, async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
-		// Check if product exists
-		const checkResult = await query('SELECT id FROM products WHERE id = $1', [{ id }]);
+		// Check if product exists - using plain array params
+		const checkResult = await query('SELECT id FROM products WHERE id = $1', [id]);
 		if (checkResult.recordset.length === 0) {
 			return res.status(404).json({ error: 'Product not found' });
 		}
 		// Delete product (cascade will handle related records)
-		await query('DELETE FROM products WHERE id = $1', [{ id }]);
+		await query('DELETE FROM products WHERE id = $1', [id]);
 		res.json({ success: true, id });
 	} catch (err) {
 		console.error('Delete product error:', err);
@@ -821,8 +893,8 @@ router.put('/invoices/:id', async (req, res) => {
 		const { invoice_type, customer_id, supplier_id, total_amount, is_paid, due_date, items } = req.body;
 		const today = getTodayLocal();
 
-		// Get existing invoice with its date
-		const existingInvoice = await query('SELECT * FROM invoices WHERE id = $1', [{ id }]);
+		// Get existing invoice with its date - using plain array params
+		const existingInvoice = await query('SELECT * FROM invoices WHERE id = $1', [id]);
 		
 		if (existingInvoice.recordset.length === 0) {
 			return res.status(404).json({ error: `Invoice not found with id: ${id}` });
@@ -831,8 +903,8 @@ router.put('/invoices/:id', async (req, res) => {
 		// Get the original invoice date (might be in the past) - convert to local timezone
 		const invoiceDate = oldInvoice.invoice_date ? toLocalDateString(oldInvoice.invoice_date) : today;
 
-		// Get existing invoice items
-		const oldItemsResult = await query('SELECT * FROM invoice_items WHERE invoice_id = $1', [{ invoice_id: id }]);
+		// Get existing invoice items - using plain array params
+		const oldItemsResult = await query('SELECT * FROM invoice_items WHERE invoice_id = $1', [id]);
 		const oldItems = oldItemsResult.recordset;
 
 		// Collect all affected products (from both old and new items)
@@ -840,38 +912,37 @@ router.put('/invoices/:id', async (req, res) => {
 		oldItems.forEach(item => affectedProducts.add(item.product_id));
 		items.forEach(item => affectedProducts.add(parseInt(item.product_id)));
 
-		// Delete old invoice items (stock movements will be updated by the function, not deleted)
-		await query('DELETE FROM invoice_items WHERE invoice_id = $1', [{ invoice_id: id }]);
+		// Delete old invoice items (stock movements will be updated by the function, not deleted) - using plain array params
+		await query('DELETE FROM invoice_items WHERE invoice_id = $1', [id]);
 
-		// Update invoice
+		// Update invoice - using plain array params
 		await query(
 			'UPDATE invoices SET invoice_type = $1, customer_id = $2, supplier_id = $3, total_amount = $4, is_paid = $5, due_date = $6 WHERE id = $7',
-			[
-				{ invoice_type },
-				{ customer_id: customer_id ? parseInt(customer_id) : null },
-				{ supplier_id: supplier_id ? parseInt(supplier_id) : null },
-				{ total_amount },
-				{ is_paid: is_paid ? 1 : 0 },
-				{ due_date: due_date || null },
-				{ id }
-			]
+			[invoice_type, customer_id ? parseInt(customer_id) : null, supplier_id ? parseInt(supplier_id) : null, 
+			 total_amount, is_paid ? 1 : 0, due_date || null, id]
 		);
 
-		// Create new invoice items (stock movements already exist and will be updated by the function)
-		for (const item of items) {
+		// Batch insert new invoice items for better performance
+		if (items.length > 0) {
+			const itemValues = [];
+			const itemParams = [];
+			let paramIndex = 1;
+			
+			for (const item of items) {
+				itemValues.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8})`);
+				itemParams.push(
+					id, parseInt(item.product_id), item.quantity, item.unit_price, item.total_price,
+					item.price_type, item.is_private_price ? 1 : 0,
+					item.is_private_price ? item.private_price_amount : null,
+					item.is_private_price ? item.private_price_note : null
+				);
+				paramIndex += 9;
+			}
+			
 			await query(
-				'INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
-				[
-					{ invoice_id: id },
-					{ product_id: parseInt(item.product_id) },
-					{ quantity: item.quantity },
-					{ unit_price: item.unit_price },
-					{ total_price: item.total_price },
-					{ price_type: item.price_type },
-					{ is_private_price: item.is_private_price ? 1 : 0 },
-					{ private_price_amount: item.is_private_price ? item.private_price_amount : null },
-					{ private_price_note: item.is_private_price ? item.private_price_note : null }
-				]
+				`INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) 
+				 VALUES ${itemValues.join(', ')}`,
+				itemParams
 			);
 		}
 
@@ -883,16 +954,10 @@ router.put('/invoices/:id', async (req, res) => {
 				const change = invoice_type === 'sell' ? -item.quantity : item.quantity;
 				const unitCost = parseFloat(item.unit_price);
 				
-				// Call the stored procedure to recalculate - it will update the stock movement we just created
+				// Call the stored procedure to recalculate - using plain array params
 				await query(
 					'SELECT recalculate_stock_after_invoice($1, $2, $3, $4, $5)',
-					[
-						{ invoice_id: id },
-						{ product_id: productId },
-						{ action_type: 'EDIT' },
-						{ new_qty: change },
-						{ new_unit_cost: unitCost }
-					]
+					[id, productId, 'EDIT', change, unitCost]
 				);
 			}
 		}
@@ -904,50 +969,59 @@ router.put('/invoices/:id', async (req, res) => {
 	}
 });
 
-router.delete('/invoices/:id', async (req, res) => {
+router.delete('/invoices/:id', [
+	param('id').isInt().withMessage('Invalid invoice ID'),
+], handleValidationErrors, async (req, res) => {
+	const pool = getPool();
+	const client = await pool.connect();
+	
 	try {
+		await client.query('BEGIN');
+		
 		const id = parseInt(req.params.id);
 		
-		// Check if invoice exists and get its items
-		const checkResult = await query('SELECT id FROM invoices WHERE id = $1', [{ id }]);
-		if (checkResult.recordset.length === 0) {
+		// Check if invoice exists - using plain array params
+		const checkResult = await client.query('SELECT id FROM invoices WHERE id = $1', [id]);
+		if (checkResult.rows.length === 0) {
+			await client.query('ROLLBACK');
 			return res.status(404).json({ error: 'Invoice not found' });
 		}
 		
-		// Get invoice items to know which products are affected
-		const itemsResult = await query('SELECT DISTINCT product_id FROM invoice_items WHERE invoice_id = $1', [{ invoice_id: id }]);
-		const affectedProducts = itemsResult.recordset.map(row => row.product_id);
+		// Get invoice items to know which products are affected - using plain array params
+		const itemsResult = await client.query('SELECT DISTINCT product_id FROM invoice_items WHERE invoice_id = $1', [id]);
+		const affectedProducts = itemsResult.rows.map(row => row.product_id);
 		
-		// Call the stored procedure for each affected product with DELETE action
+		// Call the stored procedure for each affected product with DELETE action - using plain array params
 		for (const productId of affectedProducts) {
-			await query(
+			await client.query(
 				'SELECT recalculate_stock_after_invoice($1, $2, $3, NULL, NULL)',
-				[
-					{ invoice_id: id },
-					{ product_id: productId },
-					{ action_type: 'DELETE' }
-				]
+				[id, productId, 'DELETE']
 			);
 			console.log(`  Recalculated stock for product ${productId} after DELETE using stored procedure`);
 		}
 		
-		// Delete related records (stored procedure already deleted stock_movements)
-		await query('DELETE FROM invoice_items WHERE invoice_id = $1', [{ invoice_id: id }]);
-		await query('DELETE FROM invoice_payments WHERE invoice_id = $1', [{ invoice_id: id }]);
+		// Delete related records (stored procedure already deleted stock_movements) - using plain array params
+		await client.query('DELETE FROM invoice_items WHERE invoice_id = $1', [id]);
+		await client.query('DELETE FROM invoice_payments WHERE invoice_id = $1', [id]);
 		
-		// Delete invoice
-		await query('DELETE FROM invoices WHERE id = $1', [{ id }]);
+		// Delete invoice - using plain array params
+		await client.query('DELETE FROM invoices WHERE id = $1', [id]);
 		
+		await client.query('COMMIT');
 		res.json({ success: true, id });
 	} catch (err) {
+		await client.query('ROLLBACK');
 		console.error('Delete invoice error:', err);
 		res.status(500).json({ error: err.message });
+	} finally {
+		client.release();
 	}
 });
 
 router.get('/invoices/overdue', async (req, res) => {
 	try {
 		const today = getTodayLocal();
+		// Using plain array params
 		const invoices = await query(
 			`SELECT i.*, c.name as customer_name, c.phone as customer_phone, s.name as supplier_name, s.phone as supplier_phone
 			 FROM invoices i
@@ -957,7 +1031,7 @@ router.get('/invoices/overdue', async (req, res) => {
 			   AND CAST(i.due_date AS DATE) < CAST($1 AS DATE)
 			   AND i.payment_status != 'paid'
 			 ORDER BY i.due_date ASC`,
-			[{ today }]
+			[today]
 		);
 		
 		// Format the response to match frontend expectations
@@ -974,63 +1048,78 @@ router.get('/invoices/overdue', async (req, res) => {
 	}
 });
 
-router.post('/invoices', async (req, res) => {
+router.post('/invoices', [
+	body('invoice_type').isIn(['buy', 'sell']).withMessage('Invoice type must be buy or sell'),
+	body('items').isArray({ min: 1 }).withMessage('At least one item is required'),
+	body('total_amount').isFloat({ min: 0 }).withMessage('Total amount must be a positive number'),
+], handleValidationErrors, async (req, res) => {
+	const pool = getPool();
+	const client = await pool.connect();
+	
 	try {
+		await client.query('BEGIN');
+		
 		const { invoice_type, customer_id, supplier_id, total_amount, is_paid, due_date, items } = req.body;
-		// Use PostgreSQL's NOW() with timezone conversion to get current time in Lebanon timezone
 		const today = getTodayLocal();
-
-		// Create invoice - use lebanonISO() which returns PostgreSQL compatible format
 		const invoiceTimestamp = nowIso();
-		// Format is already "YYYY-MM-DD HH:mm" - directly usable for PostgreSQL TIMESTAMP
-		const invoiceResult = await query(
+		
+		// Create invoice - using plain array params
+		const invoiceResult = await client.query(
 			`INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, is_paid, invoice_date, due_date, created_at) 
 			 VALUES ($1, $2, $3, $4, $5, $6::timestamp, $7, $6::timestamp) RETURNING id, invoice_date`,
-			[
-				{ invoice_type },
-				{ customer_id: customer_id ? parseInt(customer_id) : null },
-				{ supplier_id: supplier_id ? parseInt(supplier_id) : null },
-				{ total_amount },
-				{ is_paid: is_paid ? 1 : 0 },
-				{ invoice_date: invoiceTimestamp },
-				{ due_date: due_date || null },
-			]
+			[invoice_type, customer_id ? parseInt(customer_id) : null, supplier_id ? parseInt(supplier_id) : null, 
+			 total_amount, is_paid ? 1 : 0, invoiceTimestamp, due_date || null]
 		);
-		const invoiceId = invoiceResult.recordset[0].id;
-		const invoice_date = invoiceResult.recordset[0].invoice_date;
-
-		// Create invoice items and update stock
+		const invoiceId = invoiceResult.rows[0].id;
+		const invoice_date = invoiceResult.rows[0].invoice_date;
+		
+		// Batch fetch stock data for all products at once (minimize DB calls)
+		const productIds = items.map(item => parseInt(item.product_id));
+		const stockDataResult = await client.query(
+			`SELECT product_id, available_qty, avg_cost 
+			 FROM daily_stock 
+			 WHERE product_id = ANY($1) AND date <= $2 
+			 ORDER BY product_id, date DESC, updated_at DESC`,
+			[productIds, today]
+		);
+		
+		// Create a map of product_id -> latest stock data
+		const stockMap = new Map();
+		stockDataResult.rows.forEach(row => {
+			if (!stockMap.has(row.product_id)) {
+				stockMap.set(row.product_id, {
+					available_qty: row.available_qty || 0,
+					avg_cost: row.avg_cost || 0
+				});
+			}
+		});
+		
+		// Prepare batch insert data for invoice items
+		const itemValues = [];
+		const itemParams = [];
+		
+		// Prepare batch insert data for stock movements  
+		const movementValues = [];
+		const movementParams = [];
+		
+		// Prepare batch upsert data for daily_stock
+		const stockValues = [];
+		const stockParams = [];
+		
+		const stockTimestamp = nowIso();
+		let itemParamIndex = 1;
+		let movementParamIndex = 1;
+		let stockParamIndex = 1;
+		
 		for (const item of items) {
-			await query(
-				'INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
-				[
-					{ invoice_id: invoiceId },
-					{ product_id: parseInt(item.product_id) },
-					{ quantity: item.quantity },
-					{ unit_price: item.unit_price },
-					{ total_price: item.total_price },
-					{ price_type: item.price_type },
-					{ is_private_price: item.is_private_price ? 1 : 0 },
-					{ private_price_amount: item.is_private_price ? item.private_price_amount : null },
-					{ private_price_note: item.is_private_price ? item.private_price_note : null },
-				]
-			);
-
-			// Get the quantity before this transaction (from today or last available)
-			let stockBefore = await query(
-				'SELECT available_qty, avg_cost FROM daily_stock WHERE product_id = $1 AND date <= $2 ORDER BY date DESC, updated_at DESC LIMIT 1', 
-				[
-					{ product_id: parseInt(item.product_id) },
-					{ date: today },
-				]
-			);
-			
-			let qtyBefore = stockBefore.recordset[0]?.available_qty || 0;
-			let prevAvgCost = stockBefore.recordset[0]?.avg_cost || 0;
+			const productId = parseInt(item.product_id);
+			const stockData = stockMap.get(productId) || { available_qty: 0, avg_cost: 0 };
+			let qtyBefore = stockData.available_qty;
+			let prevAvgCost = stockData.avg_cost;
 			
 			const change = invoice_type === 'sell' ? -item.quantity : item.quantity;
 			const qtyAfter = qtyBefore + change;
-
+			
 			// Determine new avg cost for BUY; keep previous for SELL
 			let newAvgCost = prevAvgCost || 0;
 			if (invoice_type === 'buy') {
@@ -1039,50 +1128,67 @@ router.post('/invoices', async (req, res) => {
 				const denominator = (qtyBefore || 0) + buyQty;
 				newAvgCost = denominator > 0 ? (((prevAvgCost || 0) * (qtyBefore || 0)) + (buyCost * buyQty)) / denominator : buyCost;
 			}
-
-			// Calculate unit_cost and avg_cost_after
-			const unitCost = parseFloat(item.unit_price);
-			const avgCostAfter = newAvgCost;
 			
-			// Record stock movement with today's date, including unit_cost and avg_cost_after
-			// Use lebanonISO() which returns PostgreSQL compatible format
-			const movementTimestamp = nowIso();
-			const movementResult = await query(
-				`INSERT INTO stock_movements (product_id, invoice_id, invoice_date, quantity_before, quantity_change, quantity_after, unit_cost, avg_cost_after, created_at) 
-				 VALUES ($1, $2, (SELECT invoice_date FROM invoices WHERE id = $2), $3, $4, $5, $6, $7, $8::timestamp) RETURNING id`,
-				[
-					{ product_id: parseInt(item.product_id) },
-					{ invoice_id: invoiceId },
-					{ quantity_before: qtyBefore },
-					{ quantity_change: change },
-					{ quantity_after: qtyAfter },
-					{ unit_cost: unitCost },
-					{ avg_cost_after: avgCostAfter },
-					{ created_at: movementTimestamp },
-				]
+			const unitCost = parseFloat(item.unit_price);
+			
+			// Build invoice items batch insert
+			itemValues.push(`($${itemParamIndex}, $${itemParamIndex + 1}, $${itemParamIndex + 2}, $${itemParamIndex + 3}, $${itemParamIndex + 4}, $${itemParamIndex + 5}, $${itemParamIndex + 6}, $${itemParamIndex + 7}, $${itemParamIndex + 8})`);
+			itemParams.push(
+				invoiceId, productId, item.quantity, item.unit_price, item.total_price,
+				item.price_type, item.is_private_price ? 1 : 0,
+				item.is_private_price ? item.private_price_amount : null,
+				item.is_private_price ? item.private_price_note : null
 			);
-
-			// Update daily_stock with quantity_after and avg_cost_after
-			const stockTimestamp = nowIso();
-			await query(
-				`INSERT INTO daily_stock (product_id, available_qty, avg_cost, date, created_at, updated_at) 
-				 VALUES ($1, $2, $3, $4, $5, $5)
-				 ON CONFLICT (product_id, date) 
-				 DO UPDATE SET available_qty = $2, avg_cost = $3, updated_at = $5`,
-				[
-					{ product_id: parseInt(item.product_id) },
-					{ available_qty: qtyAfter },
-					{ avg_cost: avgCostAfter },
-					{ date: today },
-					{ updated_at: stockTimestamp },
-				]
+			itemParamIndex += 9;
+			
+			// Build stock movements batch insert (using invoice_date subquery)
+			movementValues.push(`($${movementParamIndex}, $${movementParamIndex + 1}, (SELECT invoice_date FROM invoices WHERE id = $${movementParamIndex + 1}), $${movementParamIndex + 2}, $${movementParamIndex + 3}, $${movementParamIndex + 4}, $${movementParamIndex + 5}, $${movementParamIndex + 6}, $${movementParamIndex + 7}::timestamp)`);
+			movementParams.push(productId, invoiceId, qtyBefore, change, qtyAfter, unitCost, newAvgCost, invoiceTimestamp);
+			movementParamIndex += 8;
+			
+			// Build daily_stock batch upsert
+			stockValues.push(`($${stockParamIndex}, $${stockParamIndex + 1}, $${stockParamIndex + 2}, $${stockParamIndex + 3}, $${stockParamIndex + 4}, $${stockParamIndex + 4})`);
+			stockParams.push(productId, qtyAfter, newAvgCost, today, stockTimestamp);
+			stockParamIndex += 5;
+		}
+		
+		// Batch insert invoice items
+		if (itemValues.length > 0) {
+			await client.query(
+				`INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) 
+				 VALUES ${itemValues.join(', ')}`,
+				itemParams
 			);
 		}
-
+		
+		// Batch insert stock movements
+		if (movementValues.length > 0) {
+			await client.query(
+				`INSERT INTO stock_movements (product_id, invoice_id, invoice_date, quantity_before, quantity_change, quantity_after, unit_cost, avg_cost_after, created_at) 
+				 VALUES ${movementValues.join(', ')}`,
+				movementParams
+			);
+		}
+		
+		// Batch upsert daily_stock
+		if (stockValues.length > 0) {
+			await client.query(
+				`INSERT INTO daily_stock (product_id, available_qty, avg_cost, date, created_at, updated_at) 
+				 VALUES ${stockValues.join(', ')}
+				 ON CONFLICT (product_id, date) 
+				 DO UPDATE SET available_qty = EXCLUDED.available_qty, avg_cost = EXCLUDED.avg_cost, updated_at = EXCLUDED.updated_at`,
+				stockParams
+			);
+		}
+		
+		await client.query('COMMIT');
 		res.json({ id: invoiceId, invoice_date });
 	} catch (err) {
+		await client.query('ROLLBACK');
 		console.error('Create invoice error:', err);
 		res.status(500).json({ error: err.message });
+	} finally {
+		client.release();
 	}
 });
 
@@ -1092,20 +1198,20 @@ router.get('/invoices/:id', async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
 		
-		// Get invoice
-		const invoiceResult = await query('SELECT * FROM invoices WHERE id = $1', [{ id }]);
+		// Get invoice - using plain array params
+		const invoiceResult = await query('SELECT * FROM invoices WHERE id = $1', [id]);
 		if (invoiceResult.recordset.length === 0) {
 			return res.status(404).json({ error: 'Invoice not found' });
 		}
 		
 		const invoice = invoiceResult.recordset[0];
 		
-		// Get payments (with currency information)
+		// Get payments (with currency information) - using plain array params
 		const paymentsResult = await query(
 			`SELECT id, invoice_id, paid_amount, currency_code, exchange_rate_on_payment, usd_equivalent_amount, 
 			 payment_date, payment_method, notes, created_at 
 			 FROM invoice_payments WHERE invoice_id = $1 ORDER BY payment_date DESC`,
-			[{ invoice_id: id }]
+			[id]
 		);
 		const payments = paymentsResult.recordset;
 		
@@ -1114,20 +1220,20 @@ router.get('/invoices/:id', async (req, res) => {
 			return sum + parseFloat(String(p.usd_equivalent_amount || 0));
 		}, 0);
 		
-		// Get invoice items with product details
+		// Get invoice items with product details - using plain array params
 		const itemsResult = await query(
 			`SELECT ii.*, p.name as product_name, p.barcode as product_barcode
 			 FROM invoice_items ii
 			 LEFT JOIN products p ON ii.product_id = p.id
 			 WHERE ii.invoice_id = $1
 			 ORDER BY ii.id`,
-			[{ invoice_id: id }]
+			[id]
 		);
 		const invoice_items = itemsResult.recordset;
 		
-		// Get customer/supplier details
-		const customersResult = await query('SELECT * FROM customers WHERE id = $1', [{ id: invoice.customer_id || 0 }]);
-		const suppliersResult = await query('SELECT * FROM suppliers WHERE id = $1', [{ id: invoice.supplier_id || 0 }]);
+		// Get customer/supplier details - using plain array params
+		const customersResult = await query('SELECT * FROM customers WHERE id = $1', [invoice.customer_id || 0]);
+		const suppliersResult = await query('SELECT * FROM suppliers WHERE id = $1', [invoice.supplier_id || 0]);
 		
 		// Convert DECIMAL strings to numbers
 		const amountPaid = totalPaidUsd; // Use calculated USD equivalent total
@@ -1856,6 +1962,25 @@ router.get('/daily-stock/avg-costs', async (req, res) => {
 });
 
 // ===== PRODUCT PRICES =====
+// Get products without any prices (for add price dialog)
+router.get('/products/without-prices', async (req, res) => {
+	try {
+		// Get all products that don't have any prices - using plain array params
+		const result = await query(
+			`SELECT p.id, p.name, p.barcode, p.category_id, p.description, p.sku, p.shelf, p.created_at, c.name as category_name
+			 FROM products p
+			 LEFT JOIN categories c ON p.category_id = c.id
+			 WHERE p.id NOT IN (SELECT DISTINCT product_id FROM product_prices WHERE product_id IS NOT NULL)
+			 ORDER BY p.created_at DESC`,
+			[]
+		);
+		res.json(result.recordset);
+	} catch (err) {
+		console.error('Get products without prices error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
 // Get all product prices with optional filters
 router.get('/product-prices', async (req, res) => {
 	try {
@@ -1874,17 +1999,17 @@ router.get('/product-prices', async (req, res) => {
 		if (product_id) {
 			paramIndex++;
 			sql += ` AND pp.product_id = $${paramIndex}`;
-			params.push({ product_id });
+			params.push(product_id);
 		}
 		if (start_date) {
 			paramIndex++;
 			sql += ` AND pp.effective_date >= $${paramIndex}`;
-			params.push({ start_date });
+			params.push(start_date);
 		}
 		if (end_date) {
 			paramIndex++;
 			sql += ` AND pp.effective_date <= $${paramIndex}`;
-			params.push({ end_date });
+			params.push(end_date);
 		}
 		
 		sql += ' ORDER BY pp.effective_date DESC, pp.created_at DESC';
@@ -1898,16 +2023,19 @@ router.get('/product-prices', async (req, res) => {
 });
 
 // Get prices for a specific product
-router.get('/products/:id/prices', async (req, res) => {
+router.get('/products/:id/prices', [
+	param('id').isInt().withMessage('Invalid product ID'),
+], handleValidationErrors, async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
+		// Using plain array params
 		const result = await query(
 			`SELECT pp.*, p.name as product_name, p.barcode
 			 FROM product_prices pp
 			 LEFT JOIN products p ON pp.product_id = p.id
 			 WHERE pp.product_id = $1
 			 ORDER BY pp.effective_date DESC`,
-			[{ productId: id }]
+			[id]
 		);
 		res.json(result.recordset);
 	} catch (err) {
@@ -1917,16 +2045,19 @@ router.get('/products/:id/prices', async (req, res) => {
 });
 
 // Get latest price for a specific product
-router.get('/products/:id/price-latest', async (req, res) => {
+router.get('/products/:id/price-latest', [
+	param('id').isInt().withMessage('Invalid product ID'),
+], handleValidationErrors, async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
+		// Using plain array params
 		const result = await query(
 			`SELECT pp.*
 			 FROM product_prices pp
 			 WHERE pp.product_id = $1
 			 ORDER BY pp.effective_date DESC, pp.created_at DESC
 			 LIMIT 1`,
-			[{ productId: id }]
+			[id]
 		);
 		res.json(result.recordset[0] || null);
 	} catch (err) {

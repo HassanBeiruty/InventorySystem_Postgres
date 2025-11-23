@@ -19,6 +19,7 @@ const ProductPrices = () => {
   const [loading, setLoading] = useState(true);
   const [prices, setPrices] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+  const [productsWithoutPrices, setProductsWithoutPrices] = useState<any[]>([]);
   const [filters, setFilters] = useState({
     product_id: "all",
     start_date: "",
@@ -80,6 +81,29 @@ const ProductPrices = () => {
   const clearFilters = () => {
     setFilters({ product_id: "all", start_date: "", end_date: "" });
     fetchData();
+  };
+
+  // Fetch products without prices when add dialog opens
+  const fetchProductsWithoutPrices = async () => {
+    try {
+      const prods = await productsRepo.listWithoutPrices();
+      setProductsWithoutPrices(prods || []);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle add dialog open/close
+  const handleAddDialogOpenChange = (open: boolean) => {
+    setIsAddOpen(open);
+    if (open) {
+      fetchProductsWithoutPrices();
+      setAddProductId("");
+    }
   };
 
   const handleAdd = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -185,7 +209,7 @@ const ProductPrices = () => {
               <Filter className="w-4 h-4" />
               {showFilters ? t('common.hideFilters') : t('common.showFilters')}
             </Button>
-            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+            <Dialog open={isAddOpen} onOpenChange={handleAddDialogOpenChange}>
               <DialogTrigger asChild>
                 <Button className="gap-2">
                   <Plus className="w-4 h-4" />
@@ -200,18 +224,24 @@ const ProductPrices = () => {
                 <form onSubmit={handleAdd} className="space-y-4 py-4">
                   <div className="space-y-2">
                     <Label>{t('invoiceForm.product')}</Label>
-                    <Select value={addProductId} onValueChange={setAddProductId} required>
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('invoiceForm.selectProduct')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {products.map((product) => (
-                          <SelectItem key={product.id} value={product.id}>
-                            <span className="text-muted-foreground text-xs">#{product.id}</span> {product.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {productsWithoutPrices.length === 0 ? (
+                      <div className="text-sm text-muted-foreground p-2 border rounded-md">
+                        No products without prices available. All products already have prices.
+                      </div>
+                    ) : (
+                      <Select value={addProductId} onValueChange={setAddProductId} required>
+                        <SelectTrigger>
+                          <SelectValue placeholder={t('invoiceForm.selectProduct')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {productsWithoutPrices.map((product) => (
+                            <SelectItem key={product.id} value={String(product.id)}>
+                              <span className="text-muted-foreground text-xs">#{product.id}</span> {product.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                     <input type="hidden" name="product_id" value={addProductId} />
                   </div>
                   <div className="space-y-2">

@@ -227,6 +227,9 @@ export const productsRepo = {
   async list(): Promise<ProductEntity[]> {
     return fetchJson<ProductEntity[]>(`/api/products`);
   },
+  async listWithoutPrices(): Promise<ProductEntity[]> {
+    return fetchJson<ProductEntity[]>(`/api/products/without-prices`);
+  },
   async add(input: { name: string; barcode: string | null; category_id: number | null; description: string | null; sku: string | null; shelf: string | null }) {
     await fetchJson<{ id: string }>(`/api/products`, {
       method: "POST",
