@@ -142,7 +142,7 @@ const ProductCosts = () => {
                   <SelectTrigger>
                     <SelectValue placeholder="All products" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent side="bottom" align="start">
                     <SelectItem value="all">All products</SelectItem>
                     {products.map((product) => (
                       <SelectItem key={product.id} value={product.id}>

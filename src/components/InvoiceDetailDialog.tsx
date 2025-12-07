@@ -294,7 +294,7 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between pr-8">
             <div>
               <DialogTitle>
                 {loading || !invoice ? `Loading Invoice...` : `Invoice #${invoice.id}`}
@@ -302,7 +302,7 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
               <DialogDescription>View complete invoice details and items</DialogDescription>
             </div>
             {!loading && invoice && (
-              <Button onClick={handlePrint} variant="outline" size="sm">
+              <Button onClick={handlePrint} variant="outline" size="sm" className="mr-2">
                 <Printer className="w-4 h-4 mr-2" />
                 Print
               </Button>

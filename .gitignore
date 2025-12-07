@@ -50,6 +50,10 @@ secrets/
 *.timestamp*
 vite.config.ts.timestamp-*.mjs
 
+# Test coverage and reports
+server/coverage/
+server/test-reports/
+
 # Logs and temporary files
 *.tmp
 *.temp

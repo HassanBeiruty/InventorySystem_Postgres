@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -7,10 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, ChevronUp, ChevronDown, Package, AlertTriangle, Scan, X } from "lucide-react";
+import { Plus, Trash2, ChevronUp, ChevronDown, Package, AlertTriangle } from "lucide-react";
 import { productsRepo, customersRepo, suppliersRepo, invoicesRepo, productPricesRepo, inventoryRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
-import { BrowserMultiFormatReader, NotFoundException } from "@zxing/library";
 import { useTranslation } from "react-i18next";
 
 interface InvoiceItem {
@@ -22,7 +21,7 @@ interface InvoiceItem {
   is_private_price: boolean;
   private_price_amount: number;
   private_price_note: string;
-  barcode?: string; // Barcode field for each item
+  barcode?: string;
 }
 
 const InvoiceForm = () => {
@@ -34,24 +33,40 @@ const InvoiceForm = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
-  // Invoice type is determined from URL for new invoices, or loaded from data for edits
   const [invoiceType, setInvoiceType] = useState<'buy' | 'sell'>(location.pathname.includes('/buy') ? 'buy' : 'sell');
-  
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
+  
+  // Update invoice type when URL changes
+  useEffect(() => {
+    if (isEditMode) return; // Don't change type in edit mode
+    
+    const newType = location.pathname.includes('/buy') ? 'buy' : 'sell';
+    setInvoiceType(newType);
+    setSelectedEntity(""); // Reset selected entity when switching types
+    setItems([{
+      product_id: "",
+      quantity: 1,
+      unit_price: 0,
+      price_type: 'retail',
+      total_price: 0,
+      is_private_price: false,
+      private_price_amount: 0,
+      private_price_note: "",
+      barcode: "",
+    }]);
+  }, [location.pathname, isEditMode]);
   const [products, setProducts] = useState<any[]>([]);
   const [latestPrices, setLatestPrices] = useState<Record<string, { wholesale_price: number | null; retail_price: number | null }>>({});
   const [customers, setCustomers] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
-  const [availableStock, setAvailableStock] = useState<Map<string, number>>(new Map()); // product_id -> available_qty
+  const [availableStock, setAvailableStock] = useState<Map<string, number>>(new Map());
   
   const [selectedEntity, setSelectedEntity] = useState("");
   const [dueDate, setDueDate] = useState<string>("");
   const [barcodeInput, setBarcodeInput] = useState("");
-  const [activeItemIndex, setActiveItemIndex] = useState<number>(0); // Track which item row is active
-  const [isScanning, setIsScanning] = useState(false);
-  const [codeReader, setCodeReader] = useState<BrowserMultiFormatReader | null>(null);
-  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
+  const [activeItemIndex, setActiveItemIndex] = useState<number>(0);
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<InvoiceItem[]>([{
     product_id: "",
     quantity: 1,
@@ -359,6 +374,7 @@ const InvoiceForm = () => {
         description: "Cannot add new items in edit mode. You can only modify quantity and price of existing items.",
         variant: "info",
       });
+      setBarcodeInput("");
       return;
     }
 
@@ -372,11 +388,16 @@ const InvoiceForm = () => {
         description: `No product found with barcode: ${barcode}`,
         variant: "info",
       });
+      // Clear and refocus for next scan
+      setBarcodeInput("");
+      setTimeout(() => {
+        barcodeInputRef.current?.focus();
+      }, 100);
       return;
     }
 
     // Check if this product is already in the items list
-    const existingItemIndex = items.findIndex(item => 
+    const existingItemIndex = items.findIndex(item =>
       item.product_id && String(item.product_id) === String(product.id)
     );
     
@@ -423,6 +444,12 @@ const InvoiceForm = () => {
         setItems(prevItems => prevItems.filter(item => item.product_id || prevItems.length === 1));
       }, 50);
     }
+
+    // Clear barcode input and refocus for next scan
+    setBarcodeInput("");
+    setTimeout(() => {
+      barcodeInputRef.current?.focus();
+    }, 100);
   };
 
   const handlePriceTypeChange = (index: number, priceType: 'retail' | 'wholesale') => {
@@ -538,106 +565,19 @@ const InvoiceForm = () => {
     return items.filter(item => item.product_id).reduce((sum, item) => sum + item.total_price, 0);
   };
 
-
-  // Start barcode scanning
-  const startScanning = async () => {
-    try {
-      setIsScanning(true);
-      // Wait for React to render the container
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      const reader = new BrowserMultiFormatReader();
-      const videoElementId = 'barcode-scanner-video';
-
-      // Get container element
-      const container = document.getElementById('barcode-scanner-container');
-      if (!container) {
-        throw new Error('Scanner container not found');
-      }
-
-      // Create video element
-      let video = document.getElementById(videoElementId) as HTMLVideoElement;
-      if (!video) {
-        video = document.createElement('video');
-        video.id = videoElementId;
-        video.style.width = '100%';
-        video.style.maxWidth = '640px';
-        video.style.borderRadius = '8px';
-        video.setAttribute('autoplay', 'true');
-        video.setAttribute('playsinline', 'true');
-        container.appendChild(video);
-      }
-      
-      setVideoElement(video);
-      setCodeReader(reader);
-
-      // Start decoding from video device
-      reader.decodeFromVideoDevice(null, videoElementId, (result, err) => {
-        if (result) {
-          const barcode = result.getText();
-          setBarcodeInput(barcode);
-          handleTopBarcodeSearch(barcode);
-          stopScanning();
-        }
-        if (err && !(err instanceof NotFoundException)) {
-          // Only log non-not-found errors (not found is expected when no barcode is visible)
-          // Scan error occurred
-        }
-      });
-    } catch (error: any) {
-      console.error('Error starting scanner:', error);
-      toast({
-        title: "Camera Error",
-        description: error.message || "Failed to access camera. Please check permissions.",
-        variant: "destructive",
-      });
-      setIsScanning(false);
-      if (codeReader) {
-        codeReader.reset();
-        setCodeReader(null);
-      }
-    }
-  };
-
-  // Stop barcode scanning
-  const stopScanning = () => {
-    const reader = codeReader;
-    const video = document.getElementById('barcode-scanner-video') as HTMLVideoElement;
-    
-    if (reader) {
-      reader.reset();
-      setCodeReader(null);
-    }
-    
-    if (video && video.srcObject) {
-      const stream = video.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
-      video.srcObject = null;
-      if (video.parentNode) {
-        video.parentNode.removeChild(video);
-      }
-    }
-    
-    setVideoElement(null);
-    setIsScanning(false);
-  };
-
-  // Cleanup on unmount
+  // Scroll to top when page loads - run after page is fully rendered
   useEffect(() => {
-    return () => {
-      if (codeReader) {
-        codeReader.reset();
-      }
-      if (videoElement && videoElement.srcObject) {
-        const stream = videoElement.srcObject as MediaStream;
-        stream.getTracks().forEach(track => track.stop());
-        if (videoElement.parentNode) {
-          videoElement.parentNode.removeChild(videoElement);
-        }
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!pageLoading) {
+      // Use requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, behavior: 'instant' });
+        // Also scroll document element for compatibility
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+      });
+    }
+  }, [pageLoading]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -836,7 +776,7 @@ const InvoiceForm = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4 sm:space-y-6">
+      <div className="space-y-3 sm:space-y-4">
         <div>
           <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
             {isEditMode ? (invoiceType === 'sell' ? t('invoiceForm.editSellInvoice') : t('invoiceForm.editBuyInvoice')) : (invoiceType === 'sell' ? t('invoiceForm.newSellInvoice') : t('invoiceForm.newBuyInvoice'))}
@@ -867,7 +807,7 @@ const InvoiceForm = () => {
                   <SelectTrigger id="entity-select">
                     <SelectValue placeholder={invoiceType === 'sell' ? t('invoiceForm.selectCustomer') : t('invoiceForm.selectSupplier')} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent side="bottom" align="start">
                     {(invoiceType === 'sell' ? customers : suppliers).length === 0 ? (
                       <SelectItem value="loading" disabled>Loading...</SelectItem>
                     ) : (
@@ -906,60 +846,27 @@ const InvoiceForm = () => {
               {/* Barcode Scanner Section */}
               <div className="border rounded-lg p-3 sm:p-4 bg-muted/30 space-y-3">
                 <Label className="text-sm sm:text-base font-semibold">{t('invoiceForm.scanOrEnterBarcode')}</Label>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Input
-                    placeholder={t('invoiceForm.enterBarcodeOrScan')}
-                    value={barcodeInput}
-                    onChange={(e) => setBarcodeInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleTopBarcodeSearch(barcodeInput);
-                      }
-                    }}
-                    onBlur={() => {
+                <Input
+                  ref={barcodeInputRef}
+                  placeholder={t('invoiceForm.enterBarcodeOrScan')}
+                  value={barcodeInput}
+                  onChange={(e) => setBarcodeInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
                       if (barcodeInput.trim()) {
                         handleTopBarcodeSearch(barcodeInput);
                       }
-                    }}
-                    className="flex-1"
-                    disabled={isScanning}
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant={isScanning ? "destructive" : "outline"}
-                      onClick={isScanning ? stopScanning : startScanning}
-                      className="gap-1.5 sm:gap-2 flex-1 sm:flex-initial text-xs sm:text-sm"
-                    >
-                      {isScanning ? (
-                        <>
-                          <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                          <span className="hidden sm:inline">{t('invoiceForm.stop')}</span>
-                        </>
-                      ) : (
-                        <>
-                          <Scan className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                          <span className="hidden sm:inline">{t('invoiceForm.scan')}</span>
-                        </>
-                      )}
-                    </Button>
-                    {barcodeInput && !isScanning && (
-                      <Button
-                        type="button"
-                        onClick={() => handleTopBarcodeSearch(barcodeInput)}
-                        className="gap-1.5 sm:gap-2 text-xs sm:text-sm"
-                      >
-                        {t('invoiceForm.search')}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                {isScanning && (
-                  <div id="barcode-scanner-container" className="mt-3 flex justify-center">
-                    {/* Video element will be inserted here */}
-                  </div>
-                )}
+                    }
+                  }}
+                  className="w-full h-10 text-base"
+                  disabled={isEditMode}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {isEditMode 
+                    ? "Barcode scanning is disabled in edit mode" 
+                    : "Scan barcode with scanner or type manually (press Enter to search)"}
+                </p>
               </div>
               {items.map((item, index) => {
                 const availableQty = invoiceType === 'sell' && item.product_id ? (availableStock.get(String(item.product_id)) || 0) : null;
@@ -989,7 +896,7 @@ const InvoiceForm = () => {
                           <SelectTrigger id={`product-${index}`} className="h-8 text-sm">
                             <SelectValue placeholder={t('invoiceForm.selectProduct')} />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent side="bottom" align="start">
                             {products.map((product) => (
                               <SelectItem key={product.id} value={String(product.id)}>
                                 <span className="text-muted-foreground text-xs">#{product.id}</span> {product.name}
@@ -1077,7 +984,7 @@ const InvoiceForm = () => {
                             <SelectTrigger id={`price-type-${index}`} className="h-8 text-sm">
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent side="bottom" align="start">
                               <SelectItem value="retail">{t('invoiceForm.retail')}</SelectItem>
                               <SelectItem value="wholesale">{t('invoiceForm.wholesale')}</SelectItem>
                             </SelectContent>

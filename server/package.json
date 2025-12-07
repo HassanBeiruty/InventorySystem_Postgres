@@ -7,6 +7,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:user-flow": "jest tests/integration/user-flow.test.js",
+    "test:comprehensive": "node tests/comprehensive/00-test-runner.js all",
+    "test:comprehensive:section": "node tests/comprehensive/00-test-runner.js",
     "start": "node index.js",
     "dev": "node index.js",
     "seed": "node scripts/seed_data.js",

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
 import PaymentDialog from "@/components/PaymentDialog";
@@ -289,7 +289,7 @@ const InvoicesList = () => {
                   <SelectTrigger>
                     <SelectValue placeholder={t('invoices.allTypes')} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent side="bottom" align="start">
                     <SelectItem value="all">{t('invoices.allTypes')}</SelectItem>
                     <SelectItem value="sell">{t('invoices.sell')}</SelectItem>
                     <SelectItem value="buy">{t('invoices.buy')}</SelectItem>
@@ -303,7 +303,7 @@ const InvoicesList = () => {
                   <SelectTrigger>
                     <SelectValue placeholder={t('invoices.allStatuses')} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent side="bottom" align="start">
                     <SelectItem value="all">{t('invoices.allStatuses')}</SelectItem>
                     <SelectItem value="paid">{t('invoices.paid')}</SelectItem>
                     <SelectItem value="partial">{t('invoices.partiallyPaid')}</SelectItem>
@@ -318,7 +318,7 @@ const InvoicesList = () => {
                   <SelectTrigger>
                     <SelectValue placeholder={t('invoices.allProducts')} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent side="bottom" align="start">
                     <SelectItem value="all">{t('invoices.allProducts')}</SelectItem>
                     {products.map((product) => (
                       <SelectItem key={product.id} value={product.id}>
@@ -335,7 +335,7 @@ const InvoicesList = () => {
                   <SelectTrigger>
                     <SelectValue placeholder={t('invoices.allCustomers')} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent side="bottom" align="start">
                     <SelectItem value="all">{t('invoices.allCustomers')}</SelectItem>
                     {customers.map((customer) => (
                       <SelectItem key={customer.id} value={customer.id}>
@@ -352,7 +352,7 @@ const InvoicesList = () => {
                   <SelectTrigger>
                     <SelectValue placeholder={t('invoices.allSuppliers')} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent side="bottom" align="start">
                     <SelectItem value="all">{t('invoices.allSuppliers')}</SelectItem>
                     {suppliers.map((supplier) => (
                       <SelectItem key={supplier.id} value={supplier.id}>

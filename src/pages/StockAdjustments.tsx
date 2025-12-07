@@ -135,7 +135,7 @@ const StockAdjustments = () => {
                     <SelectTrigger>
                       <SelectValue placeholder={t('invoiceForm.selectProduct')} />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent side="bottom" align="start">
                       {products.map((product) => (
                         <SelectItem key={product.id} value={product.id.toString()}>
                           {product.name} {product.barcode ? `(${product.barcode})` : ""}
@@ -165,7 +165,7 @@ const StockAdjustments = () => {
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent side="bottom" align="start">
                       <SelectItem value="adjustment">{t('stockAdjustments.adjustment')}</SelectItem>
                       <SelectItem value="transfer">Transfer</SelectItem>
                       <SelectItem value="damage">Damage</SelectItem>

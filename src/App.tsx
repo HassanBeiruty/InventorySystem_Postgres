@@ -11,6 +11,7 @@ const Auth = lazy(() => import("./pages/Auth"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Products = lazy(() => import("./pages/Products"));
+const QuickAddProducts = lazy(() => import("./pages/QuickAddProducts"));
 const Categories = lazy(() => import("./pages/Categories"));
 const Customers = lazy(() => import("./pages/Customers"));
 const Suppliers = lazy(() => import("./pages/Suppliers"));
@@ -60,6 +61,7 @@ const App = () => (
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/products" element={<Products />} />
+            <Route path="/products/quick-add" element={<QuickAddProducts />} />
             <Route path="/categories" element={<Categories />} />
             <Route path="/customers" element={<Customers />} />
             <Route path="/suppliers" element={<Suppliers />} />

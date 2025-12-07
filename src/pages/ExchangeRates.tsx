@@ -240,7 +240,7 @@ const ExchangeRates = () => {
                       <SelectTrigger>
                         <SelectValue placeholder={t("exchangeRates.selectCurrency")} />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent side="bottom" align="start">
                         <SelectItem value="USD">USD</SelectItem>
                         <SelectItem value="LBP">LBP</SelectItem>
                         <SelectItem value="EUR">EUR</SelectItem>
@@ -339,7 +339,7 @@ const ExchangeRates = () => {
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder={t("exchangeRates.currency")} />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent side="bottom" align="start">
                   <SelectItem value="all">{t("exchangeRates.allCurrencies")}</SelectItem>
                   <SelectItem value="USD">USD</SelectItem>
                   <SelectItem value="LBP">LBP</SelectItem>
@@ -353,7 +353,7 @@ const ExchangeRates = () => {
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder={t("invoices.status")} />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent side="bottom" align="start">
                   <SelectItem value="all">{t("exchangeRates.allStatus")}</SelectItem>
                   <SelectItem value="true">{t("exchangeRates.activeStatus")}</SelectItem>
                   <SelectItem value="false">{t("exchangeRates.inactiveStatus")}</SelectItem>
@@ -453,7 +453,7 @@ const ExchangeRates = () => {
                       <SelectTrigger>
                         <SelectValue placeholder={t("exchangeRates.selectCurrency")} />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent side="bottom" align="start">
                         <SelectItem value="USD">USD</SelectItem>
                         <SelectItem value="LBP">LBP</SelectItem>
                         <SelectItem value="EUR">EUR</SelectItem>

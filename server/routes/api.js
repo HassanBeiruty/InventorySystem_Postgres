@@ -240,7 +240,7 @@ router.post('/auth/signup', authLimiter, [
 		const user = insertResult.recordset[0];
 		const isAdmin = user.is_admin === true || user.is_admin === 1;
 		
-		if (isFirstUser) {
+		if (isFirstUser && process.env.NODE_ENV !== 'production') {
 			console.log(`✓ First user created and set as admin: ${email}`);
 		}
 		
@@ -548,13 +548,47 @@ router.delete('/categories/:id', [
 // ===== PRODUCTS =====
 router.get('/products', async (req, res) => {
 	try {
+		// Add pagination for performance
+		const limit = Math.min(parseInt(req.query.limit) || 200, 1000);
+		const offset = Math.max(parseInt(req.query.offset) || 0, 0);
+		
 		const result = await query(
-			'SELECT p.id, p.name, p.barcode, p.category_id, p.description, p.sku, p.shelf, p.created_at, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id ORDER BY p.created_at DESC',
-			[]
+			'SELECT p.id, p.name, p.barcode, p.category_id, p.description, p.sku, p.shelf, p.created_at, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id ORDER BY p.created_at DESC LIMIT $1 OFFSET $2',
+			[limit, offset]
 		);
 		res.json(result.recordset);
 	} catch (err) {
 		console.error('List products error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Quick add product (barcode scanner optimized - only barcode + name)
+router.post('/products/quick-add', [
+	body('name').trim().notEmpty().withMessage('Product name is required'),
+	body('barcode').trim().notEmpty().withMessage('Barcode is required'),
+], handleValidationErrors, async (req, res) => {
+	try {
+		const { name, barcode } = req.body;
+		const createdAt = nowIso();
+		// Using plain array params
+		const result = await query(
+			'INSERT INTO products (name, barcode, category_id, description, sku, shelf, created_at) VALUES ($1, $2, NULL, NULL, NULL, NULL, $3) RETURNING id',
+			[name, barcode, createdAt]
+		);
+		const id = result.recordset[0].id;
+		// Ensure daily stock entry - using plain array params
+		const today = getTodayLocal();
+		const stockTimestamp = nowIso();
+		await query(
+			`INSERT INTO daily_stock (product_id, available_qty, avg_cost, date, created_at, updated_at) 
+			 VALUES ($1, 0, 0, $2, $3, $3)
+			 ON CONFLICT (product_id, date) DO NOTHING`,
+			[id, today, stockTimestamp]
+		);
+		res.json({ id });
+	} catch (err) {
+		console.error('Quick add product error:', err);
 		res.status(500).json({ error: err.message });
 	}
 });
@@ -654,24 +688,36 @@ router.delete('/products/:id', [
 // ===== INVOICES =====
 router.get('/invoices', async (req, res) => {
 	try {
-		// Load invoices with customer and supplier data via JOINs (more efficient)
-		const [invoicesResult, invoiceItemsResult] = await Promise.all([
-			query(
-				`SELECT 
-					i.*,
-					c.id as customer_id_val, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, c.credit_limit as customer_credit_limit, c.created_at as customer_created_at,
-					s.id as supplier_id_val, s.name as supplier_name, s.phone as supplier_phone, s.address as supplier_address, s.created_at as supplier_created_at
-				FROM invoices i
-				LEFT JOIN customers c ON i.customer_id = c.id
-				LEFT JOIN suppliers s ON i.supplier_id = s.id
-				ORDER BY i.created_at DESC`,
-				[]
-			),
-			query('SELECT * FROM invoice_items ORDER BY invoice_id, id', [])
-		]);
+		// Add pagination support - default to 100 items max for performance
+		const limit = Math.min(parseInt(req.query.limit) || 100, 500); // Max 500 items
+		const offset = Math.max(parseInt(req.query.offset) || 0, 0);
 		
-		// Log the count for debugging
-		console.log(`[Invoices] Total invoices fetched: ${invoicesResult.recordset.length}`);
+		// Optimized query with pagination - only load invoice items for returned invoices
+		const invoicesResult = await query(
+			`SELECT 
+				i.*,
+				c.id as customer_id_val, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, c.credit_limit as customer_credit_limit, c.created_at as customer_created_at,
+				s.id as supplier_id_val, s.name as supplier_name, s.phone as supplier_phone, s.address as supplier_address, s.created_at as supplier_created_at
+			FROM invoices i
+			LEFT JOIN customers c ON i.customer_id = c.id
+			LEFT JOIN suppliers s ON i.supplier_id = s.id
+			ORDER BY i.created_at DESC
+			LIMIT $1 OFFSET $2`,
+			[limit, offset]
+		);
+		
+		// Only fetch invoice items for the invoices we're returning (much faster)
+		const invoiceIds = invoicesResult.recordset.map(inv => inv.id);
+		let invoiceItemsResult = { recordset: [] };
+		if (invoiceIds.length > 0) {
+			const placeholders = invoiceIds.map((_, i) => `$${i + 1}`).join(',');
+			invoiceItemsResult = await query(
+				`SELECT * FROM invoice_items 
+				WHERE invoice_id IN (${placeholders})
+				ORDER BY invoice_id, id`,
+				invoiceIds
+			);
+		}
 		
 		// Group invoice items by invoice_id
 		const idToItems = new Map();
@@ -683,11 +729,10 @@ router.get('/invoices', async (req, res) => {
 		});
 		
 		const result = invoicesResult.recordset.map((inv) => {
-			try {
 			const amountPaid = inv.amount_paid || 0;
 			const totalAmount = inv.total_amount || 0;
 			const remainingBalance = totalAmount - amountPaid;
-			// Calculate payment status based on amount_paid (always recalculate for consistency)
+			// Calculate payment status based on amount_paid
 			let paymentStatus;
 			if (amountPaid >= totalAmount) {
 				paymentStatus = 'paid';
@@ -720,33 +765,18 @@ router.get('/invoices', async (req, res) => {
 			const { customer_id_val, customer_name, customer_phone, customer_address, customer_credit_limit, customer_created_at,
 				supplier_id_val, supplier_name, supplier_phone, supplier_address, supplier_created_at, ...invoiceData } = inv;
 			
-				return {
-					...invoiceData,
-					is_paid: !!inv.is_paid,
-					amount_paid: amountPaid,
-					payment_status: paymentStatus,
-					remaining_balance: remainingBalance,
-					customers,
-					suppliers,
-					invoice_items: idToItems.get(inv.id) || [],
-				};
-			} catch (err) {
-				console.error(`[Invoices] Error processing invoice ${inv.id}:`, err);
-				// Return a basic invoice object even if processing fails
-				return {
-					...inv,
-					is_paid: !!inv.is_paid,
-					amount_paid: inv.amount_paid || 0,
-					payment_status: 'pending',
-					remaining_balance: (inv.total_amount || 0) - (inv.amount_paid || 0),
-					customers: undefined,
-					suppliers: undefined,
-					invoice_items: idToItems.get(inv.id) || [],
-				};
-			}
+			return {
+				...invoiceData,
+				is_paid: !!inv.is_paid,
+				amount_paid: amountPaid,
+				payment_status: paymentStatus,
+				remaining_balance: remainingBalance,
+				customers,
+				suppliers,
+				invoice_items: idToItems.get(inv.id) || [],
+			};
 		});
 		
-		console.log(`[Invoices] Total invoices returned: ${result.length}`);
 		res.json(result);
 	} catch (err) {
 		console.error('List invoices error:', err);
@@ -1044,7 +1074,6 @@ router.delete('/invoices/:id', [
 				'SELECT recalculate_stock_after_invoice($1, $2, $3, NULL, NULL)',
 				[id, productId, 'DELETE']
 			);
-			console.log(`  Recalculated stock for product ${productId} after DELETE using stored procedure`);
 		}
 		
 		// Delete related records (stored procedure already deleted stock_movements) - using plain array params
@@ -1722,7 +1751,11 @@ router.get('/inventory/low-stock/:threshold', async (req, res) => {
 
 router.get('/inventory/daily', async (req, res) => {
 	try {
-		// Use JOIN to get products with stock data (more efficient)
+		// Add pagination for performance
+		const limit = Math.min(parseInt(req.query.limit) || 200, 1000);
+		const offset = Math.max(parseInt(req.query.offset) || 0, 0);
+		
+		// Optimized query with pagination
 		const result = await query(
 			`SELECT 
 				ds.*,
@@ -1730,8 +1763,9 @@ router.get('/inventory/daily', async (req, res) => {
 				p.description as product_description, p.sku as product_sku, p.shelf as product_shelf, p.created_at as product_created_at
 			FROM daily_stock ds
 			LEFT JOIN products p ON ds.product_id = p.id
-			ORDER BY ds.date DESC`,
-			[]
+			ORDER BY ds.date DESC, ds.product_id ASC
+			LIMIT $1 OFFSET $2`,
+			[limit, offset]
 		);
 		
 		const formattedResult = result.recordset.map((row) => {
@@ -1820,17 +1854,36 @@ router.get('/inventory/today', async (req, res) => {
 
 router.get('/inventory/daily-history', async (req, res) => {
 	try {
-		// Use JOIN to get products with stock data (more efficient)
-		const result = await query(
-			`SELECT 
+		// Add pagination and date filtering for performance
+		const limit = Math.min(parseInt(req.query.limit) || 200, 1000);
+		const offset = Math.max(parseInt(req.query.offset) || 0, 0);
+		const { start_date, end_date } = req.query;
+		
+		let sql = `SELECT 
 				ds.*,
 				p.id as product_id_val, p.name as product_name, p.barcode as product_barcode, p.category_id as product_category_id,
 				p.description as product_description, p.sku as product_sku, p.shelf as product_shelf, p.created_at as product_created_at
 			FROM daily_stock ds
 			LEFT JOIN products p ON ds.product_id = p.id
-			ORDER BY ds.date DESC, ds.product_id ASC`,
-			[]
-		);
+			WHERE 1=1`;
+		const params = [];
+		let paramIndex = 0;
+		
+		if (start_date) {
+			paramIndex++;
+			sql += ` AND ds.date >= $${paramIndex}`;
+			params.push(start_date);
+		}
+		if (end_date) {
+			paramIndex++;
+			sql += ` AND ds.date <= $${paramIndex}`;
+			params.push(end_date);
+		}
+		
+		sql += ` ORDER BY ds.date DESC, ds.product_id ASC LIMIT $${paramIndex + 1} OFFSET $${paramIndex + 2}`;
+		params.push(limit, offset);
+		
+		const result = await query(sql, params);
 		
 		const formattedResult = result.recordset.map((row) => {
 			const { product_id_val, product_name, product_barcode, product_category_id, product_description, 
@@ -1863,20 +1916,19 @@ router.get('/inventory/daily-history', async (req, res) => {
 // ===== STOCK MOVEMENTS =====
 router.get('/stock-movements/recent/:limit', async (req, res) => {
 	try {
-		const limit = parseInt(req.params.limit) || 20;
+		const limit = Math.min(parseInt(req.params.limit) || 20, 500); // Cap at 500 for performance
 		
-		// Use JOIN to only get products for the limited movements (more efficient)
+		// Optimized query - use index on invoice_date
 		const result = await query(
 			`SELECT 
 				sm.*,
 				p.id as product_id_val, p.name as product_name, p.barcode as product_barcode, p.category_id as product_category_id,
 				p.description as product_description, p.sku as product_sku, p.shelf as product_shelf, p.created_at as product_created_at
-			FROM (
-				SELECT * FROM stock_movements ORDER BY invoice_date DESC LIMIT $1
-			) sm
+			FROM stock_movements sm
 			LEFT JOIN products p ON sm.product_id = p.id
-			ORDER BY sm.invoice_date DESC`,
-			[{ limit }]
+			ORDER BY sm.invoice_date DESC, sm.created_at DESC
+			LIMIT $1`,
+			[limit]
 		);
 		
 		const formattedResult = result.recordset.map((row) => {
@@ -2116,16 +2168,13 @@ router.get('/products/:id/price-latest', [
 // Get latest prices for all products
 router.get('/product-prices/latest', async (req, res) => {
 	try {
+		// Optimized query using DISTINCT ON (PostgreSQL specific, faster than subquery)
 		const result = await query(
-			`SELECT pp.product_id, p.name, p.barcode, pp.wholesale_price, pp.retail_price, pp.effective_date
+			`SELECT DISTINCT ON (pp.product_id)
+				pp.product_id, p.name, p.barcode, pp.wholesale_price, pp.retail_price, pp.effective_date
 			 FROM product_prices pp
 			 INNER JOIN products p ON pp.product_id = p.id
-			 INNER JOIN (
-				 SELECT product_id, MAX(effective_date) as max_date
-				 FROM product_prices
-				 GROUP BY product_id
-			 ) latest ON pp.product_id = latest.product_id AND pp.effective_date = latest.max_date
-			 ORDER BY p.name`
+			 ORDER BY pp.product_id, pp.effective_date DESC, pp.created_at DESC`
 		);
 		res.json(result.recordset);
 	} catch (err) {

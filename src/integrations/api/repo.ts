@@ -230,8 +230,14 @@ export const productsRepo = {
   async listWithoutPrices(): Promise<ProductEntity[]> {
     return fetchJson<ProductEntity[]>(`/api/products/without-prices`);
   },
+  async quickAdd(input: { name: string; barcode: string }) {
+    return fetchJson<{ id: string }>(`/api/products/quick-add`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
   async add(input: { name: string; barcode: string | null; category_id: number | null; description: string | null; sku: string | null; shelf: string | null }) {
-    await fetchJson<{ id: string }>(`/api/products`, {
+    return fetchJson<{ id: string }>(`/api/products`, {
       method: "POST",
       body: JSON.stringify(input),
     });

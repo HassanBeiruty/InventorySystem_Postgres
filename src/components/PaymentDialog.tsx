@@ -346,7 +346,7 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
                           <SelectTrigger id="currency_code">
                             <SelectValue placeholder="Select currency" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent side="bottom" align="start">
                             <SelectItem value="USD">USD</SelectItem>
                             <SelectItem value="LBP">LBP</SelectItem>
                             <SelectItem value="EUR">EUR</SelectItem>
@@ -410,7 +410,7 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
                         <SelectTrigger id="payment_method">
                           <SelectValue placeholder="Select payment method" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent side="bottom" align="start">
                           <SelectItem value="none">None</SelectItem>
                           <SelectItem value="Cash">Cash</SelectItem>
                           <SelectItem value="Credit Card">Credit Card</SelectItem>

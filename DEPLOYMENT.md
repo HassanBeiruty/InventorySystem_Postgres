@@ -76,7 +76,7 @@ This guide will help you deploy the Invoice System to free hosting platforms.
 
 5. Click **"Create Web Service"**
 6. Wait for deployment (5-10 minutes)
-7. **Save your backend URL**: `https://invoicesystem-api.onrender.com` (or your custom domain)
+7. **Save your backend URL**: `https://invoicesystem-api.onrender.com` (or 'https://invoicesystem-api-esb1.onrender.com')
 
 ### 1.4 Update Backend URL
 
@@ -155,12 +155,12 @@ After both services are deployed:
    
    You can use:
    - **Postman**
-   - **curl**: `curl -X POST https://invoicesystem-api.onrender.com/api/admin/init`
+   - **curl**: `curl -X POST https://invoicesystem-api-esb1.onrender.com/api/admin/init`
    - **Browser extension** (like REST Client)
 
 3. Verify initialization:
    ```
-   GET https://invoicesystem-api.onrender.com/api/admin/init-status
+   GET https://invoicesystem-api-esb1.onrender.com/api/admin/init-status
    ```
    Should show all tables created.
 

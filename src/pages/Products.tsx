@@ -7,24 +7,30 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Package, Pencil, Download, Trash2 } from "lucide-react";
-import { productsRepo, categoriesRepo } from "@/integrations/api/repo";
+import { Plus, Package, Pencil, Download, Trash2, Scan, Search, X } from "lucide-react";
+import { productsRepo, categoriesRepo, productPricesRepo } from "@/integrations/api/repo";
+import { getTodayLebanon } from "@/utils/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 
 const Products = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [formCategoryId, setFormCategoryId] = useState<string>("");
   const [editFormCategoryId, setEditFormCategoryId] = useState<string>("");
+  const [latestPrice, setLatestPrice] = useState<{ wholesale_price: number | null; retail_price: number | null } | null>(null);
+  const [wholesalePrice, setWholesalePrice] = useState<string>("");
+  const [retailPrice, setRetailPrice] = useState<string>("");
   const { toast } = useToast();
 
   const fetchProducts = async () => {
@@ -63,9 +69,29 @@ const Products = () => {
     loadData();
   }, []);
 
-  const filteredProducts = selectedCategory === "all" 
-    ? products 
-    : products.filter(p => p.category_id?.toString() === selectedCategory);
+  const filteredProducts = products.filter(p => {
+    // Search filter - search across all fields
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const name = (p.name || "").toLowerCase();
+      const barcode = (p.barcode || "").toLowerCase();
+      const sku = (p.sku || "").toLowerCase();
+      const shelf = (p.shelf || "").toLowerCase();
+      const category = (p.category_name || "").toLowerCase();
+      const description = (p.description || "").toLowerCase();
+      const id = (p.id || "").toString();
+      
+      return name.includes(query) || 
+             barcode.includes(query) || 
+             sku.includes(query) || 
+             shelf.includes(query) || 
+             category.includes(query) || 
+             description.includes(query) ||
+             id.includes(query);
+    }
+    
+    return true;
+  });
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -77,9 +103,12 @@ const Products = () => {
     const description = formData.get("description") as string;
     const sku = formData.get("sku") as string;
     const shelf = formData.get("shelf") as string;
+    const wholesalePrice = formData.get("wholesale_price") as string;
+    const retailPrice = formData.get("retail_price") as string;
 
     try {
-      await productsRepo.add({
+      // Add product
+      const result = await productsRepo.add({
         name,
         barcode: barcode || null,
         category_id: formCategoryId ? parseInt(formCategoryId) : null,
@@ -87,6 +116,24 @@ const Products = () => {
         sku: sku || null,
         shelf: shelf || null,
       });
+
+      // Add pricing if provided
+      const wholesale = wholesalePrice?.trim() ? parseFloat(wholesalePrice) : null;
+      const retail = retailPrice?.trim() ? parseFloat(retailPrice) : null;
+      
+      if (wholesale !== null && retail !== null && !isNaN(wholesale) && !isNaN(retail) && result?.id) {
+        try {
+          await productPricesRepo.create({
+            product_id: result.id.toString(),
+            wholesale_price: wholesale,
+            retail_price: retail,
+            effective_date: getTodayLebanon(),
+          });
+        } catch (priceError) {
+          // Log but don't fail the product creation
+          console.error('Price creation error:', priceError);
+        }
+      }
     } catch (error: any) {
       setLoading(false);
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -104,9 +151,26 @@ const Products = () => {
     fetchProducts();
   };
 
-  const handleEdit = (product: any) => {
+  const handleEdit = async (product: any) => {
     setEditingProduct(product);
     setEditFormCategoryId(product.category_id?.toString() || "");
+    setWholesalePrice("");
+    setRetailPrice("");
+    
+    // Fetch latest price for this product
+    try {
+      const price = await productPricesRepo.latestForProduct(product.id.toString());
+      if (price) {
+        setLatestPrice({ wholesale_price: price.wholesale_price, retail_price: price.retail_price });
+        setWholesalePrice(price.wholesale_price.toString());
+        setRetailPrice(price.retail_price.toString());
+      } else {
+        setLatestPrice(null);
+      }
+    } catch (error) {
+      setLatestPrice(null);
+    }
+    
     setEditOpen(true);
   };
 
@@ -122,6 +186,7 @@ const Products = () => {
     const shelf = formData.get("shelf") as string;
 
     try {
+      // Update product
       await productsRepo.update(editingProduct.id, {
         name,
         barcode: barcode || null,
@@ -130,6 +195,37 @@ const Products = () => {
         sku: sku || null,
         shelf: shelf || null,
       });
+
+      // Update or create price if provided
+      const wholesale = wholesalePrice.trim() ? parseFloat(wholesalePrice) : null;
+      const retail = retailPrice.trim() ? parseFloat(retailPrice) : null;
+      
+      if (wholesale !== null && retail !== null && !isNaN(wholesale) && !isNaN(retail)) {
+        try {
+          // Check if price exists
+          const existingPrices = await productPricesRepo.list(editingProduct.id.toString());
+          if (existingPrices.length > 0) {
+            // Update latest price
+            const latestPriceId = existingPrices[0].id;
+            await productPricesRepo.update(latestPriceId, {
+              wholesale_price: wholesale,
+              retail_price: retail,
+              effective_date: getTodayLebanon(),
+            });
+          } else {
+            // Create new price
+            await productPricesRepo.create({
+              product_id: editingProduct.id.toString(),
+              wholesale_price: wholesale,
+              retail_price: retail,
+              effective_date: getTodayLebanon(),
+            });
+          }
+        } catch (priceError) {
+          // Log but don't fail the product update
+          console.error('Price update error:', priceError);
+        }
+      }
     } catch (error: any) {
       setLoading(false);
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -142,6 +238,9 @@ const Products = () => {
     setEditOpen(false);
     setEditingProduct(null);
     setEditFormCategoryId("");
+    setWholesalePrice("");
+    setRetailPrice("");
+    setLatestPrice(null);
     fetchProducts();
   };
 
@@ -194,6 +293,15 @@ const Products = () => {
           <div className="flex gap-2 w-full sm:w-auto">
             <Button 
               variant="outline"
+              onClick={() => navigate("/products/quick-add")}
+              className="hover:scale-105 transition-all duration-300 font-semibold text-xs sm:text-sm flex-1 sm:flex-initial"
+            >
+              <Scan className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Quick Add</span>
+              <span className="sm:hidden">Quick</span>
+            </Button>
+            <Button 
+              variant="outline"
               onClick={() => window.open('/api/export/products', '_blank')}
               className="hover:scale-105 transition-all duration-300 font-semibold text-xs sm:text-sm flex-1 sm:flex-initial"
             >
@@ -208,52 +316,92 @@ const Products = () => {
                 {t('products.addProduct')}
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>{t('products.addProduct')}</DialogTitle>
+                <DialogTitle className="text-2xl">{t('products.addProduct')}</DialogTitle>
                 <DialogDescription>{t('products.subtitle')}</DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-3 py-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="name" className="text-sm">{t('products.productName')}</Label>
-                  <Input id="name" name="name" placeholder={t('products.productName')} required className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="sku" className="text-sm">SKU</Label>
-                  <Input id="sku" name="sku" placeholder="SKU (optional)" className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="shelf" className="text-sm">Shelf</Label>
-                  <Input id="shelf" name="shelf" placeholder="Shelf (optional)" className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="barcode" className="text-sm">{t('products.barcode')}</Label>
-                  <Input id="barcode" name="barcode" placeholder={t('products.barcode')} className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="category_id" className="text-sm">{t('categories.title')}</Label>
-                  <Select value={formCategoryId || "none"} onValueChange={(val) => setFormCategoryId(val === "none" ? "" : val)}>
-                    <SelectTrigger id="category_id" className="h-9">
-                      <SelectValue placeholder={`${t('common.all')} ${t('categories.title')}`} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">{t('common.all')}</SelectItem>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id.toString()}>
-                          {cat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="description" className="text-sm">{t('categories.description')}</Label>
-                  <Textarea id="description" name="description" placeholder={t('categories.description')} rows={2} className="text-sm" />
+              <form onSubmit={handleSubmit} className="space-y-4 py-2">
+                {/* Basic Information Section */}
+                <div className="space-y-4">
+                  <h3 className="text-base font-semibold border-b pb-2">Basic Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name" className="text-sm font-medium">{t('products.productName')} <span className="text-destructive">*</span></Label>
+                      <Input id="name" name="name" placeholder={t('products.productName')} required className="h-10" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="barcode" className="text-sm font-medium">{t('products.barcode')}</Label>
+                      <Input id="barcode" name="barcode" placeholder={t('products.barcode')} className="h-10" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="category_id" className="text-sm font-medium">{t('categories.title')}</Label>
+                      <Select value={formCategoryId || "none"} onValueChange={(val) => setFormCategoryId(val === "none" ? "" : val)}>
+                        <SelectTrigger id="category_id" className="h-10">
+                          <SelectValue placeholder={`${t('common.all')} ${t('categories.title')}`} />
+                        </SelectTrigger>
+                        <SelectContent side="bottom" align="start">
+                          <SelectItem value="none">{t('common.all')}</SelectItem>
+                          {categories.map((cat) => (
+                            <SelectItem key={cat.id} value={cat.id.toString()}>
+                              {cat.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="sku" className="text-sm font-medium">SKU</Label>
+                      <Input id="sku" name="sku" placeholder="SKU (optional)" className="h-10" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="shelf" className="text-sm font-medium">Shelf</Label>
+                      <Input id="shelf" name="shelf" placeholder="Shelf (optional)" className="h-10" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="description" className="text-sm font-medium">{t('categories.description')}</Label>
+                    <Textarea id="description" name="description" placeholder={t('categories.description')} rows={3} className="text-sm" />
+                  </div>
                 </div>
                 
-                <Button type="submit" className="w-full h-9 mt-2" disabled={loading}>
-                  {loading ? t('common.loading') : t('common.save')}
-                </Button>
+                {/* Pricing Section */}
+                <div className="pt-4 border-t space-y-4">
+                  <h3 className="text-base font-semibold border-b pb-2">Pricing</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="wholesale-price" className="text-sm font-medium">Wholesale Price ($)</Label>
+                      <Input 
+                        id="wholesale-price" 
+                        type="number" 
+                        step="0.01" 
+                        name="wholesale_price"
+                        placeholder="0.00" 
+                        className="h-10" 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="retail-price" className="text-sm font-medium">Retail Price ($)</Label>
+                      <Input 
+                        id="retail-price" 
+                        type="number" 
+                        step="0.01" 
+                        name="retail_price"
+                        placeholder="0.00" 
+                        className="h-10" 
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex gap-3 pt-4 border-t">
+                  <Button type="submit" className="flex-1 h-10" disabled={loading}>
+                    {loading ? t('common.loading') : t('common.save')}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setIsOpen(false)} className="h-10">
+                    Cancel
+                  </Button>
+                </div>
               </form>
             </DialogContent>
           </Dialog>
@@ -271,20 +419,26 @@ const Products = () => {
             <CardDescription className="text-sm sm:text-base">{t('products.subtitle')}</CardDescription>
               </div>
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-                <Label htmlFor="category-filter" className="text-xs sm:text-sm whitespace-nowrap">{t('common.filter')} {t('categories.title')}:</Label>
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger id="category-filter" className="w-full sm:w-[200px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t('common.all')} {t('categories.title')}</SelectItem>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.id.toString()}>
-                        {cat.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="relative flex-1 sm:flex-initial sm:w-[400px]">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Search products (name, barcode, SKU, shelf, category...)"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-9 h-9"
+                  />
+                  {searchQuery && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -306,11 +460,8 @@ const Products = () => {
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5 hover:from-primary/10 hover:to-accent/10">
                       <TableHead className="font-bold whitespace-nowrap">{t('products.productName')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap">SKU</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap">Shelf</TableHead>
                       <TableHead className="font-bold whitespace-nowrap">{t('products.barcode')}</TableHead>
                       <TableHead className="font-bold whitespace-nowrap">{t('categories.title')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap hidden md:table-cell">{t('categories.description')}</TableHead>
                       <TableHead className="font-bold whitespace-nowrap">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -321,12 +472,14 @@ const Products = () => {
                         className="hover:bg-primary/5 transition-colors animate-fade-in"
                         style={{ animationDelay: `${idx * 0.05}s` }}
                       >
-                        <TableCell className="font-medium whitespace-nowrap"><span className="text-muted-foreground text-sm">#{product.id}</span> {product.name}</TableCell>
-                        <TableCell className="text-muted-foreground whitespace-nowrap">{product.sku || "-"}</TableCell>
-                        <TableCell className="text-muted-foreground whitespace-nowrap">{product.shelf || "-"}</TableCell>
-                        <TableCell className="text-muted-foreground whitespace-nowrap">{product.barcode || "-"}</TableCell>
+                        <TableCell className="font-medium whitespace-nowrap">
+                          <div>
+                            <span className="font-semibold">{product.name}</span>
+                            <span className="text-muted-foreground text-xs ml-2">#{product.id}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground whitespace-nowrap font-mono text-sm">{product.barcode || "-"}</TableCell>
                         <TableCell className="text-muted-foreground whitespace-nowrap">{product.category_name || "-"}</TableCell>
-                        <TableCell className="text-muted-foreground max-w-xs truncate hidden md:table-cell" title={product.description || ""}>{product.description || "-"}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1 sm:gap-2">
                             <Button 
@@ -334,6 +487,7 @@ const Products = () => {
                               size="sm" 
                               onClick={() => handleEdit(product)}
                               className="hover:bg-primary/10 hover:scale-110 transition-all duration-300"
+                              title="Edit"
                             >
                               <Pencil className="w-4 h-4 text-primary" />
                             </Button>
@@ -342,6 +496,7 @@ const Products = () => {
                               size="sm" 
                               onClick={() => handleDelete(product)}
                               className="hover:bg-destructive/10 hover:scale-110 transition-all duration-300 text-destructive hover:text-destructive"
+                              title="Delete"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -357,53 +512,102 @@ const Products = () => {
         </Card>
 
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{t('products.editProduct')}</DialogTitle>
+              <DialogTitle className="text-2xl">{t('products.editProduct')}</DialogTitle>
               <DialogDescription>{t('products.subtitle')}</DialogDescription>
             </DialogHeader>
             {editingProduct && (
-              <form onSubmit={handleUpdate} className="space-y-3 py-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-name" className="text-sm">{t('products.productName')}</Label>
-                  <Input id="edit-name" name="name" defaultValue={editingProduct.name} required className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-sku" className="text-sm">SKU</Label>
-                  <Input id="edit-sku" name="sku" defaultValue={editingProduct.sku || ""} className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-shelf" className="text-sm">Shelf</Label>
-                  <Input id="edit-shelf" name="shelf" defaultValue={editingProduct.shelf || ""} className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-barcode" className="text-sm">{t('products.barcode')}</Label>
-                  <Input id="edit-barcode" name="barcode" defaultValue={editingProduct.barcode || ""} className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-category_id" className="text-sm">{t('categories.title')}</Label>
-                  <Select value={editFormCategoryId || "none"} onValueChange={(val) => setEditFormCategoryId(val === "none" ? "" : val)}>
-                    <SelectTrigger id="edit-category_id" className="h-9">
-                      <SelectValue placeholder={`${t('common.all')} ${t('categories.title')}`} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">{t('common.all')}</SelectItem>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id.toString()}>
-                          {cat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-description" className="text-sm">{t('categories.description')}</Label>
-                  <Textarea id="edit-description" name="description" defaultValue={editingProduct.description || ""} rows={2} className="text-sm" />
+              <form onSubmit={handleUpdate} className="space-y-4 py-2">
+                {/* Basic Information Section */}
+                <div className="space-y-4">
+                  <h3 className="text-base font-semibold border-b pb-2">Basic Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-name" className="text-sm font-medium">{t('products.productName')} <span className="text-destructive">*</span></Label>
+                      <Input id="edit-name" name="name" defaultValue={editingProduct.name} required className="h-10" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-barcode" className="text-sm font-medium">{t('products.barcode')}</Label>
+                      <Input id="edit-barcode" name="barcode" defaultValue={editingProduct.barcode || ""} className="h-10" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-category_id" className="text-sm font-medium">{t('categories.title')}</Label>
+                      <Select value={editFormCategoryId || "none"} onValueChange={(val) => setEditFormCategoryId(val === "none" ? "" : val)}>
+                        <SelectTrigger id="edit-category_id" className="h-10">
+                          <SelectValue placeholder={`${t('common.all')} ${t('categories.title')}`} />
+                        </SelectTrigger>
+                        <SelectContent side="bottom" align="start">
+                          <SelectItem value="none">{t('common.all')}</SelectItem>
+                          {categories.map((cat) => (
+                            <SelectItem key={cat.id} value={cat.id.toString()}>
+                              {cat.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-sku" className="text-sm font-medium">SKU</Label>
+                      <Input id="edit-sku" name="sku" defaultValue={editingProduct.sku || ""} className="h-10" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-shelf" className="text-sm font-medium">Shelf</Label>
+                      <Input id="edit-shelf" name="shelf" defaultValue={editingProduct.shelf || ""} className="h-10" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-description" className="text-sm font-medium">{t('categories.description')}</Label>
+                    <Textarea id="edit-description" name="description" defaultValue={editingProduct.description || ""} rows={3} className="text-sm" />
+                  </div>
                 </div>
                 
-                <Button type="submit" className="w-full h-9 mt-2" disabled={loading}>
-                  {loading ? t('common.loading') : t('common.save')}
-                </Button>
+                {/* Pricing Section */}
+                <div className="pt-4 border-t space-y-4">
+                  <h3 className="text-base font-semibold border-b pb-2">Pricing</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-wholesale-price" className="text-sm font-medium">Wholesale Price ($)</Label>
+                      <Input 
+                        id="edit-wholesale-price" 
+                        type="number" 
+                        step="0.01" 
+                        value={wholesalePrice}
+                        onChange={(e) => setWholesalePrice(e.target.value)}
+                        placeholder="0.00" 
+                        className="h-10" 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-retail-price" className="text-sm font-medium">Retail Price ($)</Label>
+                      <Input 
+                        id="edit-retail-price" 
+                        type="number" 
+                        step="0.01" 
+                        value={retailPrice}
+                        onChange={(e) => setRetailPrice(e.target.value)}
+                        placeholder="0.00" 
+                        className="h-10" 
+                      />
+                    </div>
+                  </div>
+                  {latestPrice && (
+                    <div className="bg-muted/50 p-3 rounded-md">
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-medium">Current Prices:</span> Wholesale ${latestPrice.wholesale_price ? Number(latestPrice.wholesale_price).toFixed(2) : "N/A"}, Retail ${latestPrice.retail_price ? Number(latestPrice.retail_price).toFixed(2) : "N/A"}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex gap-3 pt-4 border-t">
+                  <Button type="submit" className="flex-1 h-10" disabled={loading}>
+                    {loading ? t('common.loading') : t('common.save')}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setEditOpen(false)} className="h-10">
+                    Cancel
+                  </Button>
+                </div>
               </form>
             )}
           </DialogContent>

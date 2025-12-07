@@ -233,7 +233,7 @@ const ProductPrices = () => {
                         <SelectTrigger>
                           <SelectValue placeholder={t('invoiceForm.selectProduct')} />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent side="bottom" align="start">
                           {productsWithoutPrices.map((product) => (
                             <SelectItem key={product.id} value={String(product.id)}>
                               <span className="text-muted-foreground text-xs">#{product.id}</span> {product.name}
@@ -291,7 +291,7 @@ const ProductPrices = () => {
                   <SelectTrigger>
                     <SelectValue placeholder={t('invoices.allProducts')} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent side="bottom" align="start">
                     <SelectItem value="all">{t('invoices.allProducts')}</SelectItem>
                     {products.map((product) => (
                       <SelectItem key={product.id} value={product.id}>

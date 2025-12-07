@@ -123,7 +123,7 @@ export function RecomputePositionsDialog({
               <SelectTrigger id="product-select">
                 <SelectValue placeholder="All Products" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent side="bottom" align="start">
                 <SelectItem value="all">All Products</SelectItem>
                 {products.map((product) => (
                   <SelectItem key={product.id} value={String(product.id)}>
