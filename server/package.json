@@ -13,7 +13,8 @@
     "dev": "node index.js",
     "seed": "node scripts/seed_data.js",
     "seed:master": "node scripts/seed_master_data.js",
-    "clear-users": "node scripts/clear-users.js"
+    "clear-users": "node scripts/clear-users.js",
+    "cleanup-orphaned": "node scripts/cleanup-orphaned-records.js"
   },
   "keywords": [],
   "author": "",

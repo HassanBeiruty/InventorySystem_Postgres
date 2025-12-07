@@ -2187,11 +2187,24 @@ router.get('/product-prices/latest', async (req, res) => {
 router.post('/product-prices', async (req, res) => {
 	try {
 		const { product_id, wholesale_price, retail_price, effective_date } = req.body;
+		
+		// Validate product_id exists
+		const productId = parseInt(product_id);
+		if (!productId || isNaN(productId)) {
+			return res.status(400).json({ error: 'Invalid product_id' });
+		}
+		
+		// Check if product exists
+		const productCheck = await query('SELECT id FROM products WHERE id = $1', [{ id: productId }]);
+		if (productCheck.recordset.length === 0) {
+			return res.status(404).json({ error: `Product with id ${productId} does not exist` });
+		}
+		
 		const result = await query(
 			`INSERT INTO product_prices (product_id, wholesale_price, retail_price, effective_date, created_at)
 			 VALUES ($1, $2, $3, $4, $5) RETURNING id`,
 			[
-				{ product_id: parseInt(product_id) },
+				{ product_id: productId },
 				{ wholesale_price },
 				{ retail_price },
 				{ effective_date: effective_date || getTodayLocal() },
@@ -2202,6 +2215,10 @@ router.post('/product-prices', async (req, res) => {
 		res.json({ id });
 	} catch (err) {
 		console.error('Create product price error:', err);
+		// Check if it's a foreign key constraint error
+		if (err.code === '23503') {
+			return res.status(404).json({ error: `Product with id ${product_id} does not exist` });
+		}
 		res.status(500).json({ error: err.message });
 	}
 });
