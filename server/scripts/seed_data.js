@@ -148,10 +148,11 @@ async function seedData() {
 			}
 		} else {
 			console.log('✅ Demo user already exists');
-			// Always update existing user to admin and reset password
-			const existingUserId = userCheck.recordset[0].id;
-			await query('UPDATE users SET is_admin = true, passwordhash = $1 WHERE id = $2', [passwordHash, existingUserId]);
-			console.log('   ⚠️  Updated existing user to admin and reset password');
+			// If user exists but is not admin and table was empty, make them admin
+			if (isFirstUser) {
+				await query('UPDATE users SET is_admin = true WHERE email = $1', ['hassanalbeiruty@gmail.com']);
+				console.log('   ⚠️  Updated existing user to admin (first user)');
+			}
 		}
 		console.log('');
 
