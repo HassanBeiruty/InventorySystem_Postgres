@@ -1111,11 +1111,19 @@ router.get('/invoices/overdue', async (req, res) => {
 		);
 		
 		// Format the response to match frontend expectations
-		const result = invoices.recordset.map(inv => ({
-			...inv,
-			customers: inv.customer_id ? { name: inv.customer_name, phone: inv.customer_phone } : undefined,
-			suppliers: inv.supplier_id ? { name: inv.supplier_name, phone: inv.supplier_phone } : undefined,
-		}));
+		const result = invoices.recordset.map(inv => {
+			// Calculate remaining balance: total_amount - amount_paid
+			const totalAmount = parseFloat(inv.total_amount || 0);
+			const amountPaid = parseFloat(inv.amount_paid || 0);
+			const remainingBalance = Math.max(0, totalAmount - amountPaid);
+			
+			return {
+				...inv,
+				customers: inv.customer_id ? { name: inv.customer_name, phone: inv.customer_phone } : undefined,
+				suppliers: inv.supplier_id ? { name: inv.supplier_name, phone: inv.supplier_phone } : undefined,
+				remaining_balance: remainingBalance,
+			};
+		});
 		
 		res.json(result);
 	} catch (err) {
@@ -2560,45 +2568,6 @@ router.post('/admin/init', authenticateToken, requireAdmin, async (req, res) => 
 		res.status(500).json({ 
 			success: false,
 			error: 'Database initialization error', 
-			details: err.message 
-		});
-	}
-});
-
-// Public setup endpoint (no auth required) - for initial setup only
-router.post('/setup/seed-master-data', async (req, res) => {
-	try {
-		// Check if any admin exists - if yes, require auth
-		const adminCheck = await query('SELECT COUNT(*) as admin_count FROM users WHERE is_admin = true', []);
-		const adminCount = adminCheck.recordset[0]?.admin_count || 0;
-		
-		if (adminCount > 0) {
-			return res.status(403).json({ 
-				success: false,
-				error: 'Admin already exists. Please use /admin/seed-master-data endpoint with authentication.',
-			});
-		}
-		
-		console.log(`[Setup] Initial seed data requested at ${lebanonTimeForLog()} (Lebanon time)`);
-		
-		// Import and run the seed script function
-		const { seedData } = require('../scripts/seed_data');
-		
-		// Run the seed script
-		await seedData();
-		
-		console.log(`[Setup] ✓ Seed data completed successfully at ${lebanonTimeForLog()} (Lebanon time)`);
-		
-		res.json({
-			success: true,
-			message: 'Seed data completed successfully. Admin user created: hassanalbeiruty@gmail.com / Hassan123',
-		});
-		
-	} catch (err) {
-		console.error('[Setup] Seed data error:', err);
-		res.status(500).json({ 
-			success: false,
-			error: 'Seed script failed', 
 			details: err.message 
 		});
 	}

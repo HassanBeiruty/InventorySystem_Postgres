@@ -222,7 +222,7 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add Payment</DialogTitle>
           <DialogDescription>Record payment for this invoice</DialogDescription>
@@ -298,37 +298,37 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
                   {invoice.payments && invoice.payments.length > 0 && (
                     <div className="space-y-2">
                       <h3 className="font-semibold">Payment History</h3>
-                      <div className="border rounded-lg">
+                      <div className="border rounded-lg overflow-x-auto">
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead>Date</TableHead>
-                              <TableHead>Paid Amount</TableHead>
-                              <TableHead>Currency</TableHead>
-                              <TableHead>Rate</TableHead>
-                              <TableHead>USD Equivalent</TableHead>
-                              <TableHead>Method</TableHead>
-                              <TableHead>Notes</TableHead>
+                              <TableHead className="whitespace-nowrap">Date</TableHead>
+                              <TableHead className="whitespace-nowrap">Paid Amount</TableHead>
+                              <TableHead className="whitespace-nowrap">Currency</TableHead>
+                              <TableHead className="whitespace-nowrap">Rate</TableHead>
+                              <TableHead className="whitespace-nowrap">USD Equivalent</TableHead>
+                              <TableHead className="whitespace-nowrap">Method</TableHead>
+                              <TableHead className="whitespace-nowrap">Notes</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {invoice.payments.map((payment) => (
                               <TableRow key={payment.id}>
-                                <TableCell className="text-sm">
+                                <TableCell className="text-sm whitespace-nowrap">
                                   {formatDateTimeLebanon(payment.payment_date, "MM/dd/yyyy")}
                                 </TableCell>
-                                <TableCell className="font-medium">
+                                <TableCell className="font-medium whitespace-nowrap">
                                   {parseFloat(String(payment.paid_amount || 0)).toFixed(2)}
                                 </TableCell>
-                                <TableCell>{payment.currency_code || "USD"}</TableCell>
-                                <TableCell className="text-sm">
+                                <TableCell className="whitespace-nowrap">{payment.currency_code || "USD"}</TableCell>
+                                <TableCell className="text-sm whitespace-nowrap">
                                   {parseFloat(String(payment.exchange_rate_on_payment || 1)).toFixed(6)}
                                 </TableCell>
-                                <TableCell className="font-medium text-success">
+                                <TableCell className="font-medium text-success whitespace-nowrap">
                                   ${parseFloat(String(payment.usd_equivalent_amount || 0)).toFixed(2)}
                                 </TableCell>
-                                <TableCell>{payment.payment_method || "-"}</TableCell>
-                                <TableCell className="text-sm text-muted-foreground">{payment.notes || "-"}</TableCell>
+                                <TableCell className="whitespace-nowrap">{payment.payment_method || "-"}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground max-w-xs truncate">{payment.notes || "-"}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
