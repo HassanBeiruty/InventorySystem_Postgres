@@ -149,6 +149,65 @@ All colors MUST be HSL.
     --shadow-glow-green: 0 0 50px hsl(160 45% 40% / 0.4);
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
+
+  /* Professional System Theme - Brown/Beige Professional Palette */
+  .system {
+    --background: 35 20% 96%;
+    --foreground: 30 25% 15%;
+
+    --card: 35 15% 98%;
+    --card-foreground: 30 25% 15%;
+
+    --popover: 35 15% 98%;
+    --popover-foreground: 30 25% 15%;
+
+    --primary: 30 45% 45%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 30 45% 55%;
+    --primary-light: 30 30% 95%;
+
+    --secondary: 35 35% 55%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-light: 35 25% 94%;
+
+    --muted: 35 15% 92%;
+    --muted-foreground: 30 15% 40%;
+
+    --accent: 30 50% 50%;
+    --accent-foreground: 0 0% 100%;
+    --accent-light: 30 30% 94%;
+
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 90 25% 40%;
+    --success-foreground: 0 0% 100%;
+    --success-light: 90 20% 94%;
+
+    --warning: 35 75% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-light: 35 50% 94%;
+
+    --border: 35 20% 85%;
+    --input: 35 20% 88%;
+    --ring: 30 45% 45%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(30 45% 45%) 0%, hsl(35 40% 50%) 100%);
+    --gradient-secondary: linear-gradient(135deg, hsl(35 40% 50%) 0%, hsl(30 45% 45%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(30 50% 50%) 0%, hsl(35 35% 55%) 100%);
+    --gradient-success: linear-gradient(135deg, hsl(90 25% 40%) 0%, hsl(100 30% 42%) 100%);
+    --gradient-mesh: radial-gradient(at 0% 0%, hsl(30 45% 45% / 0.08) 0, transparent 50%),
+                     radial-gradient(at 100% 0%, hsl(35 40% 50% / 0.08) 0, transparent 50%),
+                     radial-gradient(at 100% 100%, hsl(90 25% 40% / 0.06) 0, transparent 50%),
+                     radial-gradient(at 0% 100%, hsl(30 45% 45% / 0.08) 0, transparent 50%);
+    --gradient-card: linear-gradient(to bottom right, hsl(35 15% 98% / 0.95), hsl(35 20% 96% / 0.95));
+    --shadow-elegant: 0 20px 50px -12px hsl(30 45% 45% / 0.2);
+    --shadow-card: 0 4px 24px -4px hsl(30 25% 15% / 0.1);
+    --shadow-glow: 0 0 50px hsl(30 45% 45% / 0.3);
+    --shadow-glow-blue: 0 0 50px hsl(35 40% 50% / 0.3);
+    --shadow-glow-green: 0 0 50px hsl(90 25% 40% / 0.25);
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
 }
 
 @layer base {
@@ -168,8 +227,19 @@ All colors MUST be HSL.
     background-attachment: fixed;
   }
 
+  .system body {
+    background: hsl(var(--background));
+    background-image: var(--gradient-mesh);
+    background-attachment: fixed;
+  }
+
   /* Dark mode text enhancements */
   .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+    color: hsl(var(--foreground));
+  }
+
+  /* System mode text enhancements */
+  .system h1, .system h2, .system h3, .system h4, .system h5, .system h6 {
     color: hsl(var(--foreground));
   }
 
@@ -181,6 +251,29 @@ All colors MUST be HSL.
 
   .dark a:hover {
     color: hsl(var(--primary-glow));
+  }
+
+  /* System mode link styling */
+  .system a {
+    color: hsl(var(--primary));
+    transition: color 0.2s ease;
+  }
+
+  .system a:hover {
+    color: hsl(var(--primary-glow));
+  }
+
+  /* Ensure dropdown menu items use correct text color */
+  .system [role="menuitem"],
+  .system [role="menuitem"] * {
+    color: hsl(var(--popover-foreground)) !important;
+  }
+
+  .system [role="menuitem"]:hover,
+  .system [role="menuitem"]:focus,
+  .system [role="menuitem"]:hover *,
+  .system [role="menuitem"]:focus * {
+    color: hsl(var(--popover-foreground)) !important;
   }
 }
 
@@ -230,6 +323,14 @@ All colors MUST be HSL.
     -webkit-backdrop-filter: blur(24px) saturate(180%);
     border: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.6);
+  }
+
+  .system .glass {
+    background: rgba(245, 240, 235, 0.85);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(139, 115, 85, 0.2);
+    box-shadow: 0 8px 32px -4px rgba(30, 25, 15, 0.15);
   }
 
   .animate-float {
@@ -332,6 +433,27 @@ All colors MUST be HSL.
     background: hsl(var(--muted-foreground) / 0.5);
   }
 
+  /* System mode scrollbar styling */
+  .system ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .system ::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+    border-radius: 5px;
+  }
+
+  .system ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 5px;
+    border: 2px solid hsl(var(--background));
+  }
+
+  .system ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+
   /* Dark mode table enhancements */
   .dark table {
     border-collapse: separate;
@@ -342,6 +464,16 @@ All colors MUST be HSL.
     background: hsl(var(--card));
   }
 
+  /* System mode table enhancements */
+  .system table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .system table thead {
+    background: hsl(var(--card));
+  }
+
   /* Dark mode card hover effects */
   .dark .card-hover:hover {
     border-color: hsl(var(--primary) / 0.3);
@@ -349,8 +481,20 @@ All colors MUST be HSL.
     transform: translateY(-1px);
   }
 
+  /* System mode card hover effects */
+  .system .card-hover:hover {
+    border-color: hsl(var(--primary) / 0.3);
+    box-shadow: 0 4px 16px -2px hsl(var(--primary) / 0.1);
+    transform: translateY(-1px);
+  }
+
   /* Dark mode button enhancements */
   .dark button:hover {
+    transition: all 0.2s ease;
+  }
+
+  /* System mode button enhancements */
+  .system button:hover {
     transition: all 0.2s ease;
   }
 
@@ -362,8 +506,21 @@ All colors MUST be HSL.
     box-shadow: 0 0 0 2px hsl(var(--primary) / 0.1);
   }
 
+  /* System mode input focus */
+  .system input:focus,
+  .system textarea:focus,
+  .system select:focus {
+    border-color: hsl(var(--primary) / 0.5);
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.1);
+  }
+
   /* Dark mode badge enhancements */
   .dark [class*="badge"] {
+    border-width: 1px;
+  }
+
+  /* System mode badge enhancements */
+  .system [class*="badge"] {
     border-width: 1px;
   }
 
@@ -379,12 +536,34 @@ All colors MUST be HSL.
     box-shadow: 0 4px 16px -2px hsl(var(--primary) / 0.15);
   }
 
+  /* System mode statistics card styling */
+  .system .stat-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border) / 0.5);
+    transition: all 0.3s ease;
+  }
+
+  .system .stat-card:hover {
+    border-color: hsl(var(--primary) / 0.4);
+    box-shadow: 0 4px 16px -2px hsl(var(--primary) / 0.15);
+  }
+
   /* Dark mode action button styling */
   .dark .action-button {
     transition: all 0.2s ease;
   }
 
   .dark .action-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px -2px currentColor;
+  }
+
+  /* System mode action button styling */
+  .system .action-button {
+    transition: all 0.2s ease;
+  }
+
+  .system .action-button:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px -2px currentColor;
   }
@@ -413,6 +592,25 @@ All colors MUST be HSL.
 
   /* Ensure date input text is visible in dark mode */
   .dark input[type="date"] {
+    color: hsl(var(--foreground));
+  }
+
+  /* System mode - make calendar icon visible with brown filter */
+  .system input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: brightness(0.6) sepia(1) hue-rotate(20deg) saturate(2);
+    opacity: 1 !important;
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+  }
+
+  .system input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    filter: brightness(0.7) sepia(1) hue-rotate(20deg) saturate(2);
+    opacity: 1 !important;
+  }
+
+  /* Ensure date input text is visible in system mode */
+  .system input[type="date"] {
     color: hsl(var(--foreground));
   }
 

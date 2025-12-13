@@ -17,6 +17,8 @@ export function ThemeToggle() {
         <Button variant="outline" size="icon" className="relative">
           {resolvedTheme === "dark" ? (
             <Moon className="h-[1.2rem] w-[1.2rem]" />
+          ) : resolvedTheme === "system" ? (
+            <Monitor className="h-[1.2rem] w-[1.2rem]" />
           ) : (
             <Sun className="h-[1.2rem] w-[1.2rem]" />
           )}

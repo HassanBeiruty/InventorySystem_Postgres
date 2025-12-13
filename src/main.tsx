@@ -7,12 +7,12 @@ import "./i18n/config";
 function initializeTheme() {
   const storedTheme = localStorage.getItem("invoice-system-theme") || "system";
   const root = document.documentElement;
-  root.classList.remove("light", "dark");
+  root.classList.remove("light", "dark", "system");
   
   if (storedTheme === "system") {
-    const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    root.classList.add(systemTheme);
-    root.setAttribute("data-theme", systemTheme);
+    // Apply system theme as a separate professional theme
+    root.classList.add("system");
+    root.setAttribute("data-theme", "system");
   } else {
     root.classList.add(storedTheme);
     root.setAttribute("data-theme", storedTheme);

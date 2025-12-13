@@ -676,7 +676,25 @@ router.delete('/products/:id', [
 		if (checkResult.recordset.length === 0) {
 			return res.status(404).json({ error: 'Product not found' });
 		}
-		// Delete product (cascade will handle related records)
+
+		// Check if product is used in invoice_items (historical invoices - should not be deleted)
+		const invoiceItemsCheck = await query('SELECT COUNT(*) as count FROM invoice_items WHERE product_id = $1', [id]);
+		if (invoiceItemsCheck.recordset[0]?.count > 0) {
+			return res.status(400).json({ 
+				error: 'Cannot delete product: it is referenced in historical invoices. Products with invoice history cannot be deleted to maintain data integrity.' 
+			});
+		}
+
+		// Delete related records first (in correct order to avoid foreign key violations)
+		// Delete from daily_stock (daily snapshots can be removed)
+		await query('DELETE FROM daily_stock WHERE product_id = $1', [id]);
+		
+		// Delete from stock_movements (movement history can be removed when product is deleted)
+		await query('DELETE FROM stock_movements WHERE product_id = $1', [id]);
+		
+		// product_prices will be deleted automatically due to ON DELETE CASCADE
+		
+		// Now delete the product
 		await query('DELETE FROM products WHERE id = $1', [id]);
 		res.json({ success: true, id });
 	} catch (err) {
@@ -1826,7 +1844,7 @@ router.get('/inventory/today', async (req, res) => {
 				LIMIT 1
 			) pp ON true
 			WHERE ds.date = $1
-			ORDER BY ds.updated_at DESC`,
+			ORDER BY ds.product_id ASC`,
 			[{ date: today }]
 		);
 		
