@@ -395,9 +395,10 @@ const Products = () => {
                 <Button 
                   variant="outline"
                   className="hover:scale-105 transition-all duration-300 font-semibold text-xs sm:text-sm flex-1 sm:flex-initial"
+                  aria-label={t('products.importExport')}
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
-                  <span>{t('products.importExport')}</span>
+                  <span className="whitespace-nowrap">{t('products.importExport')}</span>
                   <ChevronDown className="w-3 h-3 ml-2" />
                 </Button>
               </DropdownMenuTrigger>
