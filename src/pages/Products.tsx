@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Package, Pencil, Download, Trash2, Scan, Search, X } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Plus, Package, Pencil, Download, Trash2, Scan, Search, X, Upload, FileSpreadsheet, ChevronDown } from "lucide-react";
 import { productsRepo, categoriesRepo, productPricesRepo } from "@/integrations/api/repo";
 import { getTodayLebanon } from "@/utils/dateUtils";
 import { useToast } from "@/hooks/use-toast";
@@ -31,6 +32,8 @@ const Products = () => {
   const [latestPrice, setLatestPrice] = useState<{ wholesale_price: number | null; retail_price: number | null } | null>(null);
   const [wholesalePrice, setWholesalePrice] = useState<string>("");
   const [retailPrice, setRetailPrice] = useState<string>("");
+  const [importLoading, setImportLoading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const fetchProducts = async () => {
@@ -40,8 +43,8 @@ const Products = () => {
     } catch (error: any) {
       console.error('Error fetching products:', error);
       toast({ 
-        title: "Error", 
-        description: error.message || "Failed to load products", 
+        title: t('common.error'), 
+        description: error.message || t('products.failedToLoadProducts'), 
         variant: "destructive" 
       });
       setProducts([]);
@@ -136,13 +139,13 @@ const Products = () => {
       }
     } catch (error: any) {
       setLoading(false);
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: t('common.error'), description: error.message, variant: "destructive" });
       return;
     }
 
     setLoading(false);
 
-    toast({ title: "Success", description: "Product added successfully" });
+    toast({ title: t('common.success'), description: t('products.productAdded') });
     setFormCategoryId("");
     if (e.currentTarget) {
       e.currentTarget.reset();
@@ -228,13 +231,13 @@ const Products = () => {
       }
     } catch (error: any) {
       setLoading(false);
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: t('common.error'), description: error.message, variant: "destructive" });
       return;
     }
 
     setLoading(false);
 
-    toast({ title: "Success", description: "Product updated successfully" });
+    toast({ title: t('common.success'), description: t('products.productUpdated') });
     setEditOpen(false);
     setEditingProduct(null);
     setEditFormCategoryId("");
@@ -245,24 +248,111 @@ const Products = () => {
   };
 
   const handleDelete = async (product: any) => {
-    if (!confirm(`Are you sure you want to delete "${product.name}"? This will also delete all stock movements, daily stock records, and invoice items for this product. This action cannot be undone.`)) {
+    if (!confirm(t('products.deleteConfirm', { name: product.name }))) {
       return;
     }
 
     try {
       await productsRepo.delete(product.id);
       toast({
-        title: "Success",
-        description: "Product deleted successfully",
+        title: t('common.success'),
+        description: t('products.productDeleted'),
       });
       fetchProducts();
     } catch (error: any) {
       toast({
-        title: "Error",
-        description: error.message || "Failed to delete product",
+        title: t('common.error'),
+        description: error.message || t('products.failedToDeleteProduct'),
         variant: "destructive",
       });
     }
+  };
+
+  const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      'application/octet-stream'
+    ];
+    const isValidType = validTypes.includes(file.type) || 
+                       file.name.endsWith('.xlsx') || 
+                       file.name.endsWith('.xls');
+    
+    if (!isValidType) {
+      toast({
+        title: t('products.invalidFileType'),
+        description: t('products.invalidFileTypeDescription'),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setImportLoading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+      const url = API_BASE_URL ? `${API_BASE_URL}/api/products/import-excel` : '/api/products/import-excel';
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to import file' }));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      // Show success message with details
+      const successMessage = result.message || `Successfully imported ${result.summary?.success || 0} products`;
+      toast({
+        title: t('products.importSuccessful'),
+        description: successMessage,
+      });
+
+      // Show errors if any
+      if (result.errors && result.errors.length > 0) {
+        const errorCount = result.errors.length;
+        console.error('Import errors:', result.errors);
+        toast({
+          title: t('products.someRowsFailed'),
+          description: t('products.rowsHadErrors', { count: errorCount }),
+          variant: "destructive",
+        });
+      }
+
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
+      // Refresh products list
+      fetchProducts();
+    } catch (error: any) {
+      toast({
+        title: t('products.importFailed'),
+        description: error.message || t('products.failedToImportFile'),
+        variant: "destructive",
+      });
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
   };
 
   if (pageLoading) {
@@ -297,18 +387,38 @@ const Products = () => {
               className="hover:scale-105 transition-all duration-300 font-semibold text-xs sm:text-sm flex-1 sm:flex-initial"
             >
               <Scan className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Quick Add</span>
-              <span className="sm:hidden">Quick</span>
+              <span className="hidden sm:inline">{t('products.quickAdd')}</span>
+              <span className="sm:hidden">{t('products.quick')}</span>
             </Button>
-            <Button 
-              variant="outline"
-              onClick={() => window.open('/api/export/products', '_blank')}
-              className="hover:scale-105 transition-all duration-300 font-semibold text-xs sm:text-sm flex-1 sm:flex-initial"
-            >
-              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Export CSV</span>
-              <span className="sm:hidden">Export</span>
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="outline"
+                  className="hover:scale-105 transition-all duration-300 font-semibold text-xs sm:text-sm flex-1 sm:flex-initial"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
+                  <span>{t('products.importExport')}</span>
+                  <ChevronDown className="w-3 h-3 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={triggerFileInput} disabled={importLoading}>
+                  <Download className="w-4 h-4 mr-2" />
+                  {importLoading ? t('products.importing') : t('products.importExcel')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => window.open('/api/export/products', '_blank')}>
+                  <Upload className="w-4 h-4 mr-2" />
+                  {t('products.exportCsv')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              onChange={handleImportExcel}
+              className="hidden"
+            />
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
               <Button className="gradient-primary hover:shadow-glow transition-all duration-300 hover:scale-105 font-semibold">
@@ -324,7 +434,7 @@ const Products = () => {
               <form onSubmit={handleSubmit} className="space-y-4 py-2">
                 {/* Basic Information Section */}
                 <div className="space-y-4">
-                  <h3 className="text-base font-semibold border-b pb-2">Basic Information</h3>
+                  <h3 className="text-base font-semibold border-b pb-2">{t('products.basicInformation')}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="name" className="text-sm font-medium">{t('products.productName')} <span className="text-destructive">*</span></Label>
@@ -351,12 +461,12 @@ const Products = () => {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="sku" className="text-sm font-medium">SKU</Label>
-                      <Input id="sku" name="sku" placeholder="SKU (optional)" className="h-10" />
+                      <Label htmlFor="sku" className="text-sm font-medium">{t('products.sku')}</Label>
+                      <Input id="sku" name="sku" placeholder={t('products.skuOptional')} className="h-10" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="shelf" className="text-sm font-medium">Shelf</Label>
-                      <Input id="shelf" name="shelf" placeholder="Shelf (optional)" className="h-10" />
+                      <Label htmlFor="shelf" className="text-sm font-medium">{t('products.shelf')}</Label>
+                      <Input id="shelf" name="shelf" placeholder={t('products.shelfOptional')} className="h-10" />
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -367,10 +477,10 @@ const Products = () => {
                 
                 {/* Pricing Section */}
                 <div className="pt-4 border-t space-y-4">
-                  <h3 className="text-base font-semibold border-b pb-2">Pricing</h3>
+                  <h3 className="text-base font-semibold border-b pb-2">{t('products.pricing')}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="wholesale-price" className="text-sm font-medium">Wholesale Price ($)</Label>
+                      <Label htmlFor="wholesale-price" className="text-sm font-medium">{t('products.wholesalePriceWithCurrency')}</Label>
                       <Input 
                         id="wholesale-price" 
                         type="number" 
@@ -381,7 +491,7 @@ const Products = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="retail-price" className="text-sm font-medium">Retail Price ($)</Label>
+                      <Label htmlFor="retail-price" className="text-sm font-medium">{t('products.retailPriceWithCurrency')}</Label>
                       <Input 
                         id="retail-price" 
                         type="number" 
@@ -399,7 +509,7 @@ const Products = () => {
                     {loading ? t('common.loading') : t('common.save')}
                   </Button>
                   <Button type="button" variant="outline" onClick={() => setIsOpen(false)} className="h-10">
-                    Cancel
+                    {t('common.cancel')}
                   </Button>
                 </div>
               </form>
@@ -423,7 +533,7 @@ const Products = () => {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     type="text"
-                    placeholder="Search products (name, barcode, SKU, shelf, category...)"
+                    placeholder={t('products.searchPlaceholder')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full pl-9 pr-9 h-9"
@@ -462,7 +572,7 @@ const Products = () => {
                       <TableHead className="font-bold whitespace-nowrap">{t('products.productName')}</TableHead>
                       <TableHead className="font-bold whitespace-nowrap">{t('products.barcode')}</TableHead>
                       <TableHead className="font-bold whitespace-nowrap">{t('categories.title')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap">Actions</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap">{t('common.actions')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -487,7 +597,7 @@ const Products = () => {
                               size="sm" 
                               onClick={() => handleEdit(product)}
                               className="hover:bg-primary/10 hover:scale-110 transition-all duration-300"
-                              title="Edit"
+                              title={t('common.edit')}
                             >
                               <Pencil className="w-4 h-4 text-primary" />
                             </Button>
@@ -496,7 +606,7 @@ const Products = () => {
                               size="sm" 
                               onClick={() => handleDelete(product)}
                               className="hover:bg-destructive/10 hover:scale-110 transition-all duration-300 text-destructive hover:text-destructive"
-                              title="Delete"
+                              title={t('common.delete')}
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -521,7 +631,7 @@ const Products = () => {
               <form onSubmit={handleUpdate} className="space-y-4 py-2">
                 {/* Basic Information Section */}
                 <div className="space-y-4">
-                  <h3 className="text-base font-semibold border-b pb-2">Basic Information</h3>
+                  <h3 className="text-base font-semibold border-b pb-2">{t('products.basicInformation')}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="edit-name" className="text-sm font-medium">{t('products.productName')} <span className="text-destructive">*</span></Label>
@@ -594,7 +704,7 @@ const Products = () => {
                   {latestPrice && (
                     <div className="bg-muted/50 p-3 rounded-md">
                       <p className="text-sm text-muted-foreground">
-                        <span className="font-medium">Current Prices:</span> Wholesale ${latestPrice.wholesale_price ? Number(latestPrice.wholesale_price).toFixed(2) : "N/A"}, Retail ${latestPrice.retail_price ? Number(latestPrice.retail_price).toFixed(2) : "N/A"}
+                        <span className="font-medium">{t('products.currentPrices')}</span> {t('products.wholesalePrice')} ${latestPrice.wholesale_price ? Number(latestPrice.wholesale_price).toFixed(2) : t('products.nA')}, {t('products.retailPrice')} ${latestPrice.retail_price ? Number(latestPrice.retail_price).toFixed(2) : t('products.nA')}
                       </p>
                     </div>
                   )}

@@ -28,4 +28,41 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // Performance optimizations
+  build: {
+    // Enable minification
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true, // Remove console.log in production
+        drop_debugger: true,
+      },
+    },
+    // Chunk size optimization
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        // Manual chunk splitting for better caching
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'ui-vendor': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select'],
+          'chart-vendor': ['recharts'],
+          'query-vendor': ['@tanstack/react-query'],
+        },
+      },
+    },
+    // Source maps for production debugging (optional, increases build time)
+    sourcemap: false,
+    // Improve build performance
+    target: 'esnext',
+  },
+  // Optimize dependencies
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-router-dom',
+      '@tanstack/react-query',
+    ],
+  },
 });

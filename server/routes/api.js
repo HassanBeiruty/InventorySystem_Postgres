@@ -3,7 +3,20 @@ const { query, getPool } = require('../db');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { body, param, query: queryValidator, validationResult } = require('express-validator');
-const rateLimit = require('express-rate-limit');
+const multer = require('multer');
+const XLSX = require('xlsx');
+
+// Import security middleware
+const {
+	authLimiter,
+	apiLimiter,
+	strictApiLimiter,
+	fileUploadLimiter,
+	sanitizeInput,
+	validateSQLInput,
+	validateFileUpload,
+} = require('../middleware/security');
+
 const router = express.Router();
 
 // JWT secret - MUST be set in environment variables for production
@@ -182,20 +195,26 @@ async function requireAdmin(req, res, next) {
 	}
 }
 
-// Rate limiting middleware
-const authLimiter = rateLimit({
-	windowMs: 15 * 60 * 1000, // 15 minutes
-	max: 5, // Limit each IP to 5 requests per windowMs
-	message: 'Too many authentication attempts, please try again later.',
-	standardHeaders: true,
-	legacyHeaders: false,
+// Apply security middleware to all API routes
+// Note: Rate limiting is handled per route type (auth has stricter limits)
+// Input sanitization and SQL injection validation are applied to all routes
+router.use((req, res, next) => {
+	// Skip for auth routes (they handle their own validation)
+	if (req.path.startsWith('/auth/')) {
+		return next();
+	}
+	// Apply sanitization and validation
+	sanitizeInput(req, res, () => {
+		validateSQLInput(req, res, next);
+	});
 });
 
-const apiLimiter = rateLimit({
-	windowMs: 15 * 60 * 1000, // 15 minutes
-	max: 100, // Limit each IP to 100 requests per windowMs
-	standardHeaders: true,
-	legacyHeaders: false,
+// Apply general API rate limiting (auth routes have their own stricter limiter)
+router.use((req, res, next) => {
+	if (req.path.startsWith('/auth/')) {
+		return next(); // Auth routes use authLimiter
+	}
+	apiLimiter(req, res, next);
 });
 
 // Validation error handler
@@ -207,7 +226,7 @@ function handleValidationErrors(req, res, next) {
 	next();
 }
 
-router.post('/auth/signup', authLimiter, [
+router.post('/auth/signup', authLimiter, sanitizeInput, [
 	body('email').isEmail().normalizeEmail(),
 	body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
 ], handleValidationErrors, async (req, res) => {
@@ -253,7 +272,7 @@ router.post('/auth/signup', authLimiter, [
 	}
 });
 
-router.post('/auth/signin', authLimiter, [
+router.post('/auth/signin', authLimiter, sanitizeInput, [
 	body('email').isEmail().normalizeEmail(),
 	body('password').notEmpty(),
 ], handleValidationErrors, async (req, res) => {
@@ -2860,6 +2879,313 @@ router.put('/admin/users/:id/admin', authenticateToken, requireAdmin, async (req
 	} catch (err) {
 		console.error('[Admin] Update user admin status error:', err);
 		res.status(500).json({ error: err.message });
+	}
+});
+
+// ===== EXCEL IMPORT =====
+// Configure multer for file uploads (memory storage)
+const upload = multer({
+	storage: multer.memoryStorage(),
+	limits: {
+		fileSize: 10 * 1024 * 1024 // 10MB limit
+	},
+	fileFilter: (req, file, cb) => {
+		// Accept Excel files
+		const allowedMimes = [
+			'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+			'application/vnd.ms-excel', // .xls
+			'application/octet-stream' // Sometimes Excel files are sent as this
+		];
+		if (allowedMimes.includes(file.mimetype) || 
+			file.originalname.endsWith('.xlsx') || 
+			file.originalname.endsWith('.xls')) {
+			cb(null, true);
+		} else {
+			cb(new Error('Invalid file type. Only Excel files (.xlsx, .xls) are allowed.'));
+		}
+	}
+});
+
+// Excel import endpoint with enhanced security
+router.post('/products/import-excel', 
+	authenticateToken, 
+	requireAdmin, 
+	fileUploadLimiter, 
+	upload.single('file'),
+	validateFileUpload,
+	sanitizeInput,
+	async (req, res) => {
+	try {
+		if (!req.file) {
+			return res.status(400).json({ error: 'No file uploaded' });
+		}
+
+		// Parse Excel file
+		const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+		const sheetName = workbook.SheetNames[0]; // Use first sheet
+		const worksheet = workbook.Sheets[sheetName];
+		
+		// Convert to JSON array
+		const data = XLSX.utils.sheet_to_json(worksheet, { 
+			raw: false, // Convert all values to strings for consistency
+			defval: '' // Default value for empty cells
+		});
+
+		if (!data || data.length === 0) {
+			return res.status(400).json({ error: 'Excel file is empty or has no data' });
+		}
+
+		// Normalize column names (case-insensitive, trim whitespace)
+		const normalizeKey = (key) => {
+			if (!key) return '';
+			return String(key).trim().toLowerCase().replace(/\s+/g, '_');
+		};
+
+		// Map Excel columns to database fields
+		// Support multiple possible column names
+		const columnMappings = {
+			sku: ['oem', 'oem_no', 'oem no', 'oem no.', 'item', 'sku', 'product_code', 'code'],
+			name: ['english name', 'english_name', 'name', 'product name', 'product_name', 'description', 'desc'],
+			description: ['desc', 'description', 'chinese name', 'chinese_name'],
+			barcode: ['barcode', 'barcode_no', 'barcode no'],
+			category: ['category', 'category_name'],
+			wholesale_price: ['wholesale_price', 'wholesale price', 'wholesaleprice', 'wholesale', 'unit price', 'unit_price', 'unitprice', 'price', 'price (rmb)', 'price(rmb)'],
+			retail_price: ['retail_price', 'retail price', 'retail'],
+			shelf: ['shelf', 'shelf_location', 'location']
+		};
+
+		// Find column indices
+		const findColumn = (row, mappings) => {
+			for (const key in row) {
+				const normalized = normalizeKey(key);
+				for (const mapping of mappings) {
+					if (normalized === normalizeKey(mapping)) {
+						return key; // Return original key to access the value
+					}
+				}
+			}
+			return null;
+		};
+
+		const firstRow = data[0];
+		const columnMap = {};
+		for (const [dbField, excelColumns] of Object.entries(columnMappings)) {
+			const found = findColumn(firstRow, excelColumns);
+			if (found) {
+				columnMap[dbField] = found;
+			}
+		}
+
+		// Validate required columns
+		if (!columnMap.name && !columnMap.sku) {
+			return res.status(400).json({ 
+				error: 'Excel file must contain at least one of: Name/English Name or SKU/OEM/OEM NO./ITEM column' 
+			});
+		}
+
+		// Get all categories for matching
+		const categoriesResult = await query('SELECT id, LOWER(name) as lower_name FROM categories', []);
+		const categoryMap = new Map();
+		categoriesResult.recordset.forEach(cat => {
+			categoryMap.set(cat.lower_name, cat.id);
+		});
+
+		// Start transaction
+		const pool = getPool();
+		const client = await pool.connect();
+		
+		try {
+			await client.query('BEGIN');
+
+			const results = {
+				success: 0,
+				skipped: 0,
+				errors: [],
+				products: []
+			};
+
+			const createdAt = nowIso();
+			const today = getTodayLocal();
+
+			// Process each row
+			for (let i = 0; i < data.length; i++) {
+				const row = data[i];
+				const rowNum = i + 2; // +2 because Excel rows start at 1 and we have header
+
+				try {
+					// Extract values
+					const sku = columnMap.sku ? String(row[columnMap.sku] || '').trim() : '';
+					const name = columnMap.name ? String(row[columnMap.name] || '').trim() : '';
+					const description = columnMap.description ? String(row[columnMap.description] || '').trim() : null;
+					const barcode = columnMap.barcode ? String(row[columnMap.barcode] || '').trim() : null;
+					const categoryName = columnMap.category ? String(row[columnMap.category] || '').trim() : null;
+					const wholesalePrice = columnMap.wholesale_price ? parseFloat(String(row[columnMap.wholesale_price] || '0').replace(/[^0-9.-]/g, '')) || 0 : 0;
+					const retailPrice = columnMap.retail_price ? parseFloat(String(row[columnMap.retail_price] || '0').replace(/[^0-9.-]/g, '')) : null;
+					const shelf = columnMap.shelf ? String(row[columnMap.shelf] || '').trim() : null;
+
+					// Skip empty rows
+					if (!name && !sku) {
+						results.skipped++;
+						continue;
+					}
+
+					// Use SKU as name if name is missing, or name if SKU is missing
+					const productName = name || sku || 'Imported Product';
+					const productSku = sku || null;
+
+					// Find category ID
+					let categoryId = null;
+					if (categoryName) {
+						const lowerCategoryName = categoryName.toLowerCase();
+						categoryId = categoryMap.get(lowerCategoryName) || null;
+					}
+
+					// Check if product with same SKU or name already exists
+					let existingProduct = null;
+					if (productSku) {
+						const existingCheck = await client.query(
+							'SELECT id FROM products WHERE sku = $1',
+							[productSku]
+						);
+						if (existingCheck.rows.length > 0) {
+							existingProduct = existingCheck.rows[0];
+						}
+					}
+
+					// If not found by SKU, check by name
+					if (!existingProduct) {
+						const existingCheck = await client.query(
+							'SELECT id FROM products WHERE LOWER(name) = LOWER($1)',
+							[productName]
+						);
+						if (existingCheck.rows.length > 0) {
+							existingProduct = existingCheck.rows[0];
+						}
+					}
+
+					let productId;
+
+					if (existingProduct) {
+						// Update existing product
+						productId = existingProduct.id;
+						const updates = [];
+						const params = [];
+						let paramIndex = 1;
+
+						if (productSku) {
+							updates.push(`sku = $${++paramIndex}`);
+							params.push(productSku);
+						}
+						if (description) {
+							updates.push(`description = $${++paramIndex}`);
+							params.push(description);
+						}
+						if (barcode) {
+							updates.push(`barcode = $${++paramIndex}`);
+							params.push(barcode);
+						}
+						if (categoryId) {
+							updates.push(`category_id = $${++paramIndex}`);
+							params.push(categoryId);
+						}
+						if (shelf) {
+							updates.push(`shelf = $${++paramIndex}`);
+							params.push(shelf);
+						}
+
+						if (updates.length > 0) {
+							params.unshift(productId);
+							await client.query(
+								`UPDATE products SET ${updates.join(', ')} WHERE id = $1`,
+								params
+							);
+						}
+					} else {
+						// Insert new product
+						const insertResult = await client.query(
+							'INSERT INTO products (name, barcode, category_id, description, sku, shelf, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+							[productName, barcode, categoryId, description, productSku, shelf, createdAt]
+						);
+						productId = insertResult.rows[0].id;
+
+						// Create daily stock entry
+						await client.query(
+							`INSERT INTO daily_stock (product_id, available_qty, avg_cost, date, created_at, updated_at) 
+							 VALUES ($1, 0, 0, $2, $3, $3)
+							 ON CONFLICT (product_id, date) DO NOTHING`,
+							[productId, today, createdAt]
+						);
+					}
+
+					// Add price if provided
+					if (wholesalePrice > 0 || (retailPrice !== null && retailPrice > 0)) {
+						const finalRetailPrice = retailPrice !== null && retailPrice > 0 ? retailPrice : wholesalePrice * 1.2; // Default 20% markup if retail not provided
+						
+						// Check if price already exists for today
+						const existingPrice = await client.query(
+							'SELECT id FROM product_prices WHERE product_id = $1 AND effective_date = $2',
+							[productId, today]
+						);
+
+						if (existingPrice.rows.length === 0) {
+							await client.query(
+								`INSERT INTO product_prices (product_id, wholesale_price, retail_price, effective_date, created_at)
+								 VALUES ($1, $2, $3, $4, $5)`,
+								[productId, wholesalePrice, finalRetailPrice, today, createdAt]
+							);
+						} else {
+							// Update existing price
+							await client.query(
+								`UPDATE product_prices SET wholesale_price = $1, retail_price = $2, created_at = $3 WHERE id = $4`,
+								[wholesalePrice, finalRetailPrice, createdAt, existingPrice.rows[0].id]
+							);
+						}
+					}
+
+					results.success++;
+					results.products.push({
+						row: rowNum,
+						name: productName,
+						sku: productSku,
+						action: existingProduct ? 'updated' : 'created'
+					});
+
+				} catch (rowError) {
+					results.errors.push({
+						row: rowNum,
+						error: rowError.message || 'Unknown error',
+						data: row
+					});
+				}
+			}
+
+			await client.query('COMMIT');
+			client.release();
+
+			res.json({
+				success: true,
+				message: `Import completed: ${results.success} products processed, ${results.skipped} skipped, ${results.errors.length} errors`,
+				summary: {
+					success: results.success,
+					skipped: results.skipped,
+					errors: results.errors.length
+				},
+				products: results.products,
+				errors: results.errors.length > 0 ? results.errors : undefined
+			});
+
+		} catch (transactionError) {
+			await client.query('ROLLBACK');
+			client.release();
+			throw transactionError;
+		}
+
+	} catch (err) {
+		console.error('Excel import error:', err);
+		res.status(500).json({ 
+			error: err.message || 'Failed to import Excel file',
+			details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+		});
 	}
 });
 

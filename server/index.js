@@ -1,27 +1,58 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const helmet = require('helmet');
+const hpp = require('hpp');
+
+// Import security and performance middleware
+const {
+	helmetConfig,
+	speedLimiter,
+	requestSizeLimiter,
+} = require('./middleware/security');
+const {
+	compressionConfig,
+	cacheControl,
+	responseTimeLogger,
+	keepAlive,
+} = require('./middleware/performance');
 
 const app = express();
 
-// Security middleware - Helmet for security headers
-app.use(helmet({
-	contentSecurityPolicy: false, // Disable CSP for API (can be configured per route if needed)
-	crossOriginEmbedderPolicy: false,
-}));
+// Performance: Compression (should be early in the stack)
+app.use(compressionConfig);
+
+// Security: Enhanced Helmet configuration
+app.use(helmetConfig);
+
+// Security: Prevent HTTP Parameter Pollution
+app.use(hpp());
+
+// Security: Request size limit (prevent DoS attacks)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(requestSizeLimiter('10mb'));
+
+// Performance: Keep-alive connections
+app.use(keepAlive);
+
+// Performance: Response time logging (development only)
+app.use(responseTimeLogger);
 
 // CORS configuration - allow frontend domain in production
 const allowedOrigins = process.env.FRONTEND_URL 
 	? process.env.FRONTEND_URL.split(',').map(url => url.trim())
 	: ['http://localhost:8080', 'http://localhost:3000'];
 
-// Add common Vercel patterns to allowed origins
+// Add common deployment platform patterns to allowed origins
 if (process.env.NODE_ENV === 'production') {
-	// Allow any Vercel deployment
+	// Allow any Vercel deployment (staging)
 	allowedOrigins.push(/^https:\/\/.*\.vercel\.app$/);
-	// Allow any Render deployment (for testing)
+	// Allow any Render deployment (staging)
 	allowedOrigins.push(/^https:\/\/.*\.onrender\.com$/);
+	// Allow any Netlify deployment (production)
+	allowedOrigins.push(/^https:\/\/.*\.netlify\.app$/);
+	// Allow any Fly.io deployment (production backend option)
+	allowedOrigins.push(/^https:\/\/.*\.fly\.dev$/);
 }
 
 // Optimize CORS for faster preflight responses
@@ -63,59 +94,14 @@ const corsOptions = {
 	optionsSuccessStatus: 204
 };
 
-// Apply CORS middleware (handles OPTIONS requests automatically)
+// Security: Apply CORS middleware (handles OPTIONS requests automatically)
 app.use(cors(corsOptions));
-app.use(express.json());
 
+// Performance: Cache control headers (handles API caching strategies)
+app.use(cacheControl);
 
-// Cache control for API responses
-app.use('/api', (req, res, next) => {
-	// Always disable caching for admin routes to prevent stale data
-	// Admin routes need fresh data for proper rendering and state management
-	if (req.path.startsWith('/admin/')) {
-		res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-		res.set('Pragma', 'no-cache');
-		res.set('Expires', '0');
-		return next();
-	}
-	
-	// Always disable caching for auth endpoints to prevent stale admin status
-	// Admin status can change and we need fresh data on every request
-	if (req.path.startsWith('/auth/')) {
-		res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-		res.set('Pragma', 'no-cache');
-		res.set('Expires', '0');
-		return next();
-	}
-	
-	// Disable caching for POST, PUT, DELETE requests (they modify data)
-	if (req.method !== 'GET') {
-		res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-		res.set('Pragma', 'no-cache');
-		res.set('Expires', '0');
-		return next();
-	}
-	
-	// In development, disable all caching
-	if (process.env.NODE_ENV === 'development') {
-		res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-		res.set('Pragma', 'no-cache');
-		res.set('Expires', '0');
-		return next();
-	}
-	
-	// In production, apply strategic caching for GET requests only
-	// Cache stats endpoints for 30 seconds (balance between performance and freshness)
-	if (req.path === '/invoices/stats' || req.path.startsWith('/invoices/recent/')) {
-		res.set('Cache-Control', 'private, max-age=30'); // 30 second cache for stats
-		return next();
-	}
-	
-	// Cache other read-only GET endpoints for 60 seconds
-	res.set('Cache-Control', 'private, max-age=60'); // 1 minute cache for other GET requests
-	
-	next();
-});
+// Security: Speed limiter (slow down after too many requests)
+app.use(speedLimiter);
 
 // Basic root route to verify server is up
 app.get('/', (req, res) => {

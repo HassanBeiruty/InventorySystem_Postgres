@@ -4,16 +4,21 @@ const { Pool } = require('pg');
 let poolConfig;
 
 if (process.env.DATABASE_URL) {
-	// Use DATABASE_URL if provided (common in Render)
+	// Use DATABASE_URL if provided (common in Render or Supabase)
 	// This is the easiest and most reliable method
+	const isSupabase = process.env.DATABASE_URL.includes('supabase.co');
 	poolConfig = {
 		connectionString: process.env.DATABASE_URL,
-		ssl: process.env.PG_SSL === 'true' || process.env.DATABASE_URL.includes('render.com') || process.env.DATABASE_URL.includes('dpg-')
+		ssl: process.env.PG_SSL === 'true' || process.env.DATABASE_URL.includes('render.com') || process.env.DATABASE_URL.includes('dpg-') || isSupabase
 			? { rejectUnauthorized: false } 
 			: false,
 		max: 20,
 		idleTimeoutMillis: 30000,
 		connectionTimeoutMillis: 30000,
+		// Force IPv4 for Supabase if needed (connection pooler handles this better)
+		...(isSupabase && { 
+			// Supabase connection pooler handles IPv4/IPv6 automatically
+		}),
 	};
 	console.log('[DB] Using DATABASE_URL connection string');
 } else {
@@ -29,16 +34,22 @@ if (process.env.DATABASE_URL) {
 	console.log('[DB] Password length:', password.length, 'characters');
 	console.log('[DB] SSL:', process.env.PG_SSL === 'true' ? 'enabled' : 'disabled');
 	
+	const isSupabase = process.env.PG_HOST && process.env.PG_HOST.includes('supabase.co');
+	
 	poolConfig = {
 		host: process.env.PG_HOST || 'localhost',
 		port: parseInt(process.env.PG_PORT || '5432'),
 		database: process.env.PG_DATABASE || 'invoicesystem',
 		user: process.env.PG_USER || 'postgres',
 		password: password,
-		ssl: process.env.PG_SSL === 'true' ? { rejectUnauthorized: false } : false,
+		ssl: process.env.PG_SSL === 'true' || isSupabase ? { rejectUnauthorized: false } : false,
 		max: 20,
 		idleTimeoutMillis: 30000,
 		connectionTimeoutMillis: 30000,
+		// For Supabase, prefer IPv4 by using connection pooler port
+		...(isSupabase && process.env.PG_PORT === '5432' && {
+			// Note: If direct connection fails, use connection pooler port 6543
+		}),
 	};
 }
 
