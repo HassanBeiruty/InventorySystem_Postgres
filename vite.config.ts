@@ -30,14 +30,9 @@ export default defineConfig({
   },
   // Performance optimizations
   build: {
-    // Enable minification
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true, // Remove console.log in production
-        drop_debugger: true,
-      },
-    },
+    // Enable minification (use esbuild for faster builds, terser is optional)
+    minify: 'esbuild', // Changed from terser to esbuild (faster, built-in)
+    // Note: If you need terser-specific options, install terser and use 'terser' minifier
     // Chunk size optimization
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
