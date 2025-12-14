@@ -2339,8 +2339,8 @@ function toCSV(data, headers) {
 	return rows.join('\n');
 }
 
-// Export products
-router.get('/export/products', async (req, res) => {
+// Export products (requires authentication)
+router.get('/export/products', authenticateToken, async (req, res) => {
 	try {
 		// Check if categories table exists, if not, query without join
 		let result;

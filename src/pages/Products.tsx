@@ -410,32 +410,56 @@ const Products = () => {
                   try {
                     const API_BASE_URL = import.meta.env.VITE_API_URL || '';
                     const token = localStorage.getItem('auth_token');
-                    const url = API_BASE_URL ? `${API_BASE_URL}/api/export/products` : '/api/export/products';
+                    
+                    // Construct URL - always use full URL in production
+                    let url = '/api/export/products';
+                    if (API_BASE_URL) {
+                      // Remove trailing slash if present
+                      const baseUrl = API_BASE_URL.replace(/\/$/, '');
+                      url = `${baseUrl}/api/export/products`;
+                    }
                     
                     const response = await fetch(url, {
+                      method: 'GET',
                       headers: {
                         'Authorization': `Bearer ${token}`,
                       },
+                      credentials: 'include',
                     });
                     
                     if (!response.ok) {
-                      throw new Error(`Export failed: ${response.status}`);
+                      const errorText = await response.text();
+                      let errorMsg = `Export failed (${response.status})`;
+                      try {
+                        const errorJson = JSON.parse(errorText);
+                        errorMsg = errorJson.error || errorMsg;
+                      } catch {
+                        errorMsg = errorText || errorMsg;
+                      }
+                      throw new Error(errorMsg);
                     }
                     
                     const blob = await response.blob();
                     const blobUrl = window.URL.createObjectURL(blob);
                     const link = document.createElement('a');
                     link.href = blobUrl;
-                    link.download = 'products.csv';
+                    link.download = `products-${new Date().toISOString().split('T')[0]}.csv`;
                     document.body.appendChild(link);
                     link.click();
-                    document.body.removeChild(link);
-                    window.URL.revokeObjectURL(blobUrl);
+                    setTimeout(() => {
+                      document.body.removeChild(link);
+                      window.URL.revokeObjectURL(blobUrl);
+                    }, 100);
+                    
+                    toast({
+                      title: t('common.success'),
+                      description: 'Products exported successfully',
+                    });
                   } catch (error: any) {
                     console.error('Export error:', error);
                     toast({
                       title: t('common.error'),
-                      description: error.message || 'Failed to export products',
+                      description: error.message || 'Failed to export products. Please check your connection.',
                       variant: "destructive",
                     });
                   }
