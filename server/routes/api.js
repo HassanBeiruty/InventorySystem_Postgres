@@ -5,6 +5,7 @@ const bcrypt = require('bcrypt');
 const { body, param, query: queryValidator, validationResult } = require('express-validator');
 const multer = require('multer');
 const XLSX = require('xlsx');
+const { parse } = require('csv-parse/sync');
 
 // Import security middleware
 const {

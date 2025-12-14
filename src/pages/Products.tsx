@@ -406,7 +406,40 @@ const Products = () => {
                   <Download className="w-4 h-4 mr-2" />
                   {importLoading ? t('products.importing') : t('products.importExcel')}
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => window.open('/api/export/products', '_blank')}>
+                <DropdownMenuItem onClick={async () => {
+                  try {
+                    const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+                    const token = localStorage.getItem('auth_token');
+                    const url = API_BASE_URL ? `${API_BASE_URL}/api/export/products` : '/api/export/products';
+                    
+                    const response = await fetch(url, {
+                      headers: {
+                        'Authorization': `Bearer ${token}`,
+                      },
+                    });
+                    
+                    if (!response.ok) {
+                      throw new Error(`Export failed: ${response.status}`);
+                    }
+                    
+                    const blob = await response.blob();
+                    const blobUrl = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = blobUrl;
+                    link.download = 'products.csv';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(blobUrl);
+                  } catch (error: any) {
+                    console.error('Export error:', error);
+                    toast({
+                      title: t('common.error'),
+                      description: error.message || 'Failed to export products',
+                      variant: "destructive",
+                    });
+                  }
+                }}>
                   <Upload className="w-4 h-4 mr-2" />
                   {t('products.exportCsv')}
                 </DropdownMenuItem>
