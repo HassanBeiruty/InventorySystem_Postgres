@@ -40,6 +40,7 @@ const helmetConfig = helmet({
 });
 
 // Rate limiting - Different tiers for different endpoints
+// Note: trustProxy is configured in server/index.js
 const authLimiter = rateLimit({
 	windowMs: 15 * 60 * 1000, // 15 minutes
 	max: 5, // 5 attempts per window
@@ -48,6 +49,10 @@ const authLimiter = rateLimit({
 	legacyHeaders: false,
 	skipSuccessfulRequests: true, // Don't count successful requests
 	skipFailedRequests: false,
+	validate: {
+		trustProxy: false, // Skip trust proxy validation since we configure it in Express
+		xForwardedForHeader: false, // Skip X-Forwarded-For validation
+	},
 });
 
 const apiLimiter = rateLimit({
@@ -56,6 +61,10 @@ const apiLimiter = rateLimit({
 	message: 'Too many requests, please try again later.',
 	standardHeaders: true,
 	legacyHeaders: false,
+	validate: {
+		trustProxy: false, // Skip trust proxy validation since we configure it in Express
+		xForwardedForHeader: false, // Skip X-Forwarded-For validation
+	},
 });
 
 const strictApiLimiter = rateLimit({
@@ -64,6 +73,10 @@ const strictApiLimiter = rateLimit({
 	message: 'Too many requests, please try again later.',
 	standardHeaders: true,
 	legacyHeaders: false,
+	validate: {
+		trustProxy: false, // Skip trust proxy validation since we configure it in Express
+		xForwardedForHeader: false, // Skip X-Forwarded-For validation
+	},
 });
 
 // Slow down requests after exceeding rate limit
@@ -86,6 +99,10 @@ const fileUploadLimiter = rateLimit({
 	message: 'Too many file uploads, please try again later.',
 	standardHeaders: true,
 	legacyHeaders: false,
+	validate: {
+		trustProxy: false, // Skip trust proxy validation since we configure it in Express
+		xForwardedForHeader: false, // Skip X-Forwarded-For validation
+	},
 });
 
 // XSS Protection - Sanitize user input

@@ -19,9 +19,10 @@ const {
 const app = express();
 
 // Trust proxy - Required for rate limiting behind reverse proxies (Render, Vercel, etc.)
+// Trust only the first proxy hop (more secure than trusting all)
 // This allows Express to correctly identify client IPs from X-Forwarded-For headers
 if (process.env.NODE_ENV === 'production') {
-	app.set('trust proxy', true);
+	app.set('trust proxy', 1); // Trust only first proxy hop (more secure)
 } else {
 	// In development, trust proxy only if explicitly set
 	app.set('trust proxy', process.env.TRUST_PROXY === 'true');
