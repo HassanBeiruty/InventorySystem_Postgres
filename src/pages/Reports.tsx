@@ -4,9 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { invoicesRepo, productsRepo, productCostsRepo, customersRepo, suppliersRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, TrendingUp, TrendingDown, Package, Download, BarChart3, DollarSign } from "lucide-react";
+import { FileText, TrendingUp, TrendingDown, Package, Download, BarChart3, DollarSign, AlertCircle } from "lucide-react";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { useAdmin } from "@/hooks/useAdmin";
+import { useTranslation } from "react-i18next";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Helper function to get CSS variable color as hex
 const getThemeColor = (varName: string): string => {
@@ -56,6 +59,8 @@ const getChartColors = () => {
 
 const Reports = () => {
   const { toast } = useToast();
+  const { t } = useTranslation();
+  const { isAdmin, isLoading: isAdminLoading } = useAdmin();
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState({
     totalSales: 0,
@@ -75,8 +80,9 @@ const Reports = () => {
   const chartColors = getChartColors();
 
   useEffect(() => {
+    if (!isAdmin || isAdminLoading) return;
     fetchReports();
-  }, []);
+  }, [isAdmin, isAdminLoading]);
 
   const fetchReports = async () => {
     setLoading(true);
@@ -228,21 +234,49 @@ const Reports = () => {
     }
   };
 
+  // While checking admin status, show skeleton layout (same style as Settings/ExchangeRates)
+  if (isAdminLoading) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6 p-4 sm:p-6">
+          <div className="space-y-4">
+            <Skeleton className="h-10 w-64" />
+            <Skeleton className="h-64 w-full" />
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 p-4 sm:p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Reports & Analytics</h2>
-            <p className="text-muted-foreground">Comprehensive business insights and trends</p>
+            <h2 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+              <BarChart3 className="w-7 h-7" />
+              {t("reports.title")}
+            </h2>
+            <p className="text-muted-foreground mt-1">
+              {t("reports.subtitle")}
+            </p>
           </div>
-          <Button onClick={exportToPDF} className="gap-2">
-            <Download className="w-4 h-4" />
-            Export PDF
-          </Button>
+          {isAdmin && (
+            <Button onClick={exportToPDF} className="gap-2">
+              <Download className="w-4 h-4" />
+              Export PDF
+            </Button>
+          )}
         </div>
 
-        {loading ? (
+        {!isAdmin ? (
+          <Card>
+            <CardContent className="p-6 text-center">
+              <AlertCircle className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">{t("settings.adminAccessRequired")}</p>
+            </CardContent>
+          </Card>
+        ) : loading ? (
           <div className="grid gap-4 md:grid-cols-4">
             {Array(4).fill(0).map((_, i) => (
               <Card key={i} className="animate-pulse">
