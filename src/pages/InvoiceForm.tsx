@@ -55,6 +55,10 @@ const InvoiceForm = () => {
       private_price_note: "",
       barcode: "",
     }]);
+    // When switching between buy/sell, focus barcode for fast scanning
+    setTimeout(() => {
+      barcodeInputRef.current?.focus();
+    }, 50);
   }, [location.pathname, isEditMode]);
   const [products, setProducts] = useState<any[]>([]);
   const [latestPrices, setLatestPrices] = useState<Record<string, { wholesale_price: number | null; retail_price: number | null }>>({});
@@ -578,6 +582,15 @@ const InvoiceForm = () => {
     }
   }, [pageLoading]);
 
+  // Auto-focus barcode input when form is ready and not in edit mode
+  useEffect(() => {
+    if (!pageLoading && !isEditMode) {
+      setTimeout(() => {
+        barcodeInputRef.current?.focus();
+      }, 50);
+    }
+  }, [pageLoading, isEditMode, invoiceType]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -788,15 +801,12 @@ const InvoiceForm = () => {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle>{t('invoiceForm.invoiceDetails')}</CardTitle>
-              <CardDescription>
-                {invoiceType === 'sell' ? t('invoiceForm.selectCustomer') : t('invoiceForm.selectSupplier')}
-              </CardDescription>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base sm:text-lg">{t('invoiceForm.invoiceDetails')}</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="entity-select">
+            <CardContent className="grid gap-4 sm:gap-6 sm:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)]">
+              <div className="space-y-1.5">
+                <Label htmlFor="entity-select" className="text-xs sm:text-sm">
                   {invoiceType === 'sell' ? t('invoiceForm.selectCustomer') : t('invoiceForm.selectSupplier')}
                 </Label>
                 <Select 
@@ -804,7 +814,7 @@ const InvoiceForm = () => {
                   value={selectedEntity || ""} 
                   onValueChange={setSelectedEntity}
                 >
-                  <SelectTrigger id="entity-select">
+                  <SelectTrigger id="entity-select" className="h-9 sm:h-10 text-sm">
                     <SelectValue placeholder={invoiceType === 'sell' ? t('invoiceForm.selectCustomer') : t('invoiceForm.selectSupplier')} />
                   </SelectTrigger>
                   <SelectContent side="bottom" align="start">
@@ -824,14 +834,17 @@ const InvoiceForm = () => {
                 </Select>
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="due_date">Due Date (Optional)</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="due_date" className="text-xs sm:text-sm">
+                  Due Date <span className="text-muted-foreground text-[11px] sm:text-xs">(optional)</span>
+                </Label>
                 <Input
                   id="due_date"
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  placeholder="Select due date"
+                  placeholder={t("commonPlaceholders.selectDueDate")}
+                  className="h-9 sm:h-10 text-sm"
                 />
               </div>
             </CardContent>
