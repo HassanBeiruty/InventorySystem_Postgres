@@ -369,7 +369,8 @@ const InvoiceForm = () => {
 
   // Handle barcode input from top field - link with active item's product dropdown
   const handleTopBarcodeSearch = (barcode: string) => {
-    if (!barcode.trim()) return;
+    const trimmed = barcode.trim();
+    if (!trimmed) return;
     
     // In edit mode, don't allow adding new items via barcode
     if (isEditMode) {
@@ -383,13 +384,13 @@ const InvoiceForm = () => {
     }
 
     const product = products.find(p => 
-      p.barcode && p.barcode.toLowerCase() === barcode.toLowerCase().trim()
+      p.barcode && p.barcode.toLowerCase() === trimmed.toLowerCase()
     );
 
     if (!product) {
       toast({
         title: "Product Not Available",
-        description: `No product found with barcode: ${barcode}`,
+        description: `No product found with barcode: ${trimmed}`,
         variant: "info",
       });
       // Clear and refocus for next scan
@@ -416,40 +417,67 @@ const InvoiceForm = () => {
       return;
     }
 
-    // Find first item without product or use active item index
-    let targetIndex = activeItemIndex;
-    if (!items[targetIndex] || items[targetIndex].product_id) {
-      // Find first empty product
-      const emptyIndex = items.findIndex(item => !item.product_id);
-      if (emptyIndex >= 0) {
-        targetIndex = emptyIndex;
-      } else {
-        // No empty item found, add a new one
-        addItem();
-        targetIndex = items.length; // New item will be at the end
-        setActiveItemIndex(targetIndex);
+    // Insert or reuse a row and assign the product in a single, synchronous update
+    let newActiveIndex = activeItemIndex;
+    const productIdStr = String(product.id);
+
+    setItems(prevItems => {
+      const updated = [...prevItems];
+
+      // Find target row
+      let targetIndex = newActiveIndex;
+      if (!updated[targetIndex] || updated[targetIndex].product_id) {
+        const emptyIndex = updated.findIndex(item => !item.product_id);
+        if (emptyIndex >= 0) {
+          targetIndex = emptyIndex;
+        } else {
+          // No empty row – append a new one
+          updated.push({
+            product_id: "",
+            quantity: 1,
+            unit_price: 0,
+            price_type: "retail",
+            total_price: 0,
+            is_private_price: false,
+            private_price_amount: 0,
+            private_price_note: "",
+            barcode: "",
+          });
+          targetIndex = updated.length - 1;
+        }
       }
-    }
 
-    // Product found, fill the product dropdown for the target item
-    // Use setTimeout to ensure new item is added before trying to update
-    if (targetIndex === items.length) {
-      setTimeout(() => {
-        handleProductChange(targetIndex, String(product.id));
-        // Remove any remaining empty items after adding product
-        setTimeout(() => {
-          setItems(prevItems => prevItems.filter(item => item.product_id || prevItems.length === 1));
-        }, 50);
-      }, 0);
-    } else {
-      handleProductChange(targetIndex, String(product.id));
-      // Remove any remaining empty items after filling product
-      setTimeout(() => {
-        setItems(prevItems => prevItems.filter(item => item.product_id || prevItems.length === 1));
-      }, 50);
-    }
+      const item = updated[targetIndex];
+      item.product_id = productIdStr;
 
-    // Clear barcode input and refocus for next scan
+      if (invoiceType === "sell") {
+        const lp = latestPrices[productIdStr];
+        const retailPrice = lp?.retail_price != null ? Number(lp.retail_price) : 0;
+        item.unit_price = retailPrice;
+        item.price_type = "retail";
+
+        if (retailPrice === 0 && (!lp || lp.retail_price === null)) {
+          toast({
+            title: "Price Not Set",
+            description: `Product "${product.name}" has no price set. Please add a price in the Product Prices page before selling this product.`,
+            variant: "destructive",
+          });
+        }
+      } else {
+        item.unit_price = 0;
+        item.price_type = "wholesale";
+      }
+
+      const effectivePrice = item.is_private_price
+        ? item.private_price_amount
+        : item.unit_price;
+      item.total_price = effectivePrice * item.quantity;
+
+      newActiveIndex = targetIndex;
+      return updated;
+    });
+
+    setActiveItemIndex(newActiveIndex);
     setBarcodeInput("");
     setTimeout(() => {
       barcodeInputRef.current?.focus();
