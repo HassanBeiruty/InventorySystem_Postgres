@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Scan, Package, CheckCircle2, ArrowRight } from "lucide-react";
+import { Scan, Package, CheckCircle2, ArrowRight, Hash } from "lucide-react";
 import { productsRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
@@ -14,17 +14,24 @@ const QuickAddProducts = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [mode, setMode] = useState<'barcode' | 'sku'>('barcode');
   const [barcode, setBarcode] = useState("");
+  const [sku, setSku] = useState("");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [recentProducts, setRecentProducts] = useState<any[]>([]);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const skuInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-focus barcode input on mount
+  // Auto-focus input on mount and when mode changes
   useEffect(() => {
-    barcodeInputRef.current?.focus();
-  }, []);
+    if (mode === 'barcode') {
+      barcodeInputRef.current?.focus();
+    } else {
+      skuInputRef.current?.focus();
+    }
+  }, [mode]);
 
   // Handle barcode scanner input (usually ends with Enter)
   const handleBarcodeKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -37,11 +44,24 @@ const QuickAddProducts = () => {
     }
   };
 
+  // Handle SKU scanner input (usually ends with Enter)
+  const handleSkuKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      // If SKU is entered, move to name field
+      if (sku.trim()) {
+        nameInputRef.current?.focus();
+      }
+    }
+  };
+
   // Handle name input (Enter saves)
   const handleNameKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      if (name.trim() && barcode.trim()) {
+      if (mode === 'barcode' && name.trim() && barcode.trim()) {
+        await handleSubmit();
+      } else if (mode === 'sku' && name.trim() && sku.trim()) {
         await handleSubmit();
       }
     }
@@ -66,21 +86,39 @@ const QuickAddProducts = () => {
   }, []);
 
   const handleSubmit = async () => {
-    if (!barcode.trim() || !name.trim()) {
-      toast({
-        title: "Error",
-        description: "Both barcode and name are required",
-        variant: "destructive",
-      });
-      return;
+    if (mode === 'barcode') {
+      if (!barcode.trim() || !name.trim()) {
+        toast({
+          title: "Error",
+          description: "Both barcode and name are required",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else {
+      if (!sku.trim() || !name.trim()) {
+        toast({
+          title: "Error",
+          description: "Both SKU and name are required",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     setLoading(true);
     try {
-      await productsRepo.quickAdd({
-        barcode: barcode.trim(),
-        name: name.trim(),
-      });
+      if (mode === 'barcode') {
+        await productsRepo.quickAdd({
+          barcode: barcode.trim(),
+          name: name.trim(),
+        });
+      } else {
+        await productsRepo.quickAddSku({
+          sku: sku.trim(),
+          name: name.trim(),
+        });
+      }
       
       toast({
         title: "Success",
@@ -89,11 +127,16 @@ const QuickAddProducts = () => {
 
       // Reset form
       setBarcode("");
+      setSku("");
       setName("");
       
-      // Refocus barcode input for next scan
+      // Refocus input for next scan
       setTimeout(() => {
-        barcodeInputRef.current?.focus();
+        if (mode === 'barcode') {
+          barcodeInputRef.current?.focus();
+        } else {
+          skuInputRef.current?.focus();
+        }
         fetchRecentProducts();
       }, 100);
     } catch (error: any) {
@@ -116,7 +159,7 @@ const QuickAddProducts = () => {
               Quick Add Products
             </h2>
             <p className="text-muted-foreground">
-              Scan barcode and enter name to quickly register products
+              Scan barcode or SKU and enter name to quickly register products
             </p>
           </div>
           <Button
@@ -134,32 +177,91 @@ const QuickAddProducts = () => {
           <Card className="border-2 shadow-card hover:shadow-elegant transition-all duration-300">
             <CardHeader className="border-b bg-gradient-to-br from-primary/5 via-transparent to-accent/5">
               <CardTitle className="flex items-center gap-2">
-                <Scan className="w-6 h-6 text-primary" />
+                {mode === 'barcode' ? (
+                  <Scan className="w-6 h-6 text-primary" />
+                ) : (
+                  <Hash className="w-6 h-6 text-primary" />
+                )}
                 Quick Add Product
               </CardTitle>
               <CardDescription>
-                Optimized for barcode scanner workflow
+                Optimized for {mode === 'barcode' ? 'barcode' : 'SKU'} scanner workflow
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="barcode" className="text-base font-semibold">
-                  Barcode <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="barcode"
-                  ref={barcodeInputRef}
-                  value={barcode}
-                  onChange={(e) => setBarcode(e.target.value)}
-                  onKeyDown={handleBarcodeKeyDown}
-                  placeholder="Scan or enter barcode"
-                  className="h-12 text-lg"
-                  autoFocus
-                />
-                <p className="text-xs text-muted-foreground">
-                  Scan barcode with scanner (press Enter to continue)
-                </p>
+              {/* Mode Toggle */}
+              <div className="flex gap-2 p-1 bg-muted rounded-lg">
+                <Button
+                  type="button"
+                  variant={mode === 'barcode' ? 'default' : 'ghost'}
+                  onClick={() => {
+                    setMode('barcode');
+                    setBarcode("");
+                    setSku("");
+                    setName("");
+                    setTimeout(() => barcodeInputRef.current?.focus(), 100);
+                  }}
+                  className="flex-1"
+                >
+                  <Scan className="w-4 h-4 mr-2" />
+                  Barcode
+                </Button>
+                <Button
+                  type="button"
+                  variant={mode === 'sku' ? 'default' : 'ghost'}
+                  onClick={() => {
+                    setMode('sku');
+                    setBarcode("");
+                    setSku("");
+                    setName("");
+                    setTimeout(() => skuInputRef.current?.focus(), 100);
+                  }}
+                  className="flex-1"
+                >
+                  <Hash className="w-4 h-4 mr-2" />
+                  SKU
+                </Button>
               </div>
+
+              {mode === 'barcode' ? (
+                <div className="space-y-2">
+                  <Label htmlFor="barcode" className="text-base font-semibold">
+                    Barcode <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="barcode"
+                    ref={barcodeInputRef}
+                    value={barcode}
+                    onChange={(e) => setBarcode(e.target.value)}
+                    onKeyDown={handleBarcodeKeyDown}
+                    placeholder="Scan or enter barcode"
+                    className="h-12 text-lg"
+                    autoFocus
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Scan barcode with scanner (press Enter to continue)
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="sku" className="text-base font-semibold">
+                    SKU <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="sku"
+                    ref={skuInputRef}
+                    value={sku}
+                    onChange={(e) => setSku(e.target.value)}
+                    onKeyDown={handleSkuKeyDown}
+                    placeholder="Scan or enter SKU"
+                    className="h-12 text-lg"
+                    autoFocus
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Scan SKU with scanner (press Enter to continue)
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="name" className="text-base font-semibold">
@@ -181,7 +283,7 @@ const QuickAddProducts = () => {
 
               <Button
                 onClick={handleSubmit}
-                disabled={loading || !barcode.trim() || !name.trim()}
+                disabled={loading || (mode === 'barcode' ? (!barcode.trim() || !name.trim()) : (!sku.trim() || !name.trim()))}
                 className="w-full h-12 text-base font-semibold gradient-primary hover:shadow-glow"
               >
                 {loading ? (
@@ -196,7 +298,7 @@ const QuickAddProducts = () => {
 
               <div className="pt-4 border-t">
                 <p className="text-sm text-muted-foreground text-center">
-                  💡 Tip: After saving, barcode field will auto-focus for next scan
+                  💡 Tip: After saving, {mode === 'barcode' ? 'barcode' : 'SKU'} field will auto-focus for next scan
                 </p>
               </div>
             </CardContent>
@@ -229,7 +331,10 @@ const QuickAddProducts = () => {
                       <div>
                         <p className="font-medium">{product.name}</p>
                         <p className="text-sm text-muted-foreground">
-                          Barcode: {product.barcode || "N/A"}
+                          {product.barcode && `Barcode: ${product.barcode}`}
+                          {product.barcode && product.sku && " • "}
+                          {product.sku && `SKU: ${product.sku}`}
+                          {!product.barcode && !product.sku && "No identifier"}
                         </p>
                       </div>
                       <Button
@@ -253,12 +358,12 @@ const QuickAddProducts = () => {
           <CardContent className="pt-6">
             <h3 className="font-semibold mb-3">Workflow Instructions:</h3>
             <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
-              <li>Open this page and position barcode scanner</li>
-              <li>Scan the product barcode (auto-fills barcode field)</li>
+              <li>Open this page and choose Barcode or SKU mode</li>
+              <li>Scan the product barcode/SKU (auto-fills the field)</li>
               <li>Press Enter or Tab to move to name field</li>
               <li>Type the product name</li>
               <li>Press Enter or click Save to register the product</li>
-              <li>Barcode field auto-focuses for the next scan</li>
+              <li>The identifier field auto-focuses for the next scan</li>
               <li>Add full details (category, description, prices) later in Products page</li>
             </ol>
           </CardContent>

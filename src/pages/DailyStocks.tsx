@@ -70,19 +70,20 @@ const DailyStocks = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4 animate-fade-in">
-        <div className="flex items-center justify-between">
+      <div className="space-y-3 sm:space-y-4 animate-fade-in">
+        <div className="flex items-center justify-between gap-2">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
               {t('dailyStocks.title')}
             </h1>
-            <p className="text-muted-foreground">{t('dailyStocks.subtitle')}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{t('dailyStocks.subtitle')}</p>
           </div>
-          <div className="w-64">
+          <div className="w-48 sm:w-64">
             <Input
               placeholder={t('dailyStocks.searchProducts')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              className="h-8 text-sm"
             />
           </div>
         </div>
@@ -130,11 +131,11 @@ const DailyStocks = () => {
                         <Table>
                           <TableHeader>
                             <TableRow className="bg-gradient-to-r from-accent/5 to-primary/5">
-                              <TableHead className="font-bold">{t('invoices.product')}</TableHead>
-                              <TableHead className="font-bold">{t('products.barcode')}</TableHead>
-                            <TableHead className="text-center font-bold">{t('inventory.availableQty')}</TableHead>
-                            <TableHead className="text-center font-bold">Avg Cost</TableHead>
-                              <TableHead className="font-bold">{t('inventory.lastUpdated')}</TableHead>
+                              <TableHead className="font-bold p-2 text-xs">{t('invoices.product')}</TableHead>
+                              <TableHead className="font-bold p-2 text-xs">{t('products.barcode')}</TableHead>
+                            <TableHead className="text-center font-bold p-2 text-xs">{t('inventory.availableQty')}</TableHead>
+                            <TableHead className="text-center font-bold p-2 text-xs">Avg Cost</TableHead>
+                              <TableHead className="font-bold p-2 text-xs">{t('inventory.lastUpdated')}</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -144,21 +145,21 @@ const DailyStocks = () => {
                                   key={item.id} 
                                   className="hover:bg-accent/5 transition-colors"
                                 >
-                                  <TableCell className="font-semibold">
-                                    <span className="text-muted-foreground text-sm">#{item.product_id}</span> {item.products?.name || "Unknown Product"}
+                                  <TableCell className="font-semibold p-2 text-sm">
+                                    <span className="text-muted-foreground text-xs">#{item.product_id}</span> {item.products?.name || "Unknown Product"}
                                   </TableCell>
-                                  <TableCell className="font-mono text-sm text-muted-foreground">
+                                  <TableCell className="font-mono text-xs text-muted-foreground p-2">
                                     {item.products?.barcode || "N/A"}
                                   </TableCell>
-                                  <TableCell className="text-center">
-                                    <span className={`font-bold text-lg ${item.available_qty === 0 ? 'text-destructive' : item.available_qty < 10 ? 'text-warning' : 'text-success'}`}>
+                                  <TableCell className="text-center p-2">
+                                    <span className={`font-bold text-sm ${item.available_qty === 0 ? 'text-destructive' : item.available_qty < 10 ? 'text-warning' : 'text-success'}`}>
                                       {item.available_qty}
                                     </span>
                                   </TableCell>
-                                  <TableCell className="text-center font-mono text-sm">
+                                  <TableCell className="text-center font-mono text-xs p-2">
                                     {Number(item.avg_cost || 0).toFixed(2)}
                                   </TableCell>
-                                  <TableCell className="text-sm text-muted-foreground">
+                                  <TableCell className="text-xs text-muted-foreground p-2">
                                     {formatDateTimeLebanon(item.updated_at, "HH:mm:ss")}
                                   </TableCell>
                                 </TableRow>

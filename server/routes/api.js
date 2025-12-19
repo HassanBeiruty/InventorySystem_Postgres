@@ -590,6 +590,16 @@ router.post('/products/quick-add', [
 ], handleValidationErrors, async (req, res) => {
 	try {
 		const { name, barcode } = req.body;
+		
+		// Check if barcode already exists
+		const existingBarcode = await query(
+			'SELECT id FROM products WHERE barcode = $1',
+			[barcode]
+		);
+		if (existingBarcode.recordset.length > 0) {
+			return res.status(400).json({ error: 'Barcode already exists' });
+		}
+		
 		const createdAt = nowIso();
 		// Using plain array params
 		const result = await query(
@@ -609,6 +619,46 @@ router.post('/products/quick-add', [
 		res.json({ id });
 	} catch (err) {
 		console.error('Quick add product error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Quick add product (SKU scanner optimized - only SKU + name)
+router.post('/products/quick-add-sku', [
+	body('name').trim().notEmpty().withMessage('Product name is required'),
+	body('sku').trim().notEmpty().withMessage('SKU is required'),
+], handleValidationErrors, async (req, res) => {
+	try {
+		const { name, sku } = req.body;
+		
+		// Check if SKU already exists
+		const existingSku = await query(
+			'SELECT id FROM products WHERE sku = $1',
+			[sku]
+		);
+		if (existingSku.recordset.length > 0) {
+			return res.status(400).json({ error: 'SKU already exists' });
+		}
+		
+		const createdAt = nowIso();
+		// Using plain array params
+		const result = await query(
+			'INSERT INTO products (name, barcode, category_id, description, sku, shelf, created_at) VALUES ($1, NULL, NULL, NULL, $2, NULL, $3) RETURNING id',
+			[name, sku, createdAt]
+		);
+		const id = result.recordset[0].id;
+		// Ensure daily stock entry - using plain array params
+		const today = getTodayLocal();
+		const stockTimestamp = nowIso();
+		await query(
+			`INSERT INTO daily_stock (product_id, available_qty, avg_cost, date, created_at, updated_at) 
+			 VALUES ($1, 0, 0, $2, $3, $3)
+			 ON CONFLICT (product_id, date) DO NOTHING`,
+			[id, today, stockTimestamp]
+		);
+		res.json({ id });
+	} catch (err) {
+		console.error('Quick add product (SKU) error:', err);
 		res.status(500).json({ error: err.message });
 	}
 });
@@ -3191,4 +3241,8 @@ router.post('/products/import-excel',
 });
 
 module.exports = router;
+
+
+
+
 

@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
 import PaymentDialog from "@/components/PaymentDialog";
-import InvoiceDetailDialog from "@/components/InvoiceDetailDialog";
+import InvoiceItemsSidePanel from "@/components/InvoiceItemsSidePanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,7 +42,7 @@ const InvoicesList = () => {
 
   const [showFilters, setShowFilters] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
-  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [sidePanelOpen, setSidePanelOpen] = useState(false);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>("");
 
   useEffect(() => {
@@ -177,9 +177,22 @@ const InvoicesList = () => {
     setPaymentDialogOpen(true);
   };
 
-  const handleViewDetails = (invoiceId: string) => {
+  const handleViewDetails = (invoiceId: string, event?: React.MouseEvent) => {
+    if (event) {
+      event.stopPropagation();
+    }
     setSelectedInvoiceId(invoiceId);
-    setDetailDialogOpen(true);
+    setSidePanelOpen(true);
+  };
+
+  const handleRowClick = (invoiceId: string) => {
+    if (selectedInvoiceId === invoiceId && sidePanelOpen) {
+      setSidePanelOpen(false);
+      setSelectedInvoiceId("");
+    } else {
+      setSelectedInvoiceId(invoiceId);
+      setSidePanelOpen(true);
+    }
   };
 
   const handlePaymentRecorded = () => {
@@ -232,14 +245,14 @@ const InvoicesList = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4">
+      <div className="space-y-2 sm:space-y-3">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
               {t('invoices.title')}
             </h1>
-            <p className="text-muted-foreground text-sm sm:text-base">{t('invoices.subtitle')}</p>
+            <p className="text-muted-foreground text-xs sm:text-sm">{t('invoices.subtitle')}</p>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
              <Button
@@ -394,215 +407,263 @@ const InvoicesList = () => {
         )}
 
         {/* Summary Stats */}
-        <div className="grid gap-2 sm:gap-3 grid-cols-2 sm:grid-cols-4 md:grid-cols-8">
-          <div className="border rounded-lg p-2 sm:p-3">
-            <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
-              <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary flex-shrink-0" />
+        <div className="grid gap-2 grid-cols-2 sm:grid-cols-4 md:grid-cols-8">
+          <div className="border rounded-lg p-2">
+            <div className="flex items-center gap-1.5 mb-1">
+              <FileText className="w-3.5 h-3.5 text-primary flex-shrink-0" />
               <span className="text-xs font-medium text-muted-foreground truncate">{t('invoices.totalInvoices')}</span>
             </div>
-            <div className="text-xl sm:text-2xl font-bold">{stats.total}</div>
+            <div className="text-base font-bold">{stats.total}</div>
           </div>
 
-          <div className="border rounded-lg p-2 sm:p-3">
-            <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
-              <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary flex-shrink-0" />
+          <div className="border rounded-lg p-2">
+            <div className="flex items-center gap-1.5 mb-1">
+              <DollarSign className="w-3.5 h-3.5 text-primary flex-shrink-0" />
               <span className="text-xs font-medium text-muted-foreground truncate">{t('invoices.totalAmount')}</span>
             </div>
-            <div className="text-base sm:text-lg font-bold text-primary truncate">${stats.totalAmount.toFixed(2)}</div>
+            <div className="text-sm font-bold text-primary truncate">${stats.totalAmount.toFixed(2)}</div>
           </div>
 
-          <div className="border rounded-lg p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="w-4 h-4 text-success" />
+          <div className="border rounded-lg p-2">
+            <div className="flex items-center gap-1.5 mb-1">
+              <DollarSign className="w-3.5 h-3.5 text-success" />
               <span className="text-xs font-medium text-muted-foreground">{t('invoices.totalPaid')}</span>
             </div>
-            <div className="text-lg font-bold text-success">${stats.totalPaid.toFixed(2)}</div>
+            <div className="text-sm font-bold text-success">${stats.totalPaid.toFixed(2)}</div>
           </div>
 
-          <div className="border rounded-lg p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="w-4 h-4 text-warning" />
+          <div className="border rounded-lg p-2">
+            <div className="flex items-center gap-1.5 mb-1">
+              <DollarSign className="w-3.5 h-3.5 text-warning" />
               <span className="text-xs font-medium text-muted-foreground">{t('invoices.totalOutstanding')}</span>
             </div>
-            <div className="text-lg font-bold text-warning">${stats.totalOutstanding.toFixed(2)}</div>
+            <div className="text-sm font-bold text-warning">${stats.totalOutstanding.toFixed(2)}</div>
           </div>
 
-          <div className="border rounded-lg p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="w-4 h-4 text-primary" />
+          <div className="border rounded-lg p-2">
+            <div className="flex items-center gap-1.5 mb-1">
+              <TrendingUp className="w-3.5 h-3.5 text-primary" />
               <span className="text-xs font-medium text-muted-foreground">{t('invoices.sell')}</span>
             </div>
-            <div className="text-2xl font-bold text-primary">{stats.sell}</div>
+            <div className="text-lg font-bold text-primary">{stats.sell}</div>
           </div>
 
-          <div className="border rounded-lg p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingDown className="w-4 h-4 text-success" />
+          <div className="border rounded-lg p-2">
+            <div className="flex items-center gap-1.5 mb-1">
+              <TrendingDown className="w-3.5 h-3.5 text-success" />
               <span className="text-xs font-medium text-muted-foreground">{t('invoices.buy')}</span>
             </div>
-            <div className="text-2xl font-bold text-success">{stats.buy}</div>
+            <div className="text-lg font-bold text-success">{stats.buy}</div>
           </div>
 
-          <div className="border rounded-lg p-3">
-            <div className="flex items-center gap-2 mb-1">
+          <div className="border rounded-lg p-2">
+            <div className="flex items-center gap-1.5 mb-1">
               <span className="text-xs font-medium text-muted-foreground">Paid</span>
             </div>
-            <div className="text-2xl font-bold text-success">{stats.paid}</div>
+            <div className="text-lg font-bold text-success">{stats.paid}</div>
           </div>
 
-          <div className="border rounded-lg p-3">
-            <div className="flex items-center gap-2 mb-1">
+          <div className="border rounded-lg p-2">
+            <div className="flex items-center gap-1.5 mb-1">
               <span className="text-xs font-medium text-muted-foreground">Pending</span>
             </div>
-            <div className="text-2xl font-bold text-warning">{stats.pending + stats.partial}</div>
+            <div className="text-lg font-bold text-warning">{stats.pending + stats.partial}</div>
           </div>
         </div>
 
-        {/* Table */}
-        <div className="border-2 rounded-lg overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5">
-                <TableHead className="font-bold whitespace-nowrap">Invoice#</TableHead>
-                <TableHead className="font-bold whitespace-nowrap">{t('invoices.date')}</TableHead>
-                <TableHead className="font-bold whitespace-nowrap hidden md:table-cell">Due Date</TableHead>
-                <TableHead className="font-bold whitespace-nowrap">{t('invoices.type')}</TableHead>
-                <TableHead className="font-bold whitespace-nowrap">{t('invoices.entity')}</TableHead>
-                <TableHead className="font-bold whitespace-nowrap hidden sm:table-cell">{t('invoices.items')}</TableHead>
-                <TableHead className="text-right font-bold whitespace-nowrap">{t('invoices.amount')}</TableHead>
-                <TableHead className="text-center font-bold whitespace-nowrap">{t('invoices.status')}</TableHead>
-                <TableHead className="text-center font-bold whitespace-nowrap">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                Array(10).fill(0).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                  </TableRow>
-                ))
-              ) : filteredInvoices.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
-                    {hasActiveFilters ? t('invoices.noInvoicesMatch') : t('invoices.noInvoices')}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredInvoices.map((invoice, idx) => (
-                  <TableRow 
-                    key={invoice.id}
-                    className="hover:bg-primary/5 transition-colors animate-fade-in"
-                    style={{ animationDelay: `${idx * 0.01}s` }}
-                  >
-                    <TableCell className="font-bold text-primary">
-                      #{invoice.id}
-                    </TableCell>
-                    <TableCell className="text-xs sm:text-sm whitespace-nowrap">
-                      {formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}
-                    </TableCell>
-                    <TableCell className="text-xs sm:text-sm whitespace-nowrap hidden md:table-cell">
-                      {invoice.due_date ? (
-                        <span className={new Date(invoice.due_date) < new Date() && invoice.payment_status !== 'paid' 
-                          ? 'text-destructive font-semibold' 
-                          : 'text-muted-foreground'}>
-                          {formatDateTimeLebanon(invoice.due_date, "MMM dd, yyyy")}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground italic">No due date</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge 
-                        variant={invoice.invoice_type === 'sell' ? 'default' : 'success'}
-                      >
-                        {invoice.invoice_type === 'sell' ? t('invoices.sell') : t('invoices.buy')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-semibold whitespace-nowrap max-w-[120px] sm:max-w-none truncate">
-                      {invoice.customers?.name || invoice.suppliers?.name || "N/A"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground whitespace-nowrap hidden sm:table-cell">
-                      {invoice.invoice_items?.length || 0} items
-                    </TableCell>
-                    <TableCell className={`text-right font-bold text-base sm:text-lg whitespace-nowrap ${
-                      invoice.payment_status === 'paid' 
-                        ? 'text-success' 
-                        : 'text-warning'
-                    }`}>
-                      ${Number(invoice.total_amount).toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge 
-                        variant={
-                          invoice.payment_status === 'paid' 
-                            ? 'success' :
-                          invoice.payment_status === 'partial'
-                            ? 'warning' :
-                          'warning'
-                        }
-                      >
-                        {invoice.payment_status === 'paid' ? t('invoices.paid') : 
-                         invoice.payment_status === 'partial' ? t('invoices.partial') : 
-                         t('invoices.pending')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-1 sm:gap-2 flex-wrap">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleViewDetails(invoice.id)}
-                          className="gap-1 text-xs sm:text-sm h-7 sm:h-8 px-2 sm:px-3"
-                        >
-                          <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
-                          <span className="hidden sm:inline">{t('invoices.view')}</span>
-                        </Button>
-                        {invoice.payment_status !== 'paid' && (
-                          <>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => navigate(`/invoices/edit/${invoice.id}`)}
-                              className="gap-1 text-xs sm:text-sm h-7 sm:h-8 px-2 sm:px-3"
-                            >
-                              <Pencil className="w-3 h-3 sm:w-4 sm:h-4" />
-                              <span className="hidden sm:inline">{t('invoices.edit')}</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRecordPayment(invoice.id)}
-                              className="gap-1 text-xs sm:text-sm h-7 sm:h-8 px-2 sm:px-3"
-                            >
-                              <CreditCard className="w-3 h-3 sm:w-4 sm:h-4" />
-                              <span className="hidden sm:inline">Payment</span>
-                            </Button>
-                          </>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteInvoice(invoice.id)}
-                          className="gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2 text-xs"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                          <span className="hidden sm:inline">Delete</span>
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+        {/* Main Content with Side Panel */}
+        <div className="flex gap-4">
+          {/* Table Section */}
+          <div className={`flex-1 transition-all duration-300 ${sidePanelOpen ? 'lg:mr-[420px]' : ''}`}>
+            <div className="border-2 rounded-lg overflow-hidden bg-background">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5">
+                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs">Invoice#</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs">Date</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap hidden lg:table-cell p-2 text-xs">Due Date</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs">Type</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs">Entity</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs min-w-[200px]">Items</TableHead>
+                      <TableHead className="text-right font-bold whitespace-nowrap p-2 text-xs">Amount</TableHead>
+                      <TableHead className="text-center font-bold whitespace-nowrap p-2 text-xs">Status</TableHead>
+                      <TableHead className="text-center font-bold whitespace-nowrap p-2 text-xs w-[120px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      Array(10).fill(0).map((_, i) => (
+                        <TableRow key={i}>
+                          <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                          <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                          <TableCell className="hidden lg:table-cell"><Skeleton className="h-5 w-24" /></TableCell>
+                          <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                          <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                          <TableCell><Skeleton className="h-5 w-full" /></TableCell>
+                          <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                          <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                          <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                        </TableRow>
+                      ))
+                    ) : filteredInvoices.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
+                          {hasActiveFilters ? t('invoices.noInvoicesMatch') : t('invoices.noInvoices')}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredInvoices.map((invoice, idx) => {
+                        const isSelected = selectedInvoiceId === String(invoice.id);
+                        const items = invoice.invoice_items || [];
+                        const itemsPreview = items.slice(0, 2);
+                        const remainingCount = items.length > 2 ? items.length - 2 : 0;
+                        
+                        return (
+                          <TableRow 
+                            key={invoice.id}
+                            className={`hover:bg-primary/5 transition-colors cursor-pointer ${isSelected ? 'bg-primary/10 border-l-4 border-l-primary' : ''}`}
+                            onClick={() => handleRowClick(String(invoice.id))}
+                          >
+                            <TableCell className="font-bold text-primary p-2 text-xs">
+                              #{invoice.id}
+                            </TableCell>
+                            <TableCell className="p-2 text-xs">
+                              {formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell p-2 text-xs">
+                              {invoice.due_date ? (
+                                <span className={new Date(invoice.due_date) < new Date() && invoice.payment_status !== 'paid' 
+                                  ? 'text-destructive font-semibold' 
+                                  : 'text-muted-foreground'}>
+                                  {formatDateTimeLebanon(invoice.due_date, "MMM dd, yyyy")}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground italic">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="p-2">
+                              <Badge 
+                                variant={invoice.invoice_type === 'sell' ? 'default' : 'success'}
+                                className="text-xs"
+                              >
+                                {invoice.invoice_type === 'sell' ? t('invoices.sell') : t('invoices.buy')}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-medium p-3 text-sm max-w-[150px] truncate">
+                              {invoice.customers?.name || invoice.suppliers?.name || "N/A"}
+                            </TableCell>
+                            <TableCell className="p-2">
+                              {items.length > 0 ? (
+                                <div className="space-y-1.5">
+                                  {itemsPreview.map((item: any, itemIdx: number) => {
+                                    const product = products.find((p: any) => String(p.id) === String(item.product_id));
+                                    const productName = item.product_name || product?.name || 'Product';
+                                    const productBarcode = item.product_barcode || product?.barcode || '';
+                                    const productSku = item.product_sku || product?.sku || '';
+                                    const identifier = productSku || productBarcode || '';
+                                    
+                                    return (
+                                      <div key={itemIdx} className="text-xs bg-muted/30 rounded px-2 py-1">
+                                        <div className="font-medium truncate">{productName}</div>
+                                        <div className="text-muted-foreground text-[10px] font-mono truncate">
+                                          {identifier && `${identifier} • `}Qty: {item.quantity} × ${Number(item.unit_price || 0).toFixed(2)}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                  {remainingCount > 0 && (
+                                    <div className="text-xs text-muted-foreground italic px-2">
+                                      +{remainingCount} more item{remainingCount !== 1 ? 's' : ''}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground text-sm italic">No items</span>
+                              )}
+                            </TableCell>
+                            <TableCell className={`text-right font-bold p-3 ${
+                              invoice.payment_status === 'paid' 
+                                ? 'text-success' 
+                                : 'text-warning'
+                            }`}>
+                              ${Number(invoice.total_amount).toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-center p-3">
+                              <Badge 
+                                variant={
+                                  invoice.payment_status === 'paid' 
+                                    ? 'success' :
+                                  invoice.payment_status === 'partial'
+                                    ? 'warning' :
+                                    'warning'
+                                }
+                                className="text-xs"
+                              >
+                                {invoice.payment_status === 'paid' ? t('invoices.paid') : 
+                                 invoice.payment_status === 'partial' ? t('invoices.partial') : 
+                                 t('invoices.pending')}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center p-3" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => handleViewDetails(String(invoice.id), e)}
+                                  className="h-8 w-8 p-0"
+                                  title="View Details"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                                {invoice.payment_status !== 'paid' && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigate(`/invoices/edit/${invoice.id}`);
+                                    }}
+                                    className="h-8 w-8 p-0"
+                                    title="Edit"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteInvoice(String(invoice.id));
+                                  }}
+                                  className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </div>
+
+          {/* Fixed Side Panel */}
+          <div className={`hidden lg:block fixed right-4 top-20 bottom-4 w-[400px] transition-transform duration-300 z-30 ${
+            sidePanelOpen ? 'translate-x-0' : 'translate-x-[420px]'
+          }`}>
+            <InvoiceItemsSidePanel
+              open={sidePanelOpen}
+              onOpenChange={setSidePanelOpen}
+              invoiceId={selectedInvoiceId}
+            />
+          </div>
         </div>
 
         {/* Payment Dialog */}
@@ -613,12 +674,14 @@ const InvoicesList = () => {
           onPaymentRecorded={handlePaymentRecorded}
         />
 
-        {/* Invoice Detail Dialog */}
-        <InvoiceDetailDialog
-          open={detailDialogOpen}
-          onOpenChange={setDetailDialogOpen}
-          invoiceId={selectedInvoiceId}
-        />
+        {/* Invoice Items Side Panel (Mobile/Tablet - Overlay) */}
+        <div className="lg:hidden">
+          <InvoiceItemsSidePanel
+            open={sidePanelOpen}
+            onOpenChange={setSidePanelOpen}
+            invoiceId={selectedInvoiceId}
+          />
+        </div>
       </div>
     </DashboardLayout>
   );

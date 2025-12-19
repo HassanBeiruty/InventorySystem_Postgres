@@ -57,10 +57,14 @@ const authLimiter = rateLimit({
 
 const apiLimiter = rateLimit({
 	windowMs: 15 * 60 * 1000, // 15 minutes
-	max: 100, // 100 requests per window
+	max: process.env.NODE_ENV === 'production' ? 100 : 10000, // Very high limit in development (10000), 100 in production
 	message: 'Too many requests, please try again later.',
 	standardHeaders: true,
 	legacyHeaders: false,
+	skip: (req) => {
+		// Skip rate limiting entirely in development mode
+		return process.env.NODE_ENV !== 'production';
+	},
 	validate: {
 		trustProxy: false, // Skip trust proxy validation since we configure it in Express
 		xForwardedForHeader: false, // Skip X-Forwarded-For validation
@@ -82,14 +86,18 @@ const strictApiLimiter = rateLimit({
 // Slow down requests after exceeding rate limit
 const speedLimiter = slowDown({
 	windowMs: 15 * 60 * 1000, // 15 minutes
-	delayAfter: 50, // Start delaying after 50 requests
+	delayAfter: process.env.NODE_ENV === 'production' ? 50 : 5000, // Start delaying after many requests in dev, 50 in production
 	delayMs: (used, req) => {
 		// Calculate delay based on how many requests over the limit
-		const delayAfter = 50;
+		const delayAfter = process.env.NODE_ENV === 'production' ? 50 : 5000;
 		return (used - delayAfter) * 500;
 	},
 	maxDelayMs: 20000, // Maximum delay of 20 seconds
 	skipSuccessfulRequests: true,
+	skip: (req) => {
+		// Skip speed limiting entirely in development mode
+		return process.env.NODE_ENV !== 'production';
+	},
 });
 
 // File upload rate limiter

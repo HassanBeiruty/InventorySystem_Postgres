@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+import ProductDetailsSidePanel from "@/components/ProductDetailsSidePanel";
 
 const Products = () => {
   const { t } = useTranslation();
@@ -33,6 +34,8 @@ const Products = () => {
   const [wholesalePrice, setWholesalePrice] = useState<string>("");
   const [retailPrice, setRetailPrice] = useState<string>("");
   const [importLoading, setImportLoading] = useState(false);
+  const [sidePanelOpen, setSidePanelOpen] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState<string>("");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -268,6 +271,16 @@ const Products = () => {
     }
   };
 
+  const handleViewDetails = (productId: string) => {
+    if (selectedProductId === productId && sidePanelOpen) {
+      setSidePanelOpen(false);
+      setSelectedProductId("");
+    } else {
+      setSelectedProductId(productId);
+      setSidePanelOpen(true);
+    }
+  };
+
   const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -372,21 +385,21 @@ const Products = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 sm:space-y-8 animate-fade-in">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="space-y-2">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+      <div className="space-y-3 sm:space-y-4 animate-fade-in">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div className="space-y-1">
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
               {t('products.title')}
             </h2>
-            <p className="text-muted-foreground text-base sm:text-lg">{t('products.subtitle')}</p>
+            <p className="text-muted-foreground text-xs sm:text-sm">{t('products.subtitle')}</p>
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
             <Button 
               variant="outline"
               onClick={() => navigate("/products/quick-add")}
-              className="hover:scale-105 transition-all duration-300 font-semibold text-xs sm:text-sm flex-1 sm:flex-initial"
+              className="hover:scale-105 transition-all duration-300 font-semibold text-xs h-8 flex-1 sm:flex-initial"
             >
-              <Scan className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
+              <Scan className="w-3.5 h-3.5 sm:mr-1.5" />
               <span className="hidden sm:inline">{t('products.quickAdd')}</span>
               <span className="sm:hidden">{t('products.quick')}</span>
             </Button>
@@ -394,12 +407,12 @@ const Products = () => {
               <DropdownMenuTrigger asChild>
                 <Button 
                   variant="outline"
-                  className="hover:scale-105 transition-all duration-300 font-semibold text-xs sm:text-sm flex-1 sm:flex-initial"
+                  className="hover:scale-105 transition-all duration-300 font-semibold text-xs h-8 flex-1 sm:flex-initial"
                   aria-label={t('products.importExport')}
                 >
-                  <FileSpreadsheet className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
+                  <FileSpreadsheet className="w-3.5 h-3.5 sm:mr-1.5" />
                   <span className="whitespace-nowrap">{t('products.importExport')}</span>
-                  <ChevronDown className="w-3 h-3 ml-2" />
+                  <ChevronDown className="w-3 h-3 ml-1.5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -479,8 +492,8 @@ const Products = () => {
             />
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-              <Button className="gradient-primary hover:shadow-glow transition-all duration-300 hover:scale-105 font-semibold">
-                <Plus className="w-4 h-4 mr-2" />
+              <Button className="gradient-primary hover:shadow-glow transition-all duration-300 hover:scale-105 font-semibold h-8 text-xs">
+                <Plus className="w-3.5 h-3.5 mr-1.5" />
                 {t('products.addProduct')}
               </Button>
             </DialogTrigger>
@@ -576,108 +589,146 @@ const Products = () => {
           </div>
         </div>
 
-        <Card className="border-2 shadow-card hover:shadow-elegant transition-all duration-300">
-          <CardHeader className="border-b bg-gradient-to-br from-primary/5 via-transparent to-accent/5">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div>
-            <CardTitle className="flex items-center gap-2 text-xl sm:text-2xl">
-              <Package className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
-              {t('products.title')}
-            </CardTitle>
-            <CardDescription className="text-sm sm:text-base">{t('products.subtitle')}</CardDescription>
-              </div>
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-                <div className="relative flex-1 sm:flex-initial sm:w-[400px]">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    placeholder={t('products.searchPlaceholder')}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-9 h-9"
-                  />
-                  {searchQuery && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSearchQuery("")}
-                      className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  )}
+        {/* Main Content with Side Panel */}
+        <div className="flex gap-2">
+          {/* Products Table Section */}
+          <div className={`flex-1 transition-all duration-300 ${sidePanelOpen ? 'lg:mr-[420px]' : ''}`}>
+            <Card className="border-2 shadow-card hover:shadow-elegant transition-all duration-300">
+              <CardHeader className="border-b bg-gradient-to-br from-primary/5 via-transparent to-accent/5 pb-2 pt-2">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <div>
+                <CardTitle className="flex items-center gap-1.5 text-sm sm:text-base">
+                  <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
+                  {t('products.title')}
+                </CardTitle>
+                <CardDescription className="text-[10px] sm:text-xs">{t('products.subtitle')}</CardDescription>
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                    <div className="relative flex-1 sm:flex-initial sm:w-[350px]">
+                      <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder={t('products.searchPlaceholder')}
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-8 pr-8 h-8 text-sm"
+                      />
+                      {searchQuery && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSearchQuery("")}
+                          className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            {filteredProducts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                  <Package className="w-10 h-10 text-primary/50" />
-                </div>
-                <p className="text-muted-foreground text-lg">
-                  {products.length === 0 
-                    ? t('products.noProducts')
-                    : t('products.noProducts')}
-                </p>
-              </div>
-            ) : (
-              <div className="rounded-xl border-2 overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5 hover:from-primary/10 hover:to-accent/10">
-                      <TableHead className="font-bold whitespace-nowrap">{t('products.productName')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap">{t('products.barcode')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap">{t('categories.title')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap">{t('common.actions')}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredProducts.map((product, idx) => (
-                      <TableRow 
-                        key={product.id} 
-                        className="hover:bg-primary/5 transition-colors animate-fade-in"
-                        style={{ animationDelay: `${idx * 0.05}s` }}
-                      >
-                        <TableCell className="font-medium whitespace-nowrap">
-                          <div>
-                            <span className="font-semibold">{product.name}</span>
-                            <span className="text-muted-foreground text-xs ml-2">#{product.id}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground whitespace-nowrap font-mono text-sm">{product.barcode || "-"}</TableCell>
-                        <TableCell className="text-muted-foreground whitespace-nowrap">{product.category_name || "-"}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1 sm:gap-2">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => handleEdit(product)}
-                              className="hover:bg-primary/10 hover:scale-110 transition-all duration-300"
-                              title={t('common.edit')}
+              </CardHeader>
+              <CardContent className="pt-2">
+                {filteredProducts.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                      <Package className="w-10 h-10 text-primary/50" />
+                    </div>
+                    <p className="text-muted-foreground text-lg">
+                      {products.length === 0 
+                        ? t('products.noProducts')
+                        : t('products.noProducts')}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border-2 overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5 hover:from-primary/10 hover:to-accent/10">
+                          <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('products.productName')}</TableHead>
+                          <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('products.barcode')}</TableHead>
+                          <TableHead className="font-bold whitespace-nowrap p-2 text-xs">SKU</TableHead>
+                          <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('products.shelf')}</TableHead>
+                          <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('common.actions')}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredProducts.map((product, idx) => {
+                          const isSelected = selectedProductId === String(product.id);
+                          return (
+                            <TableRow 
+                              key={product.id} 
+                              className={`hover:bg-primary/5 transition-colors cursor-pointer animate-fade-in ${isSelected ? 'bg-primary/10 border-l-4 border-l-primary' : ''}`}
+                              style={{ animationDelay: `${idx * 0.05}s` }}
+                              onClick={() => handleViewDetails(String(product.id))}
                             >
-                              <Pencil className="w-4 h-4 text-primary" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => handleDelete(product)}
-                              className="hover:bg-destructive/10 hover:scale-110 transition-all duration-300 text-destructive hover:text-destructive"
-                              title={t('common.delete')}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                              <TableCell className="font-medium whitespace-nowrap p-2">
+                                <div>
+                                  <span className="font-semibold text-sm">{product.name}</span>
+                                  <span className="text-muted-foreground text-[10px] ml-1.5">#{product.id}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground whitespace-nowrap font-mono text-xs p-2">{product.barcode || "-"}</TableCell>
+                              <TableCell className="text-muted-foreground whitespace-nowrap font-mono text-xs p-2">{product.sku || "-"}</TableCell>
+                              <TableCell className="text-muted-foreground whitespace-nowrap text-xs p-2">{product.shelf || "-"}</TableCell>
+                              <TableCell className="p-2" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-center gap-1">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEdit(product);
+                                    }}
+                                    className="hover:bg-primary/10 hover:scale-110 transition-all duration-300 h-7 w-7 p-0"
+                                    title={t('common.edit')}
+                                  >
+                                    <Pencil className="w-3.5 h-3.5 text-primary" />
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDelete(product);
+                                    }}
+                                    className="hover:bg-destructive/10 hover:scale-110 transition-all duration-300 text-destructive hover:text-destructive h-7 w-7 p-0"
+                                    title={t('common.delete')}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Fixed Side Panel */}
+          <div className={`hidden lg:block fixed right-4 top-20 bottom-4 w-[400px] transition-transform duration-300 z-30 ${
+            sidePanelOpen ? 'translate-x-0' : 'translate-x-[420px]'
+          }`}>
+            <ProductDetailsSidePanel
+              open={sidePanelOpen}
+              onOpenChange={setSidePanelOpen}
+              productId={selectedProductId}
+            />
+          </div>
+        </div>
+
+        {/* Product Details Side Panel (Mobile/Tablet - Overlay) */}
+        <div className="lg:hidden">
+          <ProductDetailsSidePanel
+            open={sidePanelOpen}
+            onOpenChange={setSidePanelOpen}
+            productId={selectedProductId}
+          />
+        </div>
 
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">

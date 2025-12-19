@@ -250,20 +250,20 @@ const Reports = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 p-4 sm:p-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-3 sm:space-y-4 p-2 sm:p-3">
+        <div className="flex items-center justify-between gap-2">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-              <BarChart3 className="w-7 h-7" />
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight flex items-center gap-1.5">
+              <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />
               {t("reports.title")}
             </h2>
-            <p className="text-muted-foreground mt-1">
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
               {t("reports.subtitle")}
             </p>
           </div>
           {isAdmin && (
-            <Button onClick={exportToPDF} className="gap-2">
-              <Download className="w-4 h-4" />
+            <Button onClick={exportToPDF} className="gap-1.5 h-8 text-xs">
+              <Download className="w-3.5 h-3.5" />
               Export PDF
             </Button>
           )}
@@ -287,15 +287,15 @@ const Reports = () => {
           </div>
         ) : (
           <>
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-2 sm:gap-3 md:grid-cols-4">
               <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
-                  <TrendingUp className="h-5 w-5 text-success" />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-2 px-2">
+                  <CardTitle className="text-xs font-medium">Total Sales</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-success" />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-success">${summary.totalSales.toFixed(2)}</div>
-                  <p className="text-xs text-muted-foreground">Revenue from sell invoices</p>
+                <CardContent className="px-2 pb-2">
+                  <div className="text-lg sm:text-xl font-bold text-success">${summary.totalSales.toFixed(2)}</div>
+                  <p className="text-[10px] text-muted-foreground">Revenue from sell invoices</p>
                 </CardContent>
               </Card>
 

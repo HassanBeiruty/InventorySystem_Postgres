@@ -236,6 +236,12 @@ export const productsRepo = {
       body: JSON.stringify(input),
     });
   },
+  async quickAddSku(input: { name: string; sku: string }) {
+    return fetchJson<{ id: string }>(`/api/products/quick-add-sku`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
   async add(input: { name: string; barcode: string | null; category_id: number | null; description: string | null; sku: string | null; shelf: string | null }) {
     return fetchJson<{ id: string }>(`/api/products`, {
       method: "POST",

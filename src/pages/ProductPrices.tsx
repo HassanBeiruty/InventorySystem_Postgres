@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DollarSign, TrendingUp, Filter, X, Plus, Pencil, Trash2 } from "lucide-react";
+import { DollarSign, TrendingUp, Filter, X, Plus, Pencil, Trash2, Search } from "lucide-react";
 import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { productPricesRepo, productsRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
@@ -31,6 +31,7 @@ const ProductPrices = () => {
   const [editingPrice, setEditingPrice] = useState<any>(null);
   const [formLoading, setFormLoading] = useState(false);
   const [addProductId, setAddProductId] = useState("");
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   useEffect(() => {
     fetchData();
@@ -190,29 +191,39 @@ const ProductPrices = () => {
     }
   };
 
+  const filteredPrices = prices.filter(price => {
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const productName = (price.product_name || "").toLowerCase();
+      const productId = (price.product_id || "").toString();
+      return productName.includes(query) || productId.includes(query);
+    }
+    return true;
+  });
+
   return (
     <DashboardLayout>
-      <div className="space-y-4 animate-fade-in">
-        <div className="flex items-center justify-between">
+      <div className="space-y-3 sm:space-y-4 animate-fade-in">
+        <div className="flex items-center justify-between gap-2">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
               {t('productPrices.title')}
             </h1>
-            <p className="text-muted-foreground">{t('productPrices.subtitle')}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{t('productPrices.subtitle')}</p>
           </div>
           <div className="flex gap-2">
             <Button
               variant="outline"
               onClick={() => setShowFilters(!showFilters)}
-              className="gap-2"
+              className="gap-1.5 h-8 text-xs"
             >
-              <Filter className="w-4 h-4" />
+              <Filter className="w-3.5 h-3.5" />
               {showFilters ? t('common.hideFilters') : t('common.showFilters')}
             </Button>
             <Dialog open={isAddOpen} onOpenChange={handleAddDialogOpenChange}>
               <DialogTrigger asChild>
-                <Button className="gap-2">
-                  <Plus className="w-4 h-4" />
+                <Button className="gap-1.5 h-8 text-xs">
+                  <Plus className="w-3.5 h-3.5" />
                   {t('productPrices.addPrice')}
                 </Button>
               </DialogTrigger>
@@ -353,59 +364,89 @@ const ProductPrices = () => {
                 <p className="text-lg">{t('productPrices.noPrices')}</p>
               </div>
             ) : (
-              <div className="rounded-xl border-2 overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5">
-                      <TableHead className="font-bold">{t('invoiceForm.product')}</TableHead>
-                      <TableHead className="font-bold">{t('productPrices.effectiveDate')}</TableHead>
-                      <TableHead className="text-right font-bold">{t('productPrices.wholesalePrice')}</TableHead>
-                      <TableHead className="text-right font-bold">{t('productPrices.retailPrice')}</TableHead>
-                      <TableHead className="text-center font-bold">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {prices.map((price, idx) => (
+              <>
+                <div className="relative w-full sm:w-auto sm:max-w-md mb-2">
+                  <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Search prices (product name, ID)"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-8 pr-8 h-8 text-sm"
+                  />
+                  {searchQuery && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
+                <div className="rounded-xl border-2 overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5">
+                        <TableHead className="font-bold p-2 text-xs">{t('invoiceForm.product')}</TableHead>
+                        <TableHead className="font-bold p-2 text-xs">{t('productPrices.effectiveDate')}</TableHead>
+                        <TableHead className="text-right font-bold p-2 text-xs">{t('productPrices.wholesalePrice')}</TableHead>
+                        <TableHead className="text-right font-bold p-2 text-xs">{t('productPrices.retailPrice')}</TableHead>
+                        <TableHead className="text-center font-bold p-2 text-xs">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredPrices.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-sm">
+                            No prices found matching your search
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredPrices.map((price, idx) => (
                       <TableRow 
                         key={price.id}
                         className="hover:bg-primary/5 transition-colors animate-fade-in"
                         style={{ animationDelay: `${idx * 0.01}s` }}
                       >
-                        <TableCell className="font-semibold"><span className="text-muted-foreground text-sm">#{price.product_id}</span> {price.product_name}</TableCell>
-                        <TableCell className="text-sm">
+                        <TableCell className="font-semibold p-2 text-sm"><span className="text-muted-foreground text-xs">#{price.product_id}</span> {price.product_name}</TableCell>
+                        <TableCell className="text-xs p-2">
                           {formatDateTimeLebanon(price.effective_date, "MMM dd, yyyy")}
                         </TableCell>
-                        <TableCell className="text-right font-semibold text-warning">
+                        <TableCell className="text-right font-semibold text-warning p-2 text-xs">
                           ${parseFloat(price.wholesale_price).toFixed(2)}
                         </TableCell>
-                        <TableCell className="text-right font-semibold text-primary">
+                        <TableCell className="text-right font-semibold text-primary p-2 text-xs">
                           ${parseFloat(price.retail_price).toFixed(2)}
                         </TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex gap-2 justify-center">
+                        <TableCell className="text-center p-2">
+                          <div className="flex gap-1 justify-center">
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handleEdit(price)}
-                              className="h-8 w-8 p-0"
+                              className="h-7 w-7 p-0"
                             >
-                              <Pencil className="w-4 h-4" />
+                              <Pencil className="w-3.5 h-3.5" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handleDelete(price.id)}
-                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              className="h-7 w-7 p-0 text-destructive hover:text-destructive"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </Button>
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             )}
           </div>
         </div>

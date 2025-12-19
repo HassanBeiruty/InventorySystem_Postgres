@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { invoicesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
-import { Printer } from "lucide-react";
+import { Printer, Download } from "lucide-react";
 
 interface InvoiceItem {
   id: number;
@@ -290,6 +290,133 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
     };
   };
 
+  const handleExportPDF = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!invoice) return;
+
+    try {
+      const { default: jsPDF } = await import("jspdf");
+      const autoTable = (await import("jspdf-autotable")).default;
+
+      const entityName = invoice.customers?.name || invoice.suppliers?.name || "N/A";
+      const entityPhone = invoice.customers?.phone || invoice.suppliers?.phone || "N/A";
+      const entityAddress = invoice.customers?.address || invoice.suppliers?.address || "N/A";
+      const remainingBalance = Number(invoice.total_amount || 0) - Number(invoice.amount_paid || 0);
+      
+      // Get theme colors for PDF
+      const successColor = getThemeColorHex('--success');
+      const warningColor = getThemeColorHex('--warning');
+      const destructiveColor = getThemeColorHex('--destructive');
+      const primaryColor = getThemeColorHex('--primary');
+      const secondaryColor = getThemeColorHex('--secondary');
+
+      // Create new PDF document
+      const doc = new jsPDF();
+    
+    // Header
+    doc.setFontSize(20);
+    doc.setTextColor(0, 0, 0);
+    doc.text("Invoice System", 105, 20, { align: "center" });
+    
+    doc.setFontSize(16);
+    doc.text(`Invoice #${invoice.id}`, 105, 30, { align: "center" });
+    
+    // Invoice Info
+    doc.setFontSize(10);
+    doc.text(`Date: ${formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}`, 14, 45);
+    doc.text(`Type: ${invoice.invoice_type.toUpperCase()}`, 14, 52);
+    doc.text(`Status: ${invoice.payment_status === 'paid' ? 'Paid' : invoice.payment_status === 'partial' ? 'Partial' : 'Pending'}`, 105, 45);
+    
+    // Entity Details
+    doc.setFontSize(12);
+    doc.setFont(undefined, "bold");
+    doc.text(`${invoice.invoice_type === 'sell' ? 'Customer' : 'Supplier'} Details`, 14, 65);
+    doc.setFont(undefined, "normal");
+    doc.setFontSize(10);
+    doc.text(`Name: ${entityName}`, 14, 72);
+    doc.text(`Phone: ${entityPhone}`, 14, 79);
+    doc.text(`Address: ${entityAddress}`, 14, 86);
+    
+    // Table data
+    const tableData = invoice.invoice_items.map((item: InvoiceItem) => [
+      `#${item.product_id} ${item.product_name || 'Product'}`,
+      item.quantity.toString(),
+      `$${Number(item.unit_price || 0).toFixed(2)}`,
+      item.price_type,
+      `$${Number(item.total_price || 0).toFixed(2)}`
+    ]);
+    
+    // Add table
+    autoTable(doc, {
+      startY: 95,
+      head: [['Product', 'Quantity', 'Unit Price', 'Price Type', 'Total Price']],
+      body: tableData,
+      theme: 'striped',
+      headStyles: { fillColor: [245, 245, 245], textColor: [0, 0, 0], fontStyle: 'bold' },
+      styles: { fontSize: 9 },
+      columnStyles: {
+        4: { halign: 'right' }
+      }
+    });
+    
+    // Summary section
+    const finalY = (doc as any).lastAutoTable.finalY + 15;
+    
+    doc.setFontSize(12);
+    doc.setFont(undefined, "bold");
+    doc.text("Summary", 14, finalY);
+    
+    doc.setFontSize(10);
+    doc.setFont(undefined, "normal");
+    
+    // Total Amount
+    doc.text("Total Amount:", 14, finalY + 10);
+    doc.setFont(undefined, "bold");
+    doc.text(`$${Number(invoice.total_amount || 0).toFixed(2)}`, 60, finalY + 10);
+    
+    // Amount Paid
+    doc.setFont(undefined, "normal");
+    doc.text("Amount Paid:", 105, finalY + 10);
+    const successRgb = successColor.startsWith('#') 
+      ? [parseInt(successColor.substring(1, 3), 16), parseInt(successColor.substring(3, 5), 16), parseInt(successColor.substring(5, 7), 16)]
+      : [34, 197, 94]; // Default green
+    doc.setTextColor(successRgb[0], successRgb[1], successRgb[2]);
+    doc.setFont(undefined, "bold");
+    doc.text(`$${Number(invoice.amount_paid || 0).toFixed(2)}`, 150, finalY + 10);
+    
+    // Remaining Balance
+    const warningRgb = warningColor.startsWith('#')
+      ? [parseInt(warningColor.substring(1, 3), 16), parseInt(warningColor.substring(3, 5), 16), parseInt(warningColor.substring(5, 7), 16)]
+      : [234, 179, 8]; // Default yellow
+    doc.setTextColor(warningRgb[0], warningRgb[1], warningRgb[2]);
+    doc.setFont(undefined, "normal");
+    doc.text("Remaining Balance:", 14, finalY + 20);
+    doc.setFont(undefined, "bold");
+    doc.text(`$${Number(remainingBalance || 0).toFixed(2)}`, 60, finalY + 20);
+    
+      // Generate filename: invoicenumber_date
+      const invoiceDate = new Date(invoice.invoice_date);
+      const dateStr = invoiceDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+      const filename = `${invoice.id}_${dateStr}.pdf`;
+      
+      // Save PDF directly (this downloads the file, no print dialog)
+      doc.save(filename);
+      
+      toast({
+        title: "Success",
+        description: `Invoice PDF downloaded as ${filename}`,
+      });
+    } catch (error: any) {
+      console.error("PDF export error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate PDF",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -302,10 +429,34 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
               <DialogDescription>View complete invoice details and items</DialogDescription>
             </div>
             {!loading && invoice && (
-              <Button onClick={handlePrint} variant="outline" size="sm" className="mr-2">
-                <Printer className="w-4 h-4 mr-2" />
-                Print
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleExportPDF(e);
+                  }}
+                  type="button"
+                  variant="outline" 
+                  size="sm"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Export PDF
+                </Button>
+                <Button 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handlePrint();
+                  }}
+                  type="button"
+                  variant="outline" 
+                  size="sm"
+                >
+                  <Printer className="w-4 h-4 mr-2" />
+                  Print
+                </Button>
+              </div>
             )}
           </div>
         </DialogHeader>

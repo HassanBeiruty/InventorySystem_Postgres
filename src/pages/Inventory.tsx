@@ -3,24 +3,24 @@ import { inventoryRepo } from "@/integrations/api/repo";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Package, AlertTriangle } from "lucide-react";
-import { formatDateTimeLebanon } from "@/utils/dateUtils";
+import { Package, AlertTriangle, Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 interface InventoryItem {
   id: string;
   product_id: string;
   available_qty: number;
+  avg_cost: number;
   date: string;
   created_at: string;
   updated_at: string;
   products?: {
     name: string;
     barcode: string;
-    wholesale_price: number;
-    retail_price: number;
+    sku: string;
   };
 }
 
@@ -28,6 +28,7 @@ const Inventory = () => {
   const { t } = useTranslation();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   useEffect(() => {
     fetchInventory();
@@ -45,38 +46,66 @@ const Inventory = () => {
     }
   };
 
-  const getStockStatus = (qty: number) => {
-    if (qty === 0) return { label: "Out of Stock", variant: "destructive" as const };
-    if (qty < 10) return { label: t('dashboard.lowStock'), variant: "secondary" as const };
-    return { label: "In Stock", variant: "default" as const };
-  };
+  const filteredInventory = inventory.filter(item => {
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const name = (item.products?.name || "").toLowerCase();
+      const barcode = (item.products?.barcode || "").toLowerCase();
+      const sku = (item.products?.sku || "").toLowerCase();
+      const id = (item.product_id || "").toString();
+      return name.includes(query) || barcode.includes(query) || sku.includes(query) || id.includes(query);
+    }
+    return true;
+  });
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 sm:space-y-8 animate-fade-in">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="space-y-2">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+      <div className="space-y-3 sm:space-y-4 animate-fade-in">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div className="space-y-1">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
               {t('inventory.title')} - {t('inventory.todayPosition')}
             </h1>
-            <p className="text-muted-foreground text-base sm:text-lg">{t('inventory.subtitle')}</p>
+            <p className="text-muted-foreground text-xs sm:text-sm">{t('inventory.subtitle')}</p>
           </div>
         </div>
 
         <Card className="border-2 shadow-card hover:shadow-elegant transition-all duration-300">
-          <div className="p-6 border-b bg-gradient-to-br from-primary/5 via-transparent to-accent/5">
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10">
-                <Package className="w-6 h-6 text-primary" />
+          <div className="p-2 border-b bg-gradient-to-br from-primary/5 via-transparent to-accent/5">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10">
+                  <Package className="w-4 h-4 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-sm sm:text-base font-bold">Daily Stock Snapshot</h2>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Real-time inventory from DailyStock table</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-xl font-bold">Daily Stock Snapshot</h2>
-                <p className="text-sm text-muted-foreground">Real-time inventory from DailyStock table</p>
+              <div className="relative w-full sm:w-auto sm:min-w-[300px]">
+                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Search inventory (name, barcode, SKU, ID)"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-8 h-8 text-sm"
+                />
+                {searchQuery && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                )}
               </div>
             </div>
           </div>
           
-          <div className="p-6">
+          <div className="p-2">
             {loading ? (
               <div className="space-y-3">
                 {[...Array(5)].map((_, i) => (
@@ -90,56 +119,54 @@ const Inventory = () => {
                 </div>
                 <p className="text-muted-foreground text-lg">{t('inventory.noStock')}</p>
               </div>
+            ) : filteredInventory.length === 0 ? (
+              <div className="text-center py-16">
+                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <Package className="w-10 h-10 text-primary/50" />
+                </div>
+                <p className="text-muted-foreground text-lg">No inventory found matching your search</p>
+              </div>
             ) : (
               <div className="overflow-x-auto rounded-xl border-2">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5 hover:from-primary/10 hover:to-accent/10">
-                      <TableHead className="font-bold whitespace-nowrap">{t('invoiceForm.product')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap hidden sm:table-cell">{t('products.barcode')}</TableHead>
-                      <TableHead className="text-center font-bold whitespace-nowrap">{t('inventory.availableQty')}</TableHead>
-                      <TableHead className="text-center font-bold whitespace-nowrap">{t('invoices.status')}</TableHead>
-                      <TableHead className="text-right font-bold whitespace-nowrap hidden md:table-cell">{t('productPrices.wholesalePrice')}</TableHead>
-                      <TableHead className="text-right font-bold whitespace-nowrap hidden md:table-cell">{t('productPrices.retailPrice')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap hidden lg:table-cell">{t('inventory.lastUpdated')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('invoiceForm.product')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap hidden sm:table-cell p-2 text-xs">{t('products.barcode')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap hidden sm:table-cell p-2 text-xs">SKU</TableHead>
+                      <TableHead className="text-center font-bold whitespace-nowrap p-2 text-xs">{t('inventory.availableQty')}</TableHead>
+                      <TableHead className="text-right font-bold whitespace-nowrap p-2 text-xs">Average Cost</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {inventory.map((item, idx) => {
-                      const status = getStockStatus(item.available_qty);
+                    {filteredInventory.map((item, idx) => {
                       return (
                         <TableRow 
                           key={item.id} 
                           className="hover:bg-primary/5 transition-colors animate-fade-in"
                           style={{ animationDelay: `${idx * 0.03}s` }}
                         >
-                          <TableCell className="font-semibold">
-                            <span className="text-muted-foreground text-sm">#{item.product_id}</span> {item.products?.name || "Unknown Product"}
+                          <TableCell className="font-semibold p-2 text-sm">
+                            <span className="text-muted-foreground text-xs">#{item.product_id}</span> {item.products?.name || "Unknown Product"}
                           </TableCell>
-                          <TableCell className="font-mono text-sm text-muted-foreground">
+                          <TableCell className="font-mono text-xs text-muted-foreground p-2">
                             {item.products?.barcode || "N/A"}
                           </TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex items-center justify-center gap-2">
+                          <TableCell className="font-mono text-xs text-muted-foreground p-2">
+                            {item.products?.sku || "N/A"}
+                          </TableCell>
+                          <TableCell className="text-center p-2">
+                            <div className="flex items-center justify-center gap-1.5">
                               {item.available_qty === 0 && (
-                                <AlertTriangle className="w-4 h-4 text-destructive animate-pulse" />
+                                <AlertTriangle className="w-3.5 h-3.5 text-destructive animate-pulse" />
                               )}
-                              <span className={`font-bold text-lg ${item.available_qty === 0 ? 'text-destructive' : item.available_qty < 10 ? 'text-warning' : 'text-success'}`}>
+                              <span className={`font-bold text-sm ${item.available_qty === 0 ? 'text-destructive' : item.available_qty < 10 ? 'text-warning' : 'text-success'}`}>
                                 {item.available_qty}
                               </span>
                             </div>
                           </TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant={status.variant} className="font-medium">{status.label}</Badge>
-                          </TableCell>
-                          <TableCell className="text-right font-semibold text-success">
-                            ${item.products?.wholesale_price ? parseFloat(String(item.products.wholesale_price || 0)).toFixed(2) : "0.00"}
-                          </TableCell>
-                          <TableCell className="text-right font-semibold text-primary">
-                            ${item.products?.retail_price ? parseFloat(String(item.products.retail_price || 0)).toFixed(2) : "0.00"}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {formatDateTimeLebanon(item.updated_at, "MMM dd, yyyy")}
+                          <TableCell className="text-right font-semibold p-2 text-xs">
+                            ${item.avg_cost ? parseFloat(String(item.avg_cost || 0)).toFixed(2) : "0.00"}
                           </TableCell>
                         </TableRow>
                       );

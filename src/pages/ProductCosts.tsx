@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { DollarSign, TrendingUp, TrendingDown, Filter, X } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, Filter, X, Search } from "lucide-react";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
 import { productCostsRepo, productsRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
@@ -23,6 +23,7 @@ const ProductCosts = () => {
     end_date: "",
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [stats, setStats] = useState({
     totalValue: 0,
     totalQuantity: 0,
@@ -112,30 +113,40 @@ const ProductCosts = () => {
 
   const productSummaryArray = Object.values(productSummary);
 
+  const filteredSummary = productSummaryArray.filter((item: any) => {
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const productName = (item.product_name || "").toLowerCase();
+      const productId = (item.product_id || "").toString();
+      return productName.includes(query) || productId.includes(query);
+    }
+    return true;
+  });
+
   return (
     <DashboardLayout>
-      <div className="space-y-4 animate-fade-in">
-        <div className="flex items-center justify-between">
+      <div className="space-y-3 sm:space-y-4 animate-fade-in">
+        <div className="flex items-center justify-between gap-2">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
               Product Costs History
             </h1>
-            <p className="text-muted-foreground">Track purchase costs from all suppliers</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Track purchase costs from all suppliers</p>
           </div>
           <Button
             variant="outline"
             onClick={() => setShowFilters(!showFilters)}
-            className="gap-2"
+            className="gap-1.5 h-8 text-xs"
           >
-            <Filter className="w-4 h-4" />
+            <Filter className="w-3.5 h-3.5" />
             {showFilters ? "Hide Filters" : "Show Filters"}
           </Button>
         </div>
 
         {/* Filters */}
         {showFilters && (
-          <div className="border-2 rounded-lg p-4 bg-muted/20">
-            <div className="grid gap-4 md:grid-cols-4">
+          <div className="border-2 rounded-lg p-2 sm:p-3 bg-muted/20">
+            <div className="grid gap-2 sm:gap-3 md:grid-cols-4">
               <div className="space-y-2">
                 <Label>Product</Label>
                 <Select value={filters.product_id} onValueChange={(value) => setFilters({...filters, product_id: value})}>
@@ -172,10 +183,10 @@ const ProductCosts = () => {
               </div>
             </div>
             
-            <div className="flex gap-2 mt-4">
-              <Button onClick={applyFilters}>Apply Filters</Button>
-              <Button variant="outline" onClick={clearFilters}>
-                <X className="w-4 h-4 mr-2" />
+            <div className="flex gap-2 mt-2">
+              <Button onClick={applyFilters} className="h-8 text-xs">Apply Filters</Button>
+              <Button variant="outline" onClick={clearFilters} className="h-8 text-xs">
+                <X className="w-3.5 h-3.5 mr-1.5" />
                 Clear
               </Button>
             </div>
@@ -183,43 +194,43 @@ const ProductCosts = () => {
         )}
 
         {/* Stats Cards */}
-        <div className="grid gap-3 md:grid-cols-5">
+        <div className="grid gap-2 sm:gap-3 md:grid-cols-5">
           {loading ? (
             Array(5).fill(0).map((_, i) => (
-              <div key={i} className="border rounded-lg p-3 animate-pulse">
-                <div className="h-4 w-20 bg-muted rounded mb-2"></div>
-                <div className="h-6 w-24 bg-muted rounded"></div>
+              <div key={i} className="border rounded-lg p-2 animate-pulse">
+                <div className="h-3 w-16 bg-muted rounded mb-1.5"></div>
+                <div className="h-5 w-20 bg-muted rounded"></div>
               </div>
             ))
           ) : (
             <>
-              <div className="border rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-1">
-                  <DollarSign className="w-4 h-4 text-destructive" />
-                  <span className="text-xs font-medium text-muted-foreground">Total Value</span>
+              <div className="border rounded-lg p-2">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <DollarSign className="w-3.5 h-3.5 text-destructive" />
+                  <span className="text-[10px] font-medium text-muted-foreground">Total Value</span>
                 </div>
-                <div className="text-xl font-bold text-destructive">${stats.totalValue.toFixed(2)}</div>
+                <div className="text-base sm:text-lg font-bold text-destructive">${stats.totalValue.toFixed(2)}</div>
               </div>
 
-              <div className="border rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-1">
-                  <TrendingUp className="w-4 h-4 text-primary" />
-                  <span className="text-xs font-medium text-muted-foreground">Quantity</span>
+              <div className="border rounded-lg p-2">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <TrendingUp className="w-3.5 h-3.5 text-primary" />
+                  <span className="text-[10px] font-medium text-muted-foreground">Quantity</span>
                 </div>
-                <div className="text-xl font-bold">{stats.totalQuantity}</div>
+                <div className="text-base sm:text-lg font-bold">{stats.totalQuantity}</div>
               </div>
 
-              <div className="border rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-1">
-                  <TrendingDown className="w-4 h-4 text-warning" />
-                  <span className="text-xs font-medium text-muted-foreground">Weighted Avg Cost</span>
+              <div className="border rounded-lg p-2">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <TrendingDown className="w-3.5 h-3.5 text-warning" />
+                  <span className="text-[10px] font-medium text-muted-foreground">Weighted Avg Cost</span>
                 </div>
-                <div className="text-xl font-bold text-warning">${stats.averageCost.toFixed(2)}</div>
+                <div className="text-base sm:text-lg font-bold text-warning">${stats.averageCost.toFixed(2)}</div>
               </div>
 
-              <div className="border rounded-lg p-3">
-                <span className="text-xs font-medium text-muted-foreground mb-1 block">Products</span>
-                <div className="text-xl font-bold">{stats.uniqueProducts}</div>
+              <div className="border rounded-lg p-2">
+                <span className="text-[10px] font-medium text-muted-foreground mb-1 block">Products</span>
+                <div className="text-base sm:text-lg font-bold">{stats.uniqueProducts}</div>
               </div>
 
               {/* Supplier metric removed */}
@@ -229,14 +240,38 @@ const ProductCosts = () => {
 
         {/* Product Summary Table */}
         <div className="border-2 rounded-lg overflow-hidden">
-          <div className="border-b bg-gradient-to-br from-warning/5 to-accent/5 p-4">
-            <h3 className="flex items-center gap-2 text-lg font-bold">
-              <DollarSign className="w-5 h-5 text-warning" />
-              Product Avg Cost Summary
-            </h3>
-            <p className="text-sm text-muted-foreground">Based on daily_stock snapshots</p>
+          <div className="border-b bg-gradient-to-br from-warning/5 to-accent/5 p-2">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="flex items-center gap-1.5 text-sm sm:text-base font-bold">
+                  <DollarSign className="w-4 h-4 text-warning" />
+                  Product Avg Cost Summary
+                </h3>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">Based on daily_stock snapshots</p>
+              </div>
+              <div className="relative w-full sm:w-auto sm:min-w-[300px]">
+                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Search products (name, ID)"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-8 h-8 text-sm"
+                />
+                {searchQuery && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="p-4">
+          <div className="p-2">
             {loading ? (
               <div className="space-y-3">
                 {Array(5).fill(0).map((_, i) => (
@@ -248,30 +283,35 @@ const ProductCosts = () => {
                 <DollarSign className="w-12 h-12 mx-auto mb-3 opacity-30" />
                 <p className="text-lg">No snapshots found</p>
               </div>
+            ) : filteredSummary.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground">
+                <DollarSign className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                <p className="text-lg">No products found matching your search</p>
+              </div>
             ) : (
               <div className="rounded-xl border-2 overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-warning/5 to-accent/5">
-                      <TableHead className="font-bold">Product</TableHead>
-                      <TableHead className="text-center font-bold">Quantity</TableHead>
-                      <TableHead className="text-right font-bold">Avg Cost</TableHead>
-                      <TableHead className="text-right font-bold">Total Value</TableHead>
+                      <TableHead className="font-bold p-2 text-xs">Product</TableHead>
+                      <TableHead className="text-center font-bold p-2 text-xs">Quantity</TableHead>
+                      <TableHead className="text-right font-bold p-2 text-xs">Avg Cost</TableHead>
+                      <TableHead className="text-right font-bold p-2 text-xs">Total Value</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {productSummaryArray.map((item: any, idx: number) => (
+                    {filteredSummary.map((item: any, idx: number) => (
                       <TableRow 
                         key={item.product_id}
                         className="hover:bg-warning/5 transition-colors animate-fade-in"
                         style={{ animationDelay: `${idx * 0.02}s` }}
                       >
-                        <TableCell className="font-semibold"><span className="text-muted-foreground text-sm">#{item.product_id}</span> {item.product_name}</TableCell>
-                        <TableCell className="text-center font-bold text-lg">{item.total_quantity}</TableCell>
-                        <TableCell className="text-right font-bold text-warning text-lg">
+                        <TableCell className="font-semibold p-2 text-sm"><span className="text-muted-foreground text-xs">#{item.product_id}</span> {item.product_name}</TableCell>
+                        <TableCell className="text-center font-bold text-sm p-2">{item.total_quantity}</TableCell>
+                        <TableCell className="text-right font-bold text-warning text-sm p-2">
                           ${item.average_cost.toFixed(2)}
                         </TableCell>
-                        <TableCell className="text-right font-semibold text-destructive text-lg">
+                        <TableCell className="text-right font-semibold text-destructive text-sm p-2">
                           ${item.total_value.toFixed(2)}
                         </TableCell>
                       </TableRow>

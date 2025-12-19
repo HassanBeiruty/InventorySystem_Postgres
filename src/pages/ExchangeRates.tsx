@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { DollarSign, Filter, X, Plus, Pencil, Trash2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { DollarSign, Filter, X, Plus, Pencil, Trash2, CheckCircle2, XCircle, AlertCircle, Search } from "lucide-react";
 import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { exchangeRatesRepo, ExchangeRateEntity } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +30,7 @@ const ExchangeRates = () => {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingRate, setEditingRate] = useState<ExchangeRateEntity | null>(null);
   const [formLoading, setFormLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   const fetchData = useCallback(async () => {
     // Only fetch if admin check is complete and user is admin
@@ -177,10 +178,10 @@ const ExchangeRates = () => {
   if (isAdminLoading) {
     return (
       <DashboardLayout>
-        <div className="space-y-6 p-4 sm:p-6">
-          <div className="space-y-4">
-            <Skeleton className="h-10 w-64" />
-            <Skeleton className="h-64 w-full" />
+        <div className="space-y-3 p-2 sm:p-3">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-48 w-full" />
           </div>
         </div>
       </DashboardLayout>
@@ -191,18 +192,18 @@ const ExchangeRates = () => {
   if (!isAdmin) {
     return (
       <DashboardLayout>
-        <div className="space-y-6 p-4 sm:p-6">
+        <div className="space-y-3 p-2 sm:p-3">
           <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <DollarSign className="w-8 h-8" />
+            <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-1.5">
+              <DollarSign className="w-5 h-5 sm:w-6 sm:h-6" />
               Exchange Rates
             </h1>
-            <p className="text-muted-foreground mt-2">Manage currency exchange rates</p>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">Manage currency exchange rates</p>
           </div>
           <Card>
-            <CardContent className="p-6 text-center">
-              <AlertCircle className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">Admin access required to manage exchange rates</p>
+            <CardContent className="p-3 text-center">
+              <AlertCircle className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+              <p className="text-xs text-muted-foreground">Admin access required to manage exchange rates</p>
             </CardContent>
           </Card>
         </div>
@@ -212,18 +213,28 @@ const ExchangeRates = () => {
 
   const currentRates = getCurrentActiveRates();
 
+  const filteredRates = rates.filter(rate => {
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const currency = (rate.currency_code || "").toLowerCase();
+      const id = (rate.id || "").toString();
+      return currency.includes(query) || id.includes(query);
+    }
+    return true;
+  });
+
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-3 sm:space-y-4">
+        <div className="flex items-center justify-between gap-2">
           <div>
-            <h1 className="text-3xl font-bold">{t("exchangeRates.title")}</h1>
-            <p className="text-muted-foreground">{t("exchangeRates.subtitle")}</p>
+            <h1 className="text-xl sm:text-2xl font-bold">{t("exchangeRates.title")}</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground">{t("exchangeRates.subtitle")}</p>
           </div>
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
+              <Button className="h-8 text-xs">
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
                 {t("exchangeRates.addExchangeRate")}
               </Button>
             </DialogTrigger>
@@ -292,42 +303,63 @@ const ExchangeRates = () => {
         </div>
 
         {/* Current Active Rates */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           {(['USD', 'LBP', 'EUR'] as const).map((currency) => {
             const currentRate = currentRates[currency];
             return (
-              <div key={currency} className="border rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-semibold">{currency}</span>
+              <div key={currency} className="border rounded-lg p-2">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-semibold text-sm">{currency}</span>
                   {currentRate ? (
-                    <CheckCircle2 className="h-4 w-4 text-success" />
+                    <CheckCircle2 className="h-3.5 w-3.5 text-success" />
                   ) : (
-                    <XCircle className="h-4 w-4 text-destructive" />
+                    <XCircle className="h-3.5 w-3.5 text-destructive" />
                   )}
                 </div>
                 {currentRate ? (
                   <>
-                    <div className="text-2xl font-bold">1 USD = {parseFloat(String(currentRate.rate_to_usd)).toLocaleString()} {currency}</div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-base sm:text-lg font-bold">1 USD = {parseFloat(String(currentRate.rate_to_usd)).toLocaleString()} {currency}</div>
+                    <div className="text-[10px] text-muted-foreground">
                       {t("exchangeRates.effective")}: {formatDateTimeLebanon(currentRate.effective_date, "MM/dd/yyyy")}
                     </div>
                   </>
                 ) : (
-                  <div className="text-sm text-muted-foreground">{t("exchangeRates.noActiveRate")}</div>
+                  <div className="text-xs text-muted-foreground">{t("exchangeRates.noActiveRate")}</div>
                 )}
               </div>
             );
           })}
         </div>
 
-        {/* Filters */}
-        <div className="flex items-center gap-2">
+        {/* Search and Filters */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative flex-1 sm:flex-initial sm:min-w-[300px]">
+            <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search exchange rates (currency, ID)"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-8 h-8 text-sm"
+            />
+            {searchQuery && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            )}
+          </div>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setShowFilters(!showFilters)}
+            className="h-8 text-xs"
           >
-            <Filter className="mr-2 h-4 w-4" />
+            <Filter className="mr-1.5 h-3.5 w-3.5" />
             {showFilters ? t("common.hideFilters") : t("common.showFilters")}
           </Button>
           {showFilters && (
@@ -359,11 +391,11 @@ const ExchangeRates = () => {
                   <SelectItem value="false">{t("exchangeRates.inactiveStatus")}</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="sm" onClick={applyFilters}>
+              <Button variant="outline" size="sm" onClick={applyFilters} className="h-8 text-xs">
                 {t("common.apply")}
               </Button>
-              <Button variant="outline" size="sm" onClick={clearFilters}>
-                <X className="h-4 w-4" />
+              <Button variant="outline" size="sm" onClick={clearFilters} className="h-8 text-xs">
+                <X className="h-3.5 w-3.5" />
               </Button>
             </>
           )}
@@ -380,37 +412,41 @@ const ExchangeRates = () => {
           <div className="text-center py-8 text-muted-foreground">
             {t("exchangeRates.noExchangeRates")}
           </div>
+        ) : filteredRates.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No exchange rates found matching your search
+          </div>
         ) : (
           <div className="border rounded-lg">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t("exchangeRates.currency")}</TableHead>
-                  <TableHead>{t("exchangeRates.rate")}</TableHead>
-                  <TableHead>{t("exchangeRates.effectiveDate")}</TableHead>
-                  <TableHead>{t("invoices.status")}</TableHead>
-                  <TableHead>{t("common.created") || "Created"}</TableHead>
-                  <TableHead className="text-right">{t("common.actions") || "Actions"}</TableHead>
+                  <TableHead className="p-2 text-xs">{t("exchangeRates.currency")}</TableHead>
+                  <TableHead className="p-2 text-xs">{t("exchangeRates.rate")}</TableHead>
+                  <TableHead className="p-2 text-xs">{t("exchangeRates.effectiveDate")}</TableHead>
+                  <TableHead className="p-2 text-xs">{t("invoices.status")}</TableHead>
+                  <TableHead className="p-2 text-xs">{t("common.created") || "Created"}</TableHead>
+                  <TableHead className="text-right p-2 text-xs">{t("common.actions") || "Actions"}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rates.map((rate) => (
+                {filteredRates.map((rate) => (
                   <TableRow key={rate.id}>
-                    <TableCell className="font-medium">{rate.currency_code}</TableCell>
-                    <TableCell>{parseFloat(String(rate.rate_to_usd)).toLocaleString()}</TableCell>
-                    <TableCell>{formatDateTimeLebanon(rate.effective_date, "MM/dd/yyyy")}</TableCell>
-                    <TableCell>
+                    <TableCell className="font-medium p-2 text-sm">{rate.currency_code}</TableCell>
+                    <TableCell className="p-2 text-xs">{parseFloat(String(rate.rate_to_usd)).toLocaleString()}</TableCell>
+                    <TableCell className="p-2 text-xs">{formatDateTimeLebanon(rate.effective_date, "MM/dd/yyyy")}</TableCell>
+                    <TableCell className="p-2">
                       {rate.is_active ? (
-                        <span className="text-success">{t("exchangeRates.activeStatus")}</span>
+                        <span className="text-success text-xs">{t("exchangeRates.activeStatus")}</span>
                       ) : (
-                        <span className="text-muted-foreground">{t("exchangeRates.inactiveStatus")}</span>
+                        <span className="text-muted-foreground text-xs">{t("exchangeRates.inactiveStatus")}</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="text-xs text-muted-foreground p-2">
                       {formatDateTimeLebanon(rate.created_at, "MM/dd/yyyy")}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                    <TableCell className="text-right p-2">
+                      <div className="flex justify-end gap-1">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -418,15 +454,17 @@ const ExchangeRates = () => {
                             setEditingRate(rate);
                             setIsEditOpen(true);
                           }}
+                          className="h-7 w-7 p-0"
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Pencil className="h-3.5 w-3.5" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDelete(rate.id)}
+                          className="h-7 w-7 p-0"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </TableCell>
