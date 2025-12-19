@@ -405,6 +405,9 @@ BEGIN
 		available_qty = EXCLUDED.available_qty,
 		avg_cost = EXCLUDED.avg_cost,
 		updated_at = EXCLUDED.updated_at;
+	
+	-- 5. Recompute positions for this product
+	PERFORM sp_recompute_positions(p_product_id);
 END;
 $$;`
 	},
