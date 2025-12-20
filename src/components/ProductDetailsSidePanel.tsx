@@ -81,13 +81,21 @@ export default function ProductDetailsSidePanel({ open, onOpenChange, productId 
         const stockData = await inventoryRepo.today();
         const productStock = stockData.find((item: any) => String(item.product_id) === productId);
         if (productStock) {
+          // Record exists - use actual values (even if 0)
           setStockInfo({
-            available_qty: Number(productStock.available_qty) || 0,
-            avg_cost: Number(productStock.avg_cost) || 0,
+            available_qty: productStock.available_qty !== null && productStock.available_qty !== undefined 
+              ? Number(productStock.available_qty) 
+              : 0,
+            avg_cost: productStock.avg_cost !== null && productStock.avg_cost !== undefined 
+              ? Number(productStock.avg_cost) 
+              : 0,
           });
+        } else {
+          // No record in daily_stock - set to null to show "No Stock Details available"
+          setStockInfo(null);
         }
       } catch (error) {
-        // Stock not found is okay
+        // Stock not found is okay - no record exists
         setStockInfo(null);
       }
     } catch (error: any) {
@@ -211,7 +219,7 @@ export default function ProductDetailsSidePanel({ open, onOpenChange, productId 
                   <div className="space-y-2">
                     <div className="flex justify-between items-center py-1 border-b border-border/50">
                       <span className="text-xs text-muted-foreground">Available Quantity</span>
-                      <span className={`text-xs font-bold ${stockInfo.available_qty < 10 ? 'text-warning' : 'text-success'}`}>
+                      <span className={`text-xs font-bold ${stockInfo.available_qty === 0 ? 'text-destructive' : stockInfo.available_qty < 10 ? 'text-warning' : 'text-success'}`}>
                         {stockInfo.available_qty}
                       </span>
                     </div>
@@ -223,7 +231,7 @@ export default function ProductDetailsSidePanel({ open, onOpenChange, productId 
                     </div>
                   </div>
                 ) : (
-                  <div className="text-xs text-muted-foreground">No stock information available</div>
+                  <div className="text-xs text-muted-foreground">No Stock Details available</div>
                 )}
               </div>
             </>

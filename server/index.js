@@ -38,9 +38,9 @@ app.use(helmetConfig);
 app.use(hpp());
 
 // Security: Request size limit (prevent DoS attacks)
+// Note: requestSizeLimiter is only applied to auth routes, not business routes
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(requestSizeLimiter('10mb'));
 
 // Performance: Keep-alive connections
 app.use(keepAlive);

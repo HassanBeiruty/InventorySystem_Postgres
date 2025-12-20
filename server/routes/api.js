@@ -16,6 +16,7 @@ const {
 	sanitizeInput,
 	validateSQLInput,
 	validateFileUpload,
+	requestSizeLimiter,
 } = require('../middleware/security');
 
 const router = express.Router();
@@ -210,13 +211,8 @@ router.use((req, res, next) => {
 	});
 });
 
-// Apply general API rate limiting (auth routes have their own stricter limiter)
-router.use((req, res, next) => {
-	if (req.path.startsWith('/auth/')) {
-		return next(); // Auth routes use authLimiter
-	}
-	apiLimiter(req, res, next);
-});
+// Rate limiting is only applied to auth routes (signin/signup)
+// Business API routes have no rate limiting to allow normal operations
 
 // Validation error handler
 function handleValidationErrors(req, res, next) {
@@ -227,7 +223,7 @@ function handleValidationErrors(req, res, next) {
 	next();
 }
 
-router.post('/auth/signup', authLimiter, sanitizeInput, [
+router.post('/auth/signup', requestSizeLimiter('10mb'), authLimiter, sanitizeInput, [
 	body('email').isEmail().normalizeEmail(),
 	body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
 ], handleValidationErrors, async (req, res) => {
@@ -273,7 +269,7 @@ router.post('/auth/signup', authLimiter, sanitizeInput, [
 	}
 });
 
-router.post('/auth/signin', authLimiter, sanitizeInput, [
+router.post('/auth/signin', requestSizeLimiter('10mb'), authLimiter, sanitizeInput, [
 	body('email').isEmail().normalizeEmail(),
 	body('password').notEmpty(),
 ], handleValidationErrors, async (req, res) => {
