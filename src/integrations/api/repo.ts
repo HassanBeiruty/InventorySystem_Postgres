@@ -287,7 +287,6 @@ export const invoicesRepo = {
     customer_id: string | null;
     supplier_id: string | null;
     total_amount: number;
-    is_paid: boolean;
     due_date?: string | null;
     items: InvoiceCreateItem[];
   }) {
@@ -308,12 +307,22 @@ export const invoicesRepo = {
   async getInvoicePayments(invoiceId: string) {
     return fetchJson<any[]>(`/api/invoices/${invoiceId}/payments`);
   },
+  async updatePayment(invoiceId: string, paymentId: string, payment: { paid_amount: number; currency_code: string; exchange_rate_on_payment: number; payment_method?: string; notes?: string; payment_date?: string }) {
+    return fetchJson<{ id: number; invoice_id: number; amount_paid: number; remaining_balance: number; payment_status: string }>(`/api/invoices/${invoiceId}/payments/${paymentId}`, {
+      method: "PUT",
+      body: JSON.stringify(payment),
+    });
+  },
+  async deletePayment(invoiceId: string, paymentId: string) {
+    return fetchJson<{ success: boolean; id: number; invoice_id: number; amount_paid: number; remaining_balance: number; payment_status: string }>(`/api/invoices/${invoiceId}/payments/${paymentId}`, {
+      method: "DELETE",
+    });
+  },
   async updateInvoice(invoiceId: string, input: {
     invoice_type: "buy" | "sell";
     customer_id: string | null;
     supplier_id: string | null;
     total_amount: number;
-    is_paid: boolean;
     due_date?: string | null;
     items: InvoiceCreateItem[];
   }) {
@@ -329,6 +338,18 @@ export const invoicesRepo = {
   },
   async getOverdueInvoices() {
     return fetchJson<(InvoiceEntity & { customers?: CustomerEntity; suppliers?: SupplierEntity })[]>(`/api/invoices/overdue`);
+  },
+};
+
+export const paymentsRepo = {
+  async list(filters?: { invoice_id?: string; start_date?: string; end_date?: string; currency_code?: string }) {
+    const params = new URLSearchParams();
+    if (filters?.invoice_id) params.append('invoice_id', filters.invoice_id);
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+    if (filters?.currency_code) params.append('currency_code', filters.currency_code);
+    const queryString = params.toString();
+    return fetchJson<any[]>(`/api/payments${queryString ? `?${queryString}` : ''}`);
   },
 };
 

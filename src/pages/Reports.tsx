@@ -168,7 +168,7 @@ const Reports = () => {
       // Payment status
       const statusCounts = { paid: 0, partial: 0, pending: 0 };
       all?.forEach((inv: any) => {
-        const status = inv.payment_status || (inv.is_paid ? 'paid' : 'pending');
+        const status = inv.payment_status || 'pending';
         if (status === 'paid') statusCounts.paid++;
         else if (status === 'partial') statusCounts.partial++;
         else statusCounts.pending++;
@@ -176,7 +176,7 @@ const Reports = () => {
       setPaymentStatusData([
         { name: 'Paid', value: statusCounts.paid, color: chartColors.success },
         { name: 'Partial', value: statusCounts.partial, color: chartColors.warning },
-        { name: 'Pending', value: statusCounts.pending, color: chartColors.warning },
+        { name: 'Pending', value: statusCounts.pending, color: chartColors.secondary },
       ]);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });

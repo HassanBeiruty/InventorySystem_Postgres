@@ -16,6 +16,7 @@ const Categories = lazy(() => import("./pages/Categories"));
 const Customers = lazy(() => import("./pages/Customers"));
 const Suppliers = lazy(() => import("./pages/Suppliers"));
 const InvoicesList = lazy(() => import("./pages/InvoicesList"));
+const InvoicePayments = lazy(() => import("./pages/InvoicePayments"));
 const OverdueInvoices = lazy(() => import("./pages/OverdueInvoices"));
 const InvoiceForm = lazy(() => import("./pages/InvoiceForm"));
 const Reports = lazy(() => import("./pages/Reports"));
@@ -66,6 +67,7 @@ const App = () => (
             <Route path="/customers" element={<Customers />} />
             <Route path="/suppliers" element={<Suppliers />} />
             <Route path="/invoices" element={<InvoicesList />} />
+            <Route path="/invoices/payments" element={<InvoicePayments />} />
             <Route path="/invoices/overdue" element={<OverdueInvoices />} />
             <Route path="/invoices/new/sell" element={<InvoiceForm />} />
             <Route path="/invoices/new/buy" element={<InvoiceForm />} />

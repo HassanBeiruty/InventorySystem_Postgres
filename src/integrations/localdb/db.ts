@@ -43,7 +43,6 @@ export interface InvoiceEntity {
   customer_id: number | null;
   supplier_id: number | null;
   total_amount: number;
-  is_paid: boolean;
   invoice_date: string; // ISO
   due_date: string | null;
   amount_paid?: number;

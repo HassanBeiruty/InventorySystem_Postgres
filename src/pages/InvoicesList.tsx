@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
 import PaymentDialog from "@/components/PaymentDialog";
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Filter, X, FileText, TrendingUp, TrendingDown, DollarSign, Plus, CreditCard, Eye, Pencil, Trash2 } from "lucide-react";
+import { Filter, X, FileText, TrendingUp, TrendingDown, DollarSign, Plus, Eye, Pencil, Trash2 } from "lucide-react";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
 import { invoicesRepo, productsRepo, customersRepo, suppliersRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
@@ -24,7 +24,6 @@ const InvoicesList = () => {
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<any[]>([]);
-  const [filteredInvoices, setFilteredInvoices] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
@@ -45,9 +44,35 @@ const InvoicesList = () => {
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>("");
 
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [invoicesData, productsData, customersData, suppliersData] = await Promise.all([
+        invoicesRepo.listWithRelations(),
+        productsRepo.list(),
+        customersRepo.list(),
+        suppliersRepo.list(),
+      ]);
+      
+      const invoices = invoicesData || [];
+      setInvoices(invoices);
+      setProducts(productsData || []);
+      setCustomers(customersData || []);
+      setSuppliers(suppliersData || []);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   // Refetch when navigating back to this page (using focus event)
   useEffect(() => {
@@ -65,36 +90,87 @@ const InvoicesList = () => {
     return () => {
       window.removeEventListener('focus', handleFocus);
     };
+  }, [fetchData]);
+
+  const clearFilters = useCallback(() => {
+    setFilters({
+      type: "all",
+      product_id: "all",
+      customer_id: "all",
+      supplier_id: "all",
+      payment_status: "all",
+      start_date: "",
+      end_date: "",
+      search: "",
+    });
   }, []);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const hasActiveFilters = filters.type !== "all" || filters.product_id !== "all" || filters.customer_id !== "all" || 
+                           filters.supplier_id !== "all" || filters.payment_status !== "all" || 
+                           filters.start_date !== "" || filters.end_date !== "" || filters.search !== "";
+
+  const handleRecordPayment = useCallback((invoiceId: string) => {
+    setSelectedInvoiceId(invoiceId);
+    setPaymentDialogOpen(true);
+  }, []);
+
+  const handleViewDetails = useCallback((invoiceId: string, event?: React.MouseEvent) => {
+    if (event) {
+      event.stopPropagation();
+    }
+    setSelectedInvoiceId(invoiceId);
+    setSidePanelOpen(true);
+  }, []);
+
+  const handleRowClick = useCallback((invoiceId: string) => {
+    setSelectedInvoiceId(prev => {
+      if (prev === invoiceId && sidePanelOpen) {
+        setSidePanelOpen(false);
+        return "";
+      } else {
+        setSidePanelOpen(true);
+        return invoiceId;
+      }
+    });
+  }, [sidePanelOpen]);
+
+  const handlePaymentRecorded = useCallback(() => {
+    fetchData(); // Refresh the invoice list
+  }, [fetchData]);
+
+  const handleDeleteInvoice = useCallback(async (invoiceId: string) => {
+    if (!confirm(t('invoices.confirmDelete') || 'Are you sure you want to delete this invoice? This action cannot be undone.')) {
+      return;
+    }
+
     try {
-      const [invoicesData, productsData, customersData, suppliersData] = await Promise.all([
-        invoicesRepo.listWithRelations(),
-        productsRepo.list(),
-        customersRepo.list(),
-        suppliersRepo.list(),
+      await invoicesRepo.deleteInvoice(invoiceId);
+      toast({
+        title: t('invoices.deleteSuccess') || "Success",
+        description: t('invoices.invoiceDeleted') || "Invoice deleted successfully",
+      });
+      // Invalidate all related queries to force immediate refresh
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["invoices"] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory"] }),
+        queryClient.invalidateQueries({ queryKey: ["daily-stock"] }),
+        queryClient.invalidateQueries({ queryKey: ["stock-movements"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
       ]);
-      
-      const invoices = invoicesData || [];
-      setInvoices(invoices);
-      setFilteredInvoices(invoices); // Set initial filtered data
-      setProducts(productsData || []);
-      setCustomers(customersData || []);
-      setSuppliers(suppliersData || []);
+       // Small delay to allow stored procedure to complete
+       await new Promise(resolve => setTimeout(resolve, 500));
+       fetchData(); // Refresh the invoice list
     } catch (error: any) {
       toast({
-        title: "Error",
-        description: error.message,
+        title: t('invoices.deleteError') || "Error",
+        description: error.message || t('invoices.deleteFailed') || "Failed to delete invoice",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [t, toast, queryClient, fetchData]);
 
-  const applyFilters = () => {
+  // Memoize filtered invoices to avoid recalculating on every render
+  const filteredInvoices = useMemo(() => {
     let result = [...invoices];
 
     // Filter by type
@@ -145,93 +221,11 @@ const InvoicesList = () => {
       });
     }
 
-    setFilteredInvoices(result);
-  };
-
-  useEffect(() => {
-    if (invoices.length > 0) {
-      applyFilters();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return result;
   }, [filters, invoices]);
 
-  const clearFilters = () => {
-    setFilters({
-      type: "all",
-      product_id: "all",
-      customer_id: "all",
-      supplier_id: "all",
-      payment_status: "all",
-      start_date: "",
-      end_date: "",
-      search: "",
-    });
-  };
-
-  const hasActiveFilters = filters.type !== "all" || filters.product_id !== "all" || filters.customer_id !== "all" || 
-                           filters.supplier_id !== "all" || filters.payment_status !== "all" || 
-                           filters.start_date !== "" || filters.end_date !== "" || filters.search !== "";
-
-  const handleRecordPayment = (invoiceId: string) => {
-    setSelectedInvoiceId(invoiceId);
-    setPaymentDialogOpen(true);
-  };
-
-  const handleViewDetails = (invoiceId: string, event?: React.MouseEvent) => {
-    if (event) {
-      event.stopPropagation();
-    }
-    setSelectedInvoiceId(invoiceId);
-    setSidePanelOpen(true);
-  };
-
-  const handleRowClick = (invoiceId: string) => {
-    if (selectedInvoiceId === invoiceId && sidePanelOpen) {
-      setSidePanelOpen(false);
-      setSelectedInvoiceId("");
-    } else {
-      setSelectedInvoiceId(invoiceId);
-      setSidePanelOpen(true);
-    }
-  };
-
-  const handlePaymentRecorded = () => {
-    fetchData(); // Refresh the invoice list
-  };
-
-  const handleDeleteInvoice = async (invoiceId: string) => {
-    if (!confirm(t('invoices.confirmDelete') || 'Are you sure you want to delete this invoice? This action cannot be undone.')) {
-      return;
-    }
-
-    try {
-      await invoicesRepo.deleteInvoice(invoiceId);
-      toast({
-        title: t('invoices.deleteSuccess') || "Success",
-        description: t('invoices.invoiceDeleted') || "Invoice deleted successfully",
-      });
-      // Invalidate all related queries to force immediate refresh
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["invoices"] }),
-        queryClient.invalidateQueries({ queryKey: ["inventory"] }),
-        queryClient.invalidateQueries({ queryKey: ["daily-stock"] }),
-        queryClient.invalidateQueries({ queryKey: ["stock-movements"] }),
-        queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
-      ]);
-       // Small delay to allow stored procedure to complete
-       await new Promise(resolve => setTimeout(resolve, 500));
-       fetchData(); // Refresh the invoice list
-    } catch (error: any) {
-      toast({
-        title: t('invoices.deleteError') || "Error",
-        description: error.message || t('invoices.deleteFailed') || "Failed to delete invoice",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Calculate summary stats
-  const stats = {
+  // Memoize summary stats to avoid recalculating on every render
+  const stats = useMemo(() => ({
     total: filteredInvoices.length,
     totalAmount: filteredInvoices.reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0),
     totalPaid: filteredInvoices.reduce((sum, inv) => sum + Number(inv.amount_paid || 0), 0),
@@ -241,7 +235,7 @@ const InvoicesList = () => {
     pending: filteredInvoices.filter(inv => inv.payment_status === 'pending').length,
     sell: filteredInvoices.filter(inv => inv.invoice_type === 'sell').length,
     buy: filteredInvoices.filter(inv => inv.invoice_type === 'buy').length,
-  };
+  }), [filteredInvoices]);
 
   return (
     <DashboardLayout>
@@ -467,7 +461,7 @@ const InvoicesList = () => {
             <div className="flex items-center gap-1.5 mb-1">
               <span className="text-xs font-medium text-muted-foreground">Pending</span>
             </div>
-            <div className="text-lg font-bold text-warning">{stats.pending + stats.partial}</div>
+            <div className="text-lg font-bold text-muted-foreground">{stats.pending}</div>
           </div>
         </div>
 
@@ -585,7 +579,9 @@ const InvoicesList = () => {
                             <TableCell className={`text-right font-bold p-3 ${
                               invoice.payment_status === 'paid' 
                                 ? 'text-success' 
-                                : 'text-warning'
+                                : invoice.payment_status === 'partial'
+                                ? 'text-warning'
+                                : 'text-muted-foreground'
                             }`}>
                               ${Number(invoice.total_amount).toFixed(2)}
                             </TableCell>
@@ -596,7 +592,7 @@ const InvoicesList = () => {
                                     ? 'success' :
                                   invoice.payment_status === 'partial'
                                     ? 'warning' :
-                                    'warning'
+                                    'secondary'
                                 }
                                 className="text-xs"
                               >
@@ -637,8 +633,17 @@ const InvoicesList = () => {
                                     e.stopPropagation();
                                     handleDeleteInvoice(String(invoice.id));
                                   }}
-                                  className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                  title="Delete"
+                                  disabled={Number(invoice.amount_paid || 0) > 0}
+                                  className={`h-8 w-8 p-0 ${
+                                    Number(invoice.amount_paid || 0) > 0
+                                      ? 'text-warning hover:text-warning hover:bg-warning/10 cursor-not-allowed opacity-60'
+                                      : 'text-destructive hover:text-destructive hover:bg-destructive/10'
+                                  }`}
+                                  title={
+                                    Number(invoice.amount_paid || 0) > 0
+                                      ? "Cannot delete invoice with payments. Remove all payments first."
+                                      : "Delete"
+                                  }
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </Button>

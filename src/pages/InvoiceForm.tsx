@@ -36,6 +36,7 @@ const InvoiceForm = () => {
   const [invoiceType, setInvoiceType] = useState<'buy' | 'sell'>(location.pathname.includes('/buy') ? 'buy' : 'sell');
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
+  const [hasPayments, setHasPayments] = useState(false);
   
   // Update invoice type when URL changes
   useEffect(() => {
@@ -72,6 +73,7 @@ const InvoiceForm = () => {
   const [activeItemIndex, setActiveItemIndex] = useState<number>(0);
   const [productSearchQuery, setProductSearchQuery] = useState<Record<number, string>>({});
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const productSearchInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const [items, setItems] = useState<InvoiceItem[]>([{
     product_id: "",
     quantity: 1,
@@ -199,6 +201,13 @@ const InvoiceForm = () => {
     };
   }, [isEditMode, id]);
   
+  // Reset hasPayments when creating a new invoice
+  useEffect(() => {
+    if (!isEditMode) {
+      setHasPayments(false);
+    }
+  }, [isEditMode]);
+  
   // Debug: Log when selectedEntity changes
   useEffect(() => {
     if (selectedEntity) {
@@ -212,6 +221,10 @@ const InvoiceForm = () => {
     try {
       setLoading(true);
       const invoiceData = await invoicesRepo.getInvoiceDetails(invoiceId);
+      
+      // Check if invoice has payments
+      const payments = invoiceData.payments || [];
+      setHasPayments(payments.length > 0);
       
       // Use passed data or fallback to state
       const productsList = prods.length > 0 ? prods : products;
@@ -593,6 +606,9 @@ const InvoiceForm = () => {
   };
 
   const removeItem = (index: number) => {
+    if (hasPayments) {
+      return; // Silently prevent removal if payments exist
+    }
     setItems(items.filter((_, i) => i !== index));
   };
 
@@ -744,7 +760,6 @@ const InvoiceForm = () => {
         customer_id: invoiceType === 'sell' ? selectedEntity : null,
         supplier_id: invoiceType === 'buy' ? selectedEntity : null,
         total_amount: calculateTotal(),
-        is_paid: false,
         due_date: dueDate || null,
         items: validItems.map((item) => ({
           product_id: item.product_id,
@@ -820,26 +835,26 @@ const InvoiceForm = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-2 sm:space-y-3">
+      <div className="space-y-1">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
+          <h2 className="text-lg sm:text-xl font-bold tracking-tight">
             {isEditMode ? (invoiceType === 'sell' ? t('invoiceForm.editSellInvoice') : t('invoiceForm.editBuyInvoice')) : (invoiceType === 'sell' ? t('invoiceForm.newSellInvoice') : t('invoiceForm.newBuyInvoice'))}
           </h2>
-          <p className="text-muted-foreground text-xs sm:text-sm">
+          <p className="text-muted-foreground text-[10px] sm:text-xs">
             {isEditMode 
               ? (invoiceType === 'sell' ? 'Edit sell invoice details and items' : 'Edit buy invoice details and items')
               : (invoiceType === 'sell' ? 'Create a new sell invoice' : 'Create a new buy invoice')}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-1.5">
           <Card>
-            <CardHeader className="pb-2 pt-2">
-              <CardTitle className="text-sm sm:text-base">{t('invoiceForm.invoiceDetails')}</CardTitle>
+            <CardHeader className="pb-1 pt-1.5 px-3">
+              <CardTitle className="text-xs sm:text-sm">{t('invoiceForm.invoiceDetails')}</CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-2 sm:gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)] pt-2">
-              <div className="space-y-1">
-                <Label htmlFor="entity-select" className="text-xs">
+            <CardContent className="grid gap-1.5 sm:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)] pt-1 px-3 pb-2">
+              <div className="space-y-0.5">
+                <Label htmlFor="entity-select" className="text-[10px] sm:text-xs">
                   {invoiceType === 'sell' ? t('invoiceForm.selectCustomer') : t('invoiceForm.selectSupplier')}
                 </Label>
                 <Select 
@@ -867,9 +882,9 @@ const InvoiceForm = () => {
                 </Select>
               </div>
               
-              <div className="space-y-1">
-                <Label htmlFor="due_date" className="text-xs">
-                  Due Date <span className="text-muted-foreground text-[11px] sm:text-xs">(optional)</span>
+              <div className="space-y-0.5">
+                <Label htmlFor="due_date" className="text-[10px] sm:text-xs">
+                  Due Date <span className="text-muted-foreground text-[9px] sm:text-[10px]">(optional)</span>
                 </Label>
                 <Input
                   id="due_date"
@@ -884,14 +899,14 @@ const InvoiceForm = () => {
           </Card>
 
           <Card>
-            <CardHeader className="pb-2 pt-2">
-              <CardTitle className="text-sm sm:text-base">{t('invoiceForm.items')}</CardTitle>
-              <CardDescription className="text-[10px] sm:text-xs">{t('invoiceForm.addProducts')}</CardDescription>
+            <CardHeader className="pb-1 pt-1.5 px-3">
+              <CardTitle className="text-xs sm:text-sm">{t('invoiceForm.items')}</CardTitle>
+              <CardDescription className="text-[9px] sm:text-[10px]">{t('invoiceForm.addProducts')}</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2 sm:space-y-3 pt-2">
+            <CardContent className="space-y-1.5 pt-1 px-3 pb-2">
               {/* Barcode/SKU Scanner Section */}
-              <div className="border rounded-lg p-2 sm:p-3 bg-muted/30 space-y-2">
-                <Label className="text-xs sm:text-sm font-semibold">Scan or Enter Barcode/SKU</Label>
+              <div className="border rounded-lg p-1.5 bg-muted/30 space-y-1">
+                <Label className="text-[10px] sm:text-xs font-semibold">Scan or Enter Barcode/SKU</Label>
                 <Input
                   ref={barcodeInputRef}
                   placeholder="Enter barcode or SKU and press Enter"
@@ -908,7 +923,7 @@ const InvoiceForm = () => {
                   className="w-full h-8 text-sm"
                   disabled={isEditMode}
                 />
-                <p className="text-[10px] sm:text-xs text-muted-foreground">
+                <p className="text-[9px] sm:text-[10px] text-muted-foreground">
                   {isEditMode 
                     ? "Barcode/SKU scanning is disabled in edit mode" 
                     : "Scan barcode or SKU with scanner or type manually (press Enter to search)"}
@@ -920,10 +935,10 @@ const InvoiceForm = () => {
                 const isOutOfStock = availableQty !== null && availableQty === 0;
                 
                 return (
-                  <div key={index} className="border rounded-lg p-2 sm:p-3 bg-card">
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
-                      <div className="md:col-span-3 space-y-1">
-                        <Label htmlFor={`product-${index}`} className="text-xs">{t('invoiceForm.product')}</Label>
+                  <div key={index} className="border rounded-lg p-1.5 bg-card">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-1.5 items-end">
+                      <div className="md:col-span-3 space-y-0.5">
+                        <Label htmlFor={`product-${index}`} className="text-[10px] sm:text-xs">{t('invoiceForm.product')}</Label>
                         <Select
                           value={item.product_id}
                           onValueChange={(value) => {
@@ -937,6 +952,10 @@ const InvoiceForm = () => {
                           onOpenChange={(open) => {
                             if (open && !isEditMode) {
                               setActiveItemIndex(index);
+                              // Focus the search input when dropdown opens
+                              setTimeout(() => {
+                                productSearchInputRefs.current[index]?.focus();
+                              }, 100);
                             } else {
                               // Clear search when dropdown closes
                               setProductSearchQuery(prev => ({ ...prev, [index]: "" }));
@@ -948,10 +967,13 @@ const InvoiceForm = () => {
                             <SelectValue placeholder={t('invoiceForm.selectProduct')} />
                           </SelectTrigger>
                           <SelectContent side="bottom" align="start" className="max-h-[400px]">
-                            <div className="sticky top-0 z-10 bg-popover border-b p-2">
+                            <div className="sticky top-0 z-10 bg-popover border-b p-1.5">
                               <div className="relative">
                                 <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                                 <Input
+                                  ref={(el) => {
+                                    productSearchInputRefs.current[index] = el;
+                                  }}
                                   type="text"
                                   placeholder="Search products (name, barcode, SKU, ID)..."
                                   value={productSearchQuery[index] || ""}
@@ -1019,9 +1041,9 @@ const InvoiceForm = () => {
                         </Select>
                       </div>
                       
-                      <div className="md:col-span-2 space-y-1">
+                      <div className="md:col-span-2 space-y-0.5">
                         <div className="flex items-center justify-between">
-                          <Label className="text-xs">{t('invoiceForm.quantity')}</Label>
+                          <Label className="text-[10px] sm:text-xs">{t('invoiceForm.quantity')}</Label>
                           {invoiceType === 'sell' && item.product_id && availableQty !== null && (
                             <div className="flex items-center gap-1">
                               {isOutOfStock ? (
@@ -1088,8 +1110,8 @@ const InvoiceForm = () => {
                       </div>
                       
                       {invoiceType === 'sell' && (
-                        <div className="md:col-span-2 space-y-1">
-                          <Label htmlFor={`price-type-${index}`} className="text-xs">{t('invoiceForm.priceType')}</Label>
+                        <div className="md:col-span-2 space-y-0.5">
+                          <Label htmlFor={`price-type-${index}`} className="text-[10px] sm:text-xs">{t('invoiceForm.priceType')}</Label>
                           <Select
                             value={item.price_type}
                             onValueChange={(value: 'retail' | 'wholesale') => handlePriceTypeChange(index, value)}
@@ -1105,8 +1127,8 @@ const InvoiceForm = () => {
                         </div>
                       )}
                       
-                      <div className={`${invoiceType === 'sell' ? 'md:col-span-2' : 'md:col-span-3'} space-y-1`}>
-                        <Label className="text-xs">{invoiceType === 'buy' ? t('invoiceForm.cost') : t('invoiceForm.unitPrice')}</Label>
+                      <div className={`${invoiceType === 'sell' ? 'md:col-span-2' : 'md:col-span-3'} space-y-0.5`}>
+                        <Label className="text-[10px] sm:text-xs">{invoiceType === 'buy' ? t('invoiceForm.cost') : t('invoiceForm.unitPrice')}</Label>
                         <Input
                           type="number"
                           step="0.01"
@@ -1122,8 +1144,8 @@ const InvoiceForm = () => {
                         />
                       </div>
                       
-                      <div className="md:col-span-2 space-y-1">
-                        <Label className="text-xs">{t('invoiceForm.total')}</Label>
+                      <div className="md:col-span-2 space-y-0.5">
+                        <Label className="text-[10px] sm:text-xs">{t('invoiceForm.total')}</Label>
                         <Input
                           type="number"
                           value={isNaN(item.total_price) ? '' : item.total_price.toFixed(2)}
@@ -1139,7 +1161,17 @@ const InvoiceForm = () => {
                             variant="destructive"
                             size="icon"
                             onClick={() => removeItem(index)}
-                            className="h-8 w-8"
+                            disabled={hasPayments}
+                            className={`h-8 w-8 ${
+                              hasPayments
+                                ? 'opacity-60 cursor-not-allowed bg-warning/10 text-warning hover:bg-warning/20 hover:text-warning'
+                                : ''
+                            }`}
+                            title={
+                              hasPayments
+                                ? "Cannot remove items from invoice with payments. Remove all payments first."
+                                : "Remove item"
+                            }
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
@@ -1148,7 +1180,7 @@ const InvoiceForm = () => {
                     </div>
 
                   {invoiceType === 'sell' && (
-                    <div className="space-y-2 border-t pt-2 mt-2">
+                    <div className="space-y-1 border-t pt-1.5 mt-1.5">
                       <div className="flex items-center gap-2">
                         <input
                           type="checkbox"
@@ -1157,15 +1189,15 @@ const InvoiceForm = () => {
                           onChange={(e) => handlePrivatePriceToggle(index, e.target.checked)}
                           className="rounded border-input"
                         />
-                        <Label htmlFor={`private-${index}`} className="cursor-pointer text-xs font-medium">
+                        <Label htmlFor={`private-${index}`} className="cursor-pointer text-[10px] sm:text-xs font-medium">
                           {t('invoiceForm.useCustomPrice')} {item.price_type === 'retail' ? t('invoiceForm.retail') : t('invoiceForm.wholesale')})
                         </Label>
                       </div>
                       
                       {item.is_private_price && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          <div className="space-y-1">
-                            <Label className="text-xs">{t('invoiceForm.customPriceAmount')}</Label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          <div className="space-y-0.5">
+                            <Label className="text-[10px] sm:text-xs">{t('invoiceForm.customPriceAmount')}</Label>
                             <Input
                               type="number"
                               step="0.01"
@@ -1179,8 +1211,8 @@ const InvoiceForm = () => {
                               className="h-8 text-sm"
                             />
                           </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">{t('invoiceForm.reasonNote')}</Label>
+                          <div className="space-y-0.5">
+                            <Label className="text-[10px] sm:text-xs">{t('invoiceForm.reasonNote')}</Label>
                             <Input
                               type="text"
                               value={item.private_price_note}
@@ -1209,16 +1241,16 @@ const InvoiceForm = () => {
                 </Button>
               )}
               
-              <div className="flex justify-end pt-2 border-t">
-                <div className="text-right space-y-1">
-                  <div className="text-xs text-muted-foreground">{t('invoiceForm.totalAmount')}</div>
-                  <div className="text-xl sm:text-2xl font-bold">${calculateTotal().toFixed(2)}</div>
+              <div className="flex justify-end pt-1.5 border-t">
+                <div className="text-right space-y-0.5">
+                  <div className="text-[10px] sm:text-xs text-muted-foreground">{t('invoiceForm.totalAmount')}</div>
+                  <div className="text-lg sm:text-xl font-bold">${calculateTotal().toFixed(2)}</div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <div className="flex flex-col-reverse sm:flex-row gap-2">
+          <div className="flex flex-col-reverse sm:flex-row gap-1.5">
             <Button type="button" variant="outline" onClick={() => navigate("/invoices")} className="w-full sm:w-auto h-8 text-xs">
               {t('invoiceForm.cancel')}
             </Button>

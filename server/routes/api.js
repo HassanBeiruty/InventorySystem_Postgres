@@ -812,11 +812,31 @@ router.get('/invoices', async (req, res) => {
 			idToItems.get(item.invoice_id).push(item);
 		});
 		
+		// Fetch payments for all invoices to calculate amount_paid accurately
+		let paymentsResult = { recordset: [] };
+		if (invoiceIds.length > 0) {
+			const placeholders = invoiceIds.map((_, i) => `$${i + 1}`).join(',');
+			paymentsResult = await query(
+				`SELECT invoice_id, COALESCE(SUM(usd_equivalent_amount), 0) as total_paid 
+				 FROM invoice_payments 
+				 WHERE invoice_id IN (${placeholders})
+				 GROUP BY invoice_id`,
+				invoiceIds
+			);
+		}
+		
+		// Create a map of invoice_id to total paid amount
+		const idToAmountPaid = new Map();
+		paymentsResult.recordset.forEach(row => {
+			idToAmountPaid.set(row.invoice_id, parseFloat(String(row.total_paid || 0)));
+		});
+		
 		const result = invoicesResult.recordset.map((inv) => {
-			const amountPaid = inv.amount_paid || 0;
+			// Calculate amount_paid from payments (for consistency, same as details endpoint)
+			const amountPaid = idToAmountPaid.get(inv.id) || 0;
 			const totalAmount = inv.total_amount || 0;
 			const remainingBalance = totalAmount - amountPaid;
-			// Calculate payment status based on amount_paid
+			// Calculate payment status based on amount_paid (always recalculate for consistency)
 			let paymentStatus;
 			if (amountPaid >= totalAmount) {
 				paymentStatus = 'paid';
@@ -851,7 +871,6 @@ router.get('/invoices', async (req, res) => {
 			
 			return {
 				...invoiceData,
-				is_paid: !!inv.is_paid,
 				amount_paid: amountPaid,
 				payment_status: paymentStatus,
 				remaining_balance: remainingBalance,
@@ -953,7 +972,6 @@ router.get('/invoices/recent/:limit', async (req, res) => {
 			
 			return {
 				...invoiceData,
-				is_paid: !!inv.is_paid,
 				amount_paid: amountPaid,
 				payment_status: paymentStatus,
 				remaining_balance: remainingBalance,
@@ -1051,7 +1069,7 @@ router.put('/invoices/:id', async (req, res) => {
 			return res.status(400).json({ error: `Invalid invoice ID: ${req.params.id}` });
 		}
 		
-		const { invoice_type, customer_id, supplier_id, total_amount, is_paid, due_date, items } = req.body;
+		const { invoice_type, customer_id, supplier_id, total_amount, due_date, items } = req.body;
 		const today = getTodayLocal();
 
 		// Get existing invoice with its date - using plain array params
@@ -1078,9 +1096,9 @@ router.put('/invoices/:id', async (req, res) => {
 
 		// Update invoice - using plain array params
 		await query(
-			'UPDATE invoices SET invoice_type = $1, customer_id = $2, supplier_id = $3, total_amount = $4, is_paid = $5, due_date = $6 WHERE id = $7',
+			'UPDATE invoices SET invoice_type = $1, customer_id = $2, supplier_id = $3, total_amount = $4, due_date = $5 WHERE id = $6',
 			[invoice_type, customer_id ? parseInt(customer_id) : null, supplier_id ? parseInt(supplier_id) : null, 
-			 total_amount, is_paid ? 1 : 0, due_date || null, id]
+			 total_amount, due_date || null, id]
 		);
 
 		// Batch insert new invoice items for better performance
@@ -1163,6 +1181,21 @@ router.delete('/invoices/:id', [
 			return res.status(404).json({ error: 'Invoice not found' });
 		}
 		
+		// Check if invoice has payments - if so, prevent deletion
+		const paymentsCheck = await client.query(
+			'SELECT COUNT(*) as payment_count FROM invoice_payments WHERE invoice_id = $1',
+			[id]
+		);
+		const paymentCount = parseInt(paymentsCheck.rows[0]?.payment_count || 0);
+		if (paymentCount > 0) {
+			await client.query('ROLLBACK');
+			return res.status(400).json({ 
+				error: 'Cannot delete invoice with existing payments. Please remove all payments first.',
+				hasPayments: true,
+				paymentCount: paymentCount
+			});
+		}
+		
 		// Get invoice items to know which products are affected - using plain array params
 		const itemsResult = await client.query('SELECT DISTINCT product_id FROM invoice_items WHERE invoice_id = $1', [id]);
 		const affectedProducts = itemsResult.rows.map(row => row.product_id);
@@ -1242,16 +1275,16 @@ router.post('/invoices', [
 	try {
 		await client.query('BEGIN');
 		
-		const { invoice_type, customer_id, supplier_id, total_amount, is_paid, due_date, items } = req.body;
+		const { invoice_type, customer_id, supplier_id, total_amount, due_date, items } = req.body;
 		const today = getTodayLocal();
 		const invoiceTimestamp = nowIso();
 		
 		// Create invoice - using plain array params
 		const invoiceResult = await client.query(
-			`INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, is_paid, invoice_date, due_date, created_at) 
-			 VALUES ($1, $2, $3, $4, $5, $6::timestamp, $7, $6::timestamp) RETURNING id, invoice_date`,
+			`INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, invoice_date, due_date, created_at) 
+			 VALUES ($1, $2, $3, $4, $5::timestamp, $6, $5::timestamp) RETURNING id, invoice_date`,
 			[invoice_type, customer_id ? parseInt(customer_id) : null, supplier_id ? parseInt(supplier_id) : null, 
-			 total_amount, is_paid ? 1 : 0, invoiceTimestamp, due_date || null]
+			 total_amount, invoiceTimestamp, due_date || null]
 		);
 		const invoiceId = invoiceResult.rows[0].id;
 		const invoice_date = invoiceResult.rows[0].invoice_date;
@@ -1434,7 +1467,6 @@ router.get('/invoices/:id', async (req, res) => {
 		
 		const result = {
 			...invoice,
-			is_paid: !!invoice.is_paid,
 			amount_paid: amountPaid,
 			payment_status: paymentStatus,
 			remaining_balance: remainingBalance,
@@ -1582,11 +1614,10 @@ router.post('/invoices/:id/payments', async (req, res) => {
 		
 		// Update invoice amounts (using USD equivalents)
 		await query(
-			'UPDATE invoices SET amount_paid = $1, payment_status = $2, is_paid = $3 WHERE id = $4',
+			'UPDATE invoices SET amount_paid = $1, payment_status = $2 WHERE id = $3',
 			[
 				{ amount_paid: newAmountPaid },
 				{ payment_status: newPaymentStatus },
-				{ is_paid: newAmountPaid >= totalAmount ? 1 : 0 },
 				{ id }
 			]
 		);
@@ -1600,6 +1631,259 @@ router.post('/invoices/:id/payments', async (req, res) => {
 		});
 	} catch (err) {
 		console.error('Record payment error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Helper function to recalculate invoice payment status
+async function recalculateInvoicePaymentStatus(invoiceId) {
+	try {
+		// Get invoice details
+		const invoiceResult = await query('SELECT * FROM invoices WHERE id = $1', [{ id: invoiceId }]);
+		if (invoiceResult.recordset.length === 0) {
+			throw new Error('Invoice not found');
+		}
+		const invoice = invoiceResult.recordset[0];
+		
+		// Calculate total paid from all payments
+		const paymentsResult = await query(
+			'SELECT COALESCE(SUM(usd_equivalent_amount), 0) as total_paid FROM invoice_payments WHERE invoice_id = $1',
+			[{ invoice_id: invoiceId }]
+		);
+		const totalPaid = parseFloat(String(paymentsResult.recordset[0]?.total_paid || 0));
+		const totalAmount = parseFloat(String(invoice.total_amount || 0));
+		
+		// Determine payment status
+		let paymentStatus = 'pending';
+		if (totalPaid >= totalAmount) {
+			paymentStatus = 'paid';
+		} else if (totalPaid > 0) {
+			paymentStatus = 'partial';
+		}
+		
+		// Update invoice
+		await query(
+			'UPDATE invoices SET amount_paid = $1, payment_status = $2 WHERE id = $3',
+			[
+				{ amount_paid: totalPaid },
+				{ payment_status: paymentStatus },
+				{ id: invoiceId }
+			]
+		);
+		
+		return {
+			amount_paid: totalPaid,
+			payment_status: paymentStatus,
+			remaining_balance: totalAmount - totalPaid
+		};
+	} catch (err) {
+		console.error('Recalculate invoice payment status error:', err);
+		throw err;
+	}
+}
+
+// Update a payment
+router.put('/invoices/:invoiceId/payments/:paymentId', async (req, res) => {
+	try {
+		const invoiceId = parseInt(req.params.invoiceId);
+		const paymentId = parseInt(req.params.paymentId);
+		const { paid_amount, currency_code, exchange_rate_on_payment, payment_method, notes, payment_date } = req.body;
+		
+		// Validate required fields
+		if (!paid_amount || paid_amount <= 0) {
+			return res.status(400).json({ error: 'paid_amount must be greater than 0' });
+		}
+		
+		if (!currency_code) {
+			return res.status(400).json({ error: 'currency_code is required' });
+		}
+		
+		const currency = currency_code.toUpperCase();
+		if (!['USD', 'LBP', 'EUR'].includes(currency)) {
+			return res.status(400).json({ error: 'Invalid currency_code. Must be USD, LBP, or EUR' });
+		}
+		
+		if (!exchange_rate_on_payment || exchange_rate_on_payment <= 0) {
+			return res.status(400).json({ error: 'exchange_rate_on_payment must be greater than 0' });
+		}
+		
+		// Get payment to verify it exists and belongs to the invoice
+		const paymentResult = await query(
+			'SELECT * FROM invoice_payments WHERE id = $1 AND invoice_id = $2',
+			[{ id: paymentId }, { invoice_id: invoiceId }]
+		);
+		if (paymentResult.recordset.length === 0) {
+			return res.status(404).json({ error: 'Payment not found' });
+		}
+		
+		// Get invoice details
+		const invoiceResult = await query('SELECT * FROM invoices WHERE id = $1', [{ id: invoiceId }]);
+		if (invoiceResult.recordset.length === 0) {
+			return res.status(404).json({ error: 'Invoice not found' });
+		}
+		const invoice = invoiceResult.recordset[0];
+		
+		// Calculate USD equivalent
+		const paidAmount = parseFloat(String(paid_amount));
+		const exchangeRate = parseFloat(String(exchange_rate_on_payment));
+		
+		let usdEquivalentAmount;
+		if (currency === 'USD') {
+			usdEquivalentAmount = paidAmount;
+		} else {
+			usdEquivalentAmount = Number(paidAmount) / Number(exchangeRate);
+		}
+		
+		if (isNaN(usdEquivalentAmount) || !isFinite(usdEquivalentAmount)) {
+			return res.status(400).json({ error: 'Invalid USD equivalent calculation result' });
+		}
+		
+		// Get current total paid (excluding the payment being edited)
+		const currentPaymentsResult = await query(
+			'SELECT COALESCE(SUM(usd_equivalent_amount), 0) as total_paid FROM invoice_payments WHERE invoice_id = $1 AND id != $2',
+			[{ invoice_id: invoiceId }, { id: paymentId }]
+		);
+		const currentAmountPaid = parseFloat(String(currentPaymentsResult.recordset[0]?.total_paid || 0));
+		const totalAmount = parseFloat(String(invoice.total_amount || 0));
+		const remainingBalance = totalAmount - currentAmountPaid;
+		
+		// Validate payment doesn't exceed remaining balance
+		const epsilon = 0.01;
+		if (usdEquivalentAmount > remainingBalance + epsilon) {
+			return res.status(400).json({ 
+				error: `Payment USD equivalent (${usdEquivalentAmount.toFixed(2)}) exceeds remaining balance (${remainingBalance.toFixed(2)})` 
+			});
+		}
+		
+		// Use provided payment_date or current date
+		const paymentDate = payment_date || nowIso();
+		
+		// Update payment record
+		await query(
+			`UPDATE invoice_payments 
+			 SET paid_amount = $1, currency_code = $2, exchange_rate_on_payment = $3, usd_equivalent_amount = $4, 
+			     payment_date = $5, payment_method = $6, notes = $7
+			 WHERE id = $8 AND invoice_id = $9`,
+			[
+				{ paid_amount: paidAmount },
+				{ currency_code: currency },
+				{ exchange_rate_on_payment: exchangeRate },
+				{ usd_equivalent_amount: usdEquivalentAmount },
+				{ payment_date: paymentDate },
+				{ payment_method: payment_method || null },
+				{ notes: notes || null },
+				{ id: paymentId },
+				{ invoice_id: invoiceId }
+			]
+		);
+		
+		// Recalculate invoice payment status
+		const updatedStatus = await recalculateInvoicePaymentStatus(invoiceId);
+		
+		res.json({ 
+			id: paymentId,
+			invoice_id: invoiceId,
+			amount_paid: updatedStatus.amount_paid,
+			remaining_balance: updatedStatus.remaining_balance,
+			payment_status: updatedStatus.payment_status
+		});
+	} catch (err) {
+		console.error('Update payment error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Delete a payment
+router.delete('/invoices/:invoiceId/payments/:paymentId', async (req, res) => {
+	try {
+		const invoiceId = parseInt(req.params.invoiceId);
+		const paymentId = parseInt(req.params.paymentId);
+		
+		// Verify payment exists and belongs to the invoice
+		const paymentResult = await query(
+			'SELECT * FROM invoice_payments WHERE id = $1 AND invoice_id = $2',
+			[{ id: paymentId }, { invoice_id: invoiceId }]
+		);
+		if (paymentResult.recordset.length === 0) {
+			return res.status(404).json({ error: 'Payment not found' });
+		}
+		
+		// Delete payment
+		await query(
+			'DELETE FROM invoice_payments WHERE id = $1 AND invoice_id = $2',
+			[{ id: paymentId }, { invoice_id: invoiceId }]
+		);
+		
+		// Recalculate invoice payment status
+		const updatedStatus = await recalculateInvoicePaymentStatus(invoiceId);
+		
+		res.json({ 
+			success: true,
+			id: paymentId,
+			invoice_id: invoiceId,
+			amount_paid: updatedStatus.amount_paid,
+			remaining_balance: updatedStatus.remaining_balance,
+			payment_status: updatedStatus.payment_status
+		});
+	} catch (err) {
+		console.error('Delete payment error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Get all payments across all invoices
+router.get('/payments', async (req, res) => {
+	try {
+		const { invoice_id, start_date, end_date, currency_code } = req.query;
+		
+		let sql = `
+			SELECT 
+				ip.*,
+				i.id as invoice_id,
+				i.invoice_type,
+				i.total_amount as invoice_total_amount,
+				i.invoice_date,
+				c.name as customer_name,
+				s.name as supplier_name
+			FROM invoice_payments ip
+			INNER JOIN invoices i ON ip.invoice_id = i.id
+			LEFT JOIN customers c ON i.customer_id = c.id
+			LEFT JOIN suppliers s ON i.supplier_id = s.id
+			WHERE 1=1
+		`;
+		const params = [];
+		let paramIndex = 1;
+		
+		if (invoice_id) {
+			sql += ` AND ip.invoice_id = $${paramIndex}`;
+			params.push({ invoice_id: parseInt(invoice_id) });
+			paramIndex++;
+		}
+		
+		if (start_date) {
+			sql += ` AND CAST(ip.payment_date AS DATE) >= $${paramIndex}`;
+			params.push({ start_date });
+			paramIndex++;
+		}
+		
+		if (end_date) {
+			sql += ` AND CAST(ip.payment_date AS DATE) <= $${paramIndex}`;
+			params.push({ end_date });
+			paramIndex++;
+		}
+		
+		if (currency_code) {
+			sql += ` AND ip.currency_code = $${paramIndex}`;
+			params.push({ currency_code: currency_code.toUpperCase() });
+			paramIndex++;
+		}
+		
+		sql += ` ORDER BY ip.payment_date DESC, ip.created_at DESC`;
+		
+		const result = await query(sql, params);
+		res.json(result.recordset);
+	} catch (err) {
+		console.error('List payments error:', err);
 		res.status(500).json({ error: err.message });
 	}
 });

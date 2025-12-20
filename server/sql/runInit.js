@@ -99,7 +99,6 @@ CREATE INDEX IF NOT EXISTS IX_suppliers_name ON suppliers(name);`
 	total_amount DECIMAL(18,2) NOT NULL,
 	amount_paid DECIMAL(18,2) NOT NULL DEFAULT 0,
 	payment_status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (payment_status IN ('pending','partial','paid')),
-	is_paid BOOLEAN NOT NULL DEFAULT FALSE,
 	invoice_date TIMESTAMP NOT NULL,
 	due_date DATE NULL,
 	created_at TIMESTAMP NOT NULL,
@@ -222,6 +221,19 @@ BEGIN
 	
 	IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'invoices' AND column_name = 'payment_status') THEN
 		ALTER TABLE invoices ADD COLUMN payment_status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (payment_status IN ('pending','partial','paid'));
+	END IF;
+END $$;`
+	},
+	{
+		name: 'remove_is_paid_column',
+		sql: `-- Remove is_paid column from invoices table (replaced by payment_status)
+DO $$
+BEGIN
+	IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'invoices' AND column_name = 'is_paid') THEN
+		ALTER TABLE invoices DROP COLUMN is_paid;
+		RAISE NOTICE 'Dropped is_paid column from invoices table';
+	ELSE
+		RAISE NOTICE 'is_paid column does not exist in invoices table - skipping';
 	END IF;
 END $$;`
 	},

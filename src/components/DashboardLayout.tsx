@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Receipt, Package, Users, UserPlus, FileText, TrendingUp, TrendingDown, Home, History, Warehouse, ChevronDown, Database, BarChart3, Calendar, DollarSign, AlertTriangle, FolderTree, AlertCircle, Settings, Scan } from "lucide-react";
+import { LogOut, Receipt, Package, Users, UserPlus, FileText, TrendingUp, TrendingDown, Home, History, Warehouse, ChevronDown, Database, BarChart3, Calendar, DollarSign, AlertTriangle, FolderTree, AlertCircle, Settings, Scan, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -217,6 +217,12 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                   <Link to="/invoices/overdue" className="cursor-pointer flex items-center gap-2">
                     <AlertCircle className="w-4 h-4" />
                     <span className="font-medium">Overdue Invoices</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/invoices/payments" className="cursor-pointer flex items-center gap-2">
+                    <CreditCard className="w-4 h-4" />
+                    <span className="font-medium">Invoice Payments</span>
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>

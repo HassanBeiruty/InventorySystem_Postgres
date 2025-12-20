@@ -241,7 +241,7 @@ const OverdueInvoices = () => {
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge 
-                          variant="warning"
+                          variant={invoice.payment_status === 'partial' ? 'warning' : 'secondary'}
                         >
                           {invoice.payment_status === 'partial' ? t('invoices.partial') : t('invoices.pending')}
                         </Badge>
@@ -279,7 +279,17 @@ const OverdueInvoices = () => {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDeleteInvoice(invoice.id)}
-                            className="gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2 text-xs"
+                            disabled={Number(invoice.amount_paid || 0) > 0}
+                            className={`gap-1 h-7 px-2 text-xs ${
+                              Number(invoice.amount_paid || 0) > 0
+                                ? 'text-warning hover:text-warning hover:bg-warning/10 cursor-not-allowed opacity-60'
+                                : 'text-destructive hover:text-destructive hover:bg-destructive/10'
+                            }`}
+                            title={
+                              Number(invoice.amount_paid || 0) > 0
+                                ? "Cannot delete invoice with payments. Remove all payments first."
+                                : "Delete"
+                            }
                           >
                             <Trash2 className="w-3 h-3" />
                             Delete

@@ -188,8 +188,8 @@ const Dashboard = () => {
                       </div>
                       <div className="text-left sm:text-right w-full sm:w-auto">
                         <p className="font-bold text-sm sm:text-base">${Number(invoice.total_amount).toFixed(2)}</p>
-                        <p className={`text-[10px] px-1.5 py-0.5 rounded-full inline-block ${invoice.is_paid ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
-                          {invoice.is_paid ? `✓ ${t('dashboard.paid')}` : `○ ${t('dashboard.pending')}`}
+                        <p className={`text-[10px] px-1.5 py-0.5 rounded-full inline-block ${invoice.payment_status === 'paid' ? 'bg-success/10 text-success dark:bg-success/20 dark:text-success' : invoice.payment_status === 'partial' ? 'bg-warning/10 text-warning dark:bg-warning/20 dark:text-warning' : 'bg-secondary/10 text-secondary-foreground dark:bg-secondary/20 dark:text-secondary-foreground'}`}>
+                          {invoice.payment_status === 'paid' ? `✓ ${t('dashboard.paid')}` : invoice.payment_status === 'partial' ? `◐ ${t('dashboard.partial') || 'Partial'}` : `○ ${t('dashboard.pending')}`}
                         </p>
                       </div>
                     </div>
