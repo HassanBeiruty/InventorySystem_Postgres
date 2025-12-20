@@ -363,8 +363,12 @@ export const inventoryRepo = {
   async today(): Promise<(DailyStockEntity & { products?: ProductEntity })[]> {
     return fetchJson(`/api/inventory/today`);
   },
-  async dailyHistory(): Promise<(DailyStockEntity & { products?: ProductEntity })[]> {
-    return fetchJson(`/api/inventory/daily-history`);
+  async dailyHistory(filters?: { start_date?: string; end_date?: string }): Promise<(DailyStockEntity & { products?: ProductEntity })[]> {
+    const params = new URLSearchParams();
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+    const queryString = params.toString();
+    return fetchJson(`/api/inventory/daily-history${queryString ? `?${queryString}` : ''}`);
   },
   async todayAvgCost(): Promise<Array<{ product_id: string; available_qty: number; avg_cost: number }>> {
     return fetchJson(`/api/daily-stock/today/avg-cost`);
@@ -372,8 +376,12 @@ export const inventoryRepo = {
 };
 
 export const stockRepo = {
-  async recent(limit: number): Promise<(StockMovementEntity & { products?: ProductEntity })[]> {
-    return fetchJson(`/api/stock-movements/recent/${limit}`);
+  async recent(limit: number, filters?: { start_date?: string; end_date?: string }): Promise<(StockMovementEntity & { products?: ProductEntity })[]> {
+    const params = new URLSearchParams();
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+    const queryString = params.toString();
+    return fetchJson(`/api/stock-movements/recent/${limit}${queryString ? `?${queryString}` : ''}`);
   },
 };
 

@@ -117,7 +117,7 @@ const Customers = () => {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div className="space-y-1">
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              {t('customers.title')}
+              👤 {t('customers.title')}
             </h2>
             <p className="text-muted-foreground text-xs sm:text-sm">{t('customers.subtitle')}</p>
           </div>

@@ -206,7 +206,7 @@ const InvoicePayments = () => {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
           <div>
             <h1 className="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              Invoice Payments
+              💳 Invoice Payments
             </h1>
             <p className="text-muted-foreground text-[10px] sm:text-xs">Manage all invoice payments</p>
           </div>

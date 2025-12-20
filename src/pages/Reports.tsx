@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -77,14 +77,11 @@ const Reports = () => {
   const [topProducts, setTopProducts] = useState<any[]>([]);
   const [topCustomers, setTopCustomers] = useState<any[]>([]);
   const [paymentStatusData, setPaymentStatusData] = useState<any[]>([]);
-  const chartColors = getChartColors();
+  
+  // Memoize chart colors to avoid recalculating on every render
+  const chartColors = useMemo(() => getChartColors(), []);
 
-  useEffect(() => {
-    if (!isAdmin || isAdminLoading) return;
-    fetchReports();
-  }, [isAdmin, isAdminLoading]);
-
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
     setLoading(true);
     try {
       const [all, products, customers, suppliers] = await Promise.all([
@@ -183,7 +180,12 @@ const Reports = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast, t]); // chartColors is memoized and stable, no need to include
+
+  useEffect(() => {
+    if (!isAdmin || isAdminLoading) return;
+    fetchReports();
+  }, [isAdmin, isAdminLoading, fetchReports]);
 
   const exportToPDF = async () => {
     try {
@@ -250,99 +252,99 @@ const Reports = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-3 sm:space-y-4 p-2 sm:p-3">
+      <div className="space-y-2 sm:space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight flex items-center gap-1.5">
+            <h2 className="text-lg sm:text-xl font-bold tracking-tight flex items-center gap-1.5">
               <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />
-              {t("reports.title")}
+              📊 {t("reports.title")}
             </h2>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+            <p className="text-[10px] sm:text-xs text-muted-foreground">
               {t("reports.subtitle")}
             </p>
           </div>
           {isAdmin && (
-            <Button onClick={exportToPDF} className="gap-1.5 h-8 text-xs">
-              <Download className="w-3.5 h-3.5" />
+            <Button onClick={exportToPDF} className="gap-1.5 h-7 text-[10px] sm:text-xs">
+              <Download className="w-3 h-3" />
               Export PDF
             </Button>
           )}
         </div>
 
         {!isAdmin ? (
-          <Card>
-            <CardContent className="p-6 text-center">
-              <AlertCircle className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">{t("settings.adminAccessRequired")}</p>
+          <Card className="border-2">
+            <CardContent className="p-3 sm:p-4 text-center">
+              <AlertCircle className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+              <p className="text-xs text-muted-foreground">{t("settings.adminAccessRequired")}</p>
             </CardContent>
           </Card>
         ) : loading ? (
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-2 sm:gap-3 md:grid-cols-4">
             {Array(4).fill(0).map((_, i) => (
-              <Card key={i} className="animate-pulse">
-                <CardHeader className="pb-2"><div className="h-4 w-24 bg-muted rounded"></div></CardHeader>
-                <CardContent><div className="h-8 w-32 bg-muted rounded"></div></CardContent>
+              <Card key={i} className="animate-pulse border-2">
+                <CardHeader className="pb-1.5 p-2"><div className="h-3 w-20 bg-muted rounded"></div></CardHeader>
+                <CardContent className="p-2"><div className="h-6 w-24 bg-muted rounded"></div></CardContent>
               </Card>
             ))}
           </div>
         ) : (
           <>
             <div className="grid gap-2 sm:gap-3 md:grid-cols-4">
-              <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-2 px-2">
-                  <CardTitle className="text-xs font-medium">Total Sales</CardTitle>
+              <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 border-2">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-2 px-2.5">
+                  <CardTitle className="text-xs sm:text-sm font-medium">Total Sales</CardTitle>
                   <TrendingUp className="h-4 w-4 text-success" />
                 </CardHeader>
-                <CardContent className="px-2 pb-2">
-                  <div className="text-lg sm:text-xl font-bold text-success">${summary.totalSales.toFixed(2)}</div>
-                  <p className="text-[10px] text-muted-foreground">Revenue from sell invoices</p>
+                <CardContent className="px-2.5 pb-2">
+                  <div className="text-base sm:text-lg font-bold text-success">${summary.totalSales.toFixed(2)}</div>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Revenue from sell invoices</p>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-destructive/10 to-destructive/5 border-destructive/20">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Purchases</CardTitle>
-                  <TrendingDown className="h-5 w-5 text-destructive" />
+              <Card className="bg-gradient-to-br from-destructive/10 to-destructive/5 border-destructive/20 border-2">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-2 px-2.5">
+                  <CardTitle className="text-xs sm:text-sm font-medium">Total Purchases</CardTitle>
+                  <TrendingDown className="h-4 w-4 text-destructive" />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-destructive">${summary.totalPurchases.toFixed(2)}</div>
-                  <p className="text-xs text-muted-foreground">Cost from buy invoices</p>
+                <CardContent className="px-2.5 pb-2">
+                  <div className="text-base sm:text-lg font-bold text-destructive">${summary.totalPurchases.toFixed(2)}</div>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Cost from buy invoices</p>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-warning/10 to-warning/5 border-warning/20">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
-                  <DollarSign className="h-5 w-5 text-warning" />
+              <Card className="bg-gradient-to-br from-warning/10 to-warning/5 border-warning/20 border-2">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-2 px-2.5">
+                  <CardTitle className="text-xs sm:text-sm font-medium">Net Profit</CardTitle>
+                  <DollarSign className="h-4 w-4 text-warning" />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-warning">${summary.netProfit.toFixed(2)}</div>
-                  <p className="text-xs text-muted-foreground">Sales minus purchases</p>
+                <CardContent className="px-2.5 pb-2">
+                  <div className="text-base sm:text-lg font-bold text-warning">${summary.netProfit.toFixed(2)}</div>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Sales minus purchases</p>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-accent/10 to-accent/5 border-accent/20">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Profit Margin</CardTitle>
-                  <Package className="h-5 w-5 text-accent" />
+              <Card className="bg-gradient-to-br from-accent/10 to-accent/5 border-accent/20 border-2">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-2 px-2.5">
+                  <CardTitle className="text-xs sm:text-sm font-medium">Profit Margin</CardTitle>
+                  <Package className="h-4 w-4 text-accent" />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-accent">{summary.averageMargin.toFixed(1)}%</div>
-                  <p className="text-xs text-muted-foreground">Average margin percentage</p>
+                <CardContent className="px-2.5 pb-2">
+                  <div className="text-base sm:text-lg font-bold text-accent">{summary.averageMargin.toFixed(1)}%</div>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Average margin percentage</p>
                 </CardContent>
               </Card>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5" />
+            <div className="grid gap-2 sm:gap-3 md:grid-cols-2">
+              <Card className="border-2">
+                <CardHeader className="p-2 sm:p-3 border-b">
+                  <CardTitle className="flex items-center gap-1.5 text-xs sm:text-sm">
+                    <BarChart3 className="w-4 h-4" />
                     Monthly Sales & Purchases
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
+                <CardContent className="p-2 sm:p-3">
+                  <ResponsiveContainer width="100%" height={250}>
                     <LineChart data={monthlyData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="month" />
@@ -357,15 +359,15 @@ const Reports = () => {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="w-5 h-5" />
+              <Card className="border-2">
+                <CardHeader className="p-2 sm:p-3 border-b">
+                  <CardTitle className="flex items-center gap-1.5 text-xs sm:text-sm">
+                    <FileText className="w-4 h-4" />
                     Payment Status
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
+                <CardContent className="p-2 sm:p-3">
+                  <ResponsiveContainer width="100%" height={250}>
                     <PieChart>
                       <Pie data={paymentStatusData} cx="50%" cy="50%" labelLine={false} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} outerRadius={80} fill={chartColors.primary} dataKey="value">
                         {paymentStatusData.map((entry, index) => (
@@ -379,12 +381,12 @@ const Reports = () => {
               </Card>
             </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Monthly Sales Trend (Last 12 Months)</CardTitle>
+            <Card className="border-2">
+              <CardHeader className="p-2 sm:p-3 border-b">
+                <CardTitle className="text-xs sm:text-sm">Monthly Sales Trend (Last 12 Months)</CardTitle>
               </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={400}>
+              <CardContent className="p-2 sm:p-3">
+                <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={monthlyData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
@@ -399,13 +401,13 @@ const Reports = () => {
               </CardContent>
             </Card>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Top 10 Products by Revenue</CardTitle>
+            <div className="grid gap-2 sm:gap-3 md:grid-cols-2">
+              <Card className="border-2">
+                <CardHeader className="p-2 sm:p-3 border-b">
+                  <CardTitle className="text-xs sm:text-sm">Top 10 Products by Revenue</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={400}>
+                <CardContent className="p-2 sm:p-3">
+                  <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={topProducts} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" />
@@ -417,12 +419,12 @@ const Reports = () => {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Top 10 Customers by Sales</CardTitle>
+              <Card className="border-2">
+                <CardHeader className="p-2 sm:p-3 border-b">
+                  <CardTitle className="text-xs sm:text-sm">Top 10 Customers by Sales</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={400}>
+                <CardContent className="p-2 sm:p-3">
+                  <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={topCustomers} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" />
@@ -436,24 +438,24 @@ const Reports = () => {
             </div>
 
             <Card className="border-2 shadow-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Package className="w-5 h-5 text-primary" />
+              <CardHeader className="p-2 sm:p-3 border-b">
+                <CardTitle className="flex items-center gap-1.5 text-xs sm:text-sm">
+                  <Package className="w-4 h-4 text-primary" />
                   Product Cost Tracking
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-[10px] sm:text-xs">
                   Average costs calculated from purchase history for accurate profit analysis
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="text-sm text-muted-foreground">
-                  <div className="flex justify-between items-center mb-2">
-                    <span>Products with cost data:</span>
-                    <span className="font-semibold">{productCosts.size} / {summary.totalProducts}</span>
+              <CardContent className="p-2 sm:p-3">
+                <div className="text-xs text-muted-foreground">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-[10px] sm:text-xs">Products with cost data:</span>
+                    <span className="font-semibold text-xs sm:text-sm">{productCosts.size} / {summary.totalProducts}</span>
                   </div>
-                  <div className="w-full bg-secondary rounded-full h-2">
+                  <div className="w-full bg-secondary rounded-full h-1.5">
                     <div 
-                      className="bg-primary h-2 rounded-full transition-all"
+                      className="bg-primary h-1.5 rounded-full transition-all"
                       style={{ width: `${summary.totalProducts > 0 ? (productCosts.size / summary.totalProducts) * 100 : 0}%` }}
                     ></div>
                   </div>

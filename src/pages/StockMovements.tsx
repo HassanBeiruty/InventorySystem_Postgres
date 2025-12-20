@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, TrendingDown, Package, Search, X } from "lucide-react";
-import { formatDateTimeLebanon } from "@/utils/dateUtils";
+import { Label } from "@/components/ui/label";
+import { TrendingUp, TrendingDown, Package, Search, X, Calendar } from "lucide-react";
+import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { useTranslation } from "react-i18next";
 
 interface StockMovement {
@@ -32,15 +33,24 @@ const StockMovements = () => {
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  
+  // Date filter state - default to 3 days ago to today
+  const getDefaultStartDate = () => {
+    const date = new Date();
+    date.setDate(date.getDate() - 3);
+    return date.toISOString().split('T')[0];
+  };
+  const [startDate, setStartDate] = useState<string>(getDefaultStartDate());
+  const [endDate, setEndDate] = useState<string>(getTodayLebanon());
 
   useEffect(() => {
     fetchStockMovements();
-  }, []);
+  }, [startDate, endDate]);
 
   const fetchStockMovements = async () => {
     try {
       setLoading(true);
-      const data = await stockRepo.recent(100);
+      const data = await stockRepo.recent(100, { start_date: startDate, end_date: endDate });
       setMovements((data as any[]) || []);
     } catch (error) {
       // Silently handle error
@@ -63,12 +73,40 @@ const StockMovements = () => {
   return (
     <DashboardLayout>
       <div className="space-y-1.5 sm:space-y-2 animate-fade-in">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div className="space-y-0.5">
             <h1 className="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              {t('stockMovements.title')}
+              📊 {t('stockMovements.title')}
             </h1>
             <p className="text-muted-foreground text-[10px] sm:text-xs">{t('stockMovements.subtitle')}</p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="start-date" className="text-[10px] sm:text-xs whitespace-nowrap">
+                <Calendar className="w-3 h-3 inline mr-1" />
+                From:
+              </Label>
+              <Input
+                id="start-date"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="h-7 text-xs w-32"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="end-date" className="text-[10px] sm:text-xs whitespace-nowrap">
+                To:
+              </Label>
+              <Input
+                id="end-date"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                max={getTodayLebanon()}
+                className="h-7 text-xs w-32"
+              />
+            </div>
           </div>
         </div>
 

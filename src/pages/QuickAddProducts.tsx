@@ -152,45 +152,46 @@ const QuickAddProducts = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              Quick Add Products
+      <div className="space-y-2 sm:space-y-3 animate-fade-in">
+        <div className="flex items-center justify-between gap-2">
+          <div className="space-y-0.5">
+            <h2 className="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+              ⚡ Quick Add Products
             </h2>
-            <p className="text-muted-foreground">
+            <p className="text-[10px] sm:text-xs text-muted-foreground">
               Scan barcode or SKU and enter name to quickly register products
             </p>
           </div>
           <Button
             variant="outline"
             onClick={() => navigate("/products")}
-            className="gap-2"
+            className="gap-1 h-7 text-[10px] sm:text-xs"
           >
-            <ArrowRight className="w-4 h-4" />
-            View All Products
+            <ArrowRight className="w-3 h-3" />
+            <span className="hidden sm:inline">View All Products</span>
+            <span className="sm:hidden">View All</span>
           </Button>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-2 sm:gap-3 md:grid-cols-2">
           {/* Quick Add Form */}
           <Card className="border-2 shadow-card hover:shadow-elegant transition-all duration-300">
-            <CardHeader className="border-b bg-gradient-to-br from-primary/5 via-transparent to-accent/5">
-              <CardTitle className="flex items-center gap-2">
+            <CardHeader className="border-b bg-gradient-to-br from-primary/5 via-transparent to-accent/5 p-2 sm:p-3">
+              <CardTitle className="flex items-center gap-1.5 text-sm sm:text-base">
                 {mode === 'barcode' ? (
-                  <Scan className="w-6 h-6 text-primary" />
+                  <Scan className="w-4 h-4 text-primary" />
                 ) : (
-                  <Hash className="w-6 h-6 text-primary" />
+                  <Hash className="w-4 h-4 text-primary" />
                 )}
                 Quick Add Product
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-[10px] sm:text-xs">
                 Optimized for {mode === 'barcode' ? 'barcode' : 'SKU'} scanner workflow
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-6 space-y-4">
+            <CardContent className="pt-2 sm:pt-3 space-y-2 sm:space-y-3 p-2 sm:p-3">
               {/* Mode Toggle */}
-              <div className="flex gap-2 p-1 bg-muted rounded-lg">
+              <div className="flex gap-1 p-0.5 bg-muted rounded-lg">
                 <Button
                   type="button"
                   variant={mode === 'barcode' ? 'default' : 'ghost'}
@@ -201,9 +202,9 @@ const QuickAddProducts = () => {
                     setName("");
                     setTimeout(() => barcodeInputRef.current?.focus(), 100);
                   }}
-                  className="flex-1"
+                  className="flex-1 h-7 text-[10px] sm:text-xs"
                 >
-                  <Scan className="w-4 h-4 mr-2" />
+                  <Scan className="w-3 h-3 mr-1" />
                   Barcode
                 </Button>
                 <Button
@@ -216,16 +217,16 @@ const QuickAddProducts = () => {
                     setName("");
                     setTimeout(() => skuInputRef.current?.focus(), 100);
                   }}
-                  className="flex-1"
+                  className="flex-1 h-7 text-[10px] sm:text-xs"
                 >
-                  <Hash className="w-4 h-4 mr-2" />
+                  <Hash className="w-3 h-3 mr-1" />
                   SKU
                 </Button>
               </div>
 
               {mode === 'barcode' ? (
-                <div className="space-y-2">
-                  <Label htmlFor="barcode" className="text-base font-semibold">
+                <div className="space-y-1">
+                  <Label htmlFor="barcode" className="text-xs font-semibold">
                     Barcode <span className="text-destructive">*</span>
                   </Label>
                   <Input
@@ -235,16 +236,16 @@ const QuickAddProducts = () => {
                     onChange={(e) => setBarcode(e.target.value)}
                     onKeyDown={handleBarcodeKeyDown}
                     placeholder="Scan or enter barcode"
-                    className="h-12 text-lg"
+                    className="h-8 text-xs"
                     autoFocus
                   />
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[10px] text-muted-foreground">
                     Scan barcode with scanner (press Enter to continue)
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <Label htmlFor="sku" className="text-base font-semibold">
+                <div className="space-y-1">
+                  <Label htmlFor="sku" className="text-xs font-semibold">
                     SKU <span className="text-destructive">*</span>
                   </Label>
                   <Input
@@ -254,17 +255,17 @@ const QuickAddProducts = () => {
                     onChange={(e) => setSku(e.target.value)}
                     onKeyDown={handleSkuKeyDown}
                     placeholder="Scan or enter SKU"
-                    className="h-12 text-lg"
+                    className="h-8 text-xs"
                     autoFocus
                   />
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[10px] text-muted-foreground">
                     Scan SKU with scanner (press Enter to continue)
                   </p>
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="name" className="text-base font-semibold">
+              <div className="space-y-1">
+                <Label htmlFor="name" className="text-xs font-semibold">
                   Product Name <span className="text-destructive">*</span>
                 </Label>
                 <Input
@@ -274,9 +275,9 @@ const QuickAddProducts = () => {
                   onChange={(e) => setName(e.target.value)}
                   onKeyDown={handleNameKeyDown}
                   placeholder="Enter product name"
-                  className="h-12 text-lg"
+                  className="h-8 text-xs"
                 />
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[10px] text-muted-foreground">
                   Enter name and press Enter to save
                 </p>
               </div>
@@ -284,20 +285,20 @@ const QuickAddProducts = () => {
               <Button
                 onClick={handleSubmit}
                 disabled={loading || (mode === 'barcode' ? (!barcode.trim() || !name.trim()) : (!sku.trim() || !name.trim()))}
-                className="w-full h-12 text-base font-semibold gradient-primary hover:shadow-glow"
+                className="w-full h-8 text-xs font-semibold gradient-primary hover:shadow-glow"
               >
                 {loading ? (
                   "Saving..."
                 ) : (
                   <>
-                    <CheckCircle2 className="w-5 h-5 mr-2" />
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
                     Save Product
                   </>
                 )}
               </Button>
 
-              <div className="pt-4 border-t">
-                <p className="text-sm text-muted-foreground text-center">
+              <div className="pt-2 border-t">
+                <p className="text-[10px] text-muted-foreground text-center">
                   💡 Tip: After saving, {mode === 'barcode' ? 'barcode' : 'SKU'} field will auto-focus for next scan
                 </p>
               </div>
@@ -306,45 +307,35 @@ const QuickAddProducts = () => {
 
           {/* Recent Products */}
           <Card className="border-2 shadow-card">
-            <CardHeader className="border-b bg-gradient-to-br from-primary/5 via-transparent to-accent/5">
-              <CardTitle className="flex items-center gap-2">
-                <Package className="w-6 h-6 text-primary" />
+            <CardHeader className="border-b bg-gradient-to-br from-primary/5 via-transparent to-accent/5 p-2 sm:p-3">
+              <CardTitle className="flex items-center gap-1.5 text-sm sm:text-base">
+                <Package className="w-4 h-4 text-primary" />
                 Recently Added
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-[10px] sm:text-xs">
                 Last 5 products you added
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-6">
+            <CardContent className="pt-2.5 sm:pt-3 p-2.5 sm:p-3">
               {recentProducts.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Package className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                  <p>No products added yet</p>
+                <div className="text-center py-4 text-muted-foreground">
+                  <Package className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-xs">No products added yet</p>
                 </div>
               ) : (
                 <div className="space-y-2">
                   {recentProducts.map((product) => (
                     <div
                       key={product.id}
-                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-primary/5 transition-colors"
+                      className="p-2 border rounded-lg hover:bg-primary/5 transition-colors"
                     >
-                      <div>
-                        <p className="font-medium">{product.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {product.barcode && `Barcode: ${product.barcode}`}
-                          {product.barcode && product.sku && " • "}
-                          {product.sku && `SKU: ${product.sku}`}
-                          {!product.barcode && !product.sku && "No identifier"}
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => navigate("/products")}
-                        className="text-xs"
-                      >
-                        View Details
-                      </Button>
+                      <p className="font-medium text-xs sm:text-sm truncate mb-0.5">{product.name}</p>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
+                        {product.barcode && `Barcode: ${product.barcode}`}
+                        {product.barcode && product.sku && " • "}
+                        {product.sku && `SKU: ${product.sku}`}
+                        {!product.barcode && !product.sku && "No identifier"}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -355,9 +346,9 @@ const QuickAddProducts = () => {
 
         {/* Instructions */}
         <Card className="border-2 bg-muted/20">
-          <CardContent className="pt-6">
-            <h3 className="font-semibold mb-3">Workflow Instructions:</h3>
-            <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
+          <CardContent className="pt-2 sm:pt-3 p-2 sm:p-3">
+            <h3 className="font-semibold mb-1.5 text-xs sm:text-sm">Workflow Instructions:</h3>
+            <ol className="list-decimal list-inside space-y-1 text-[10px] sm:text-xs text-muted-foreground">
               <li>Open this page and choose Barcode or SKU mode</li>
               <li>Scan the product barcode/SKU (auto-fills the field)</li>
               <li>Press Enter or Tab to move to name field</li>

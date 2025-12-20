@@ -102,10 +102,10 @@ const Dashboard = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-3 sm:space-y-4 animate-fade-in">
-        <div className="space-y-1">
+      <div className="space-y-2 sm:space-y-3 animate-fade-in">
+        <div className="space-y-0.5">
           <h2 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-            {t('dashboard.title')}
+            📊 {t('dashboard.title')}
           </h2>
           <p className="text-muted-foreground text-xs sm:text-sm">{t('dashboard.subtitle')}</p>
         </div>
@@ -114,13 +114,13 @@ const Dashboard = () => {
           {loading ? (
             Array(5).fill(0).map((_, i) => (
               <Card key={i} className="animate-pulse border-2">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <div className="h-4 w-24 bg-muted rounded"></div>
-                  <div className="h-5 w-5 bg-muted rounded"></div>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-2 px-2">
+                  <div className="h-3.5 w-24 bg-muted rounded"></div>
+                  <div className="h-4 w-4 bg-muted rounded"></div>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-8 w-20 bg-muted rounded mb-2"></div>
-                  <div className="h-3 w-16 bg-muted rounded"></div>
+                <CardContent className="px-2 pb-2">
+                  <div className="h-5 w-20 bg-muted rounded mb-1"></div>
+                  <div className="h-3 w-14 bg-muted rounded"></div>
                 </CardContent>
               </Card>
             ))
@@ -140,18 +140,18 @@ const Dashboard = () => {
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-2 px-2">
-                  <CardTitle className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+                  <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">
                     {stat.title}
                   </CardTitle>
-                  <div className={`p-1.5 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 group-hover:scale-110 transition-transform duration-300`}>
-                    <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                  <div className={`p-1.5 rounded-lg bg-gradient-to-br from-primary/10 to-accent/10 group-hover:scale-110 transition-transform duration-300`}>
+                    <stat.icon className={`h-4 w-4 sm:h-4 sm:w-4 ${stat.color}`} />
                   </div>
                 </CardHeader>
                 <CardContent className="px-2 pb-2">
-                  <div className="text-lg sm:text-xl font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
+                  <div className="text-base sm:text-lg font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
                     {stat.value}
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{stat.description}</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">{stat.description}</p>
                 </CardContent>
               </Card>
             ))
@@ -161,20 +161,20 @@ const Dashboard = () => {
         <div className="grid gap-2">
           <Card className="border-2 shadow-card hover:shadow-elegant transition-all duration-300 group overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <CardHeader className="relative pb-2 pt-2">
+            <CardHeader className="relative pb-1.5 pt-2 px-2">
               <CardTitle className="flex items-center gap-1.5 text-sm sm:text-base">
                 <Receipt className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
                 {t('dashboard.recentInvoices')}
               </CardTitle>
               <CardDescription className="text-[10px] sm:text-xs">{t('dashboard.recentInvoices')}</CardDescription>
             </CardHeader>
-            <CardContent className="relative pt-2">
+            <CardContent className="relative pt-1.5 px-2 pb-2">
               {recentInvoices.length > 0 ? (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {recentInvoices.map((invoice, idx) => (
                     <div 
                       key={invoice.id} 
-                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5 sm:gap-0 p-2 rounded-lg hover:bg-muted/50 transition-colors border-b last:border-0 animate-fade-in"
+                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5 p-2 rounded-lg hover:bg-muted/50 transition-colors border-b last:border-0 animate-fade-in"
                       style={{ animationDelay: `${idx * 0.1}s` }}
                     >
                       <div className="flex-1 min-w-0">
@@ -196,9 +196,9 @@ const Dashboard = () => {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Receipt className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                  <p>{t('common.noData')}</p>
+                <div className="text-center py-10 text-muted-foreground">
+                  <Receipt className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">{t('common.noData')}</p>
                 </div>
               )}
             </CardContent>

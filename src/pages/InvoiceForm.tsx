@@ -69,6 +69,7 @@ const InvoiceForm = () => {
   
   const [selectedEntity, setSelectedEntity] = useState("");
   const [dueDate, setDueDate] = useState<string>("");
+  const [paidDirectly, setPaidDirectly] = useState<boolean>(true);
   const [barcodeInput, setBarcodeInput] = useState("");
   const [activeItemIndex, setActiveItemIndex] = useState<number>(0);
   const [productSearchQuery, setProductSearchQuery] = useState<Record<number, string>>({});
@@ -542,19 +543,12 @@ const InvoiceForm = () => {
   const handleQuantityChange = (index: number, quantity: number) => {
     if (invoiceType === 'sell' && items[index].product_id) {
       const productId = String(items[index].product_id);
-      const available = availableStock.get(productId) || 0;
+      const effectiveAvailable = getEffectiveAvailableStock(productId, index);
       
-      // Calculate total quantity for this product across all items (including current edit)
-      const totalQuantityForProduct = items.reduce((sum, item, idx) => {
-        if (idx === index) return sum + quantity;
-        if (String(item.product_id) === productId) return sum + item.quantity;
-        return sum;
-      }, 0);
-      
-      if (totalQuantityForProduct > available) {
+      if (effectiveAvailable !== null && quantity > effectiveAvailable) {
         toast({
           title: "Insufficient Stock",
-          description: `Only ${available} units available for this product. Current request: ${totalQuantityForProduct} units.`,
+          description: `Only ${effectiveAvailable} units available for this product (after accounting for items already in invoice).`,
           variant: "destructive",
         });
         return; // Don't update quantity
@@ -614,6 +608,23 @@ const InvoiceForm = () => {
 
   const calculateTotal = () => {
     return items.filter(item => item.product_id).reduce((sum, item) => sum + item.total_price, 0);
+  };
+
+  // Calculate effective available stock for a product (base stock minus what's already in invoice)
+  const getEffectiveAvailableStock = (productId: string, excludeIndex?: number) => {
+    if (invoiceType !== 'sell' || !productId) return null;
+    const baseAvailable = availableStock.get(String(productId)) || 0;
+    
+    // Calculate total quantity of this product already in invoice items (excluding current item)
+    const totalInInvoice = items.reduce((sum, item, idx) => {
+      if (idx === excludeIndex) return sum; // Exclude current item being edited
+      if (String(item.product_id) === String(productId)) {
+        return sum + item.quantity;
+      }
+      return sum;
+    }, 0);
+    
+    return Math.max(0, baseAvailable - totalInInvoice);
   };
 
   // Scroll to top when page loads - run after page is fully rendered
@@ -729,16 +740,11 @@ const InvoiceForm = () => {
       validItems.forEach((item, index) => {
         if (!item.product_id) return;
         const productId = String(item.product_id);
-        const available = availableStock.get(productId) || 0;
+        const effectiveAvailable = getEffectiveAvailableStock(productId, index);
         
-        // Calculate total quantity for this product across all valid items
-        const totalQuantityForProduct = validItems
-          .filter(i => String(i.product_id) === productId)
-          .reduce((sum, i) => sum + i.quantity, 0);
-        
-        if (totalQuantityForProduct > available) {
+        if (effectiveAvailable !== null && item.quantity > effectiveAvailable) {
           const product = products.find(p => String(p.id) === productId);
-          stockErrors.push(`${product?.name || 'Product'}: ${totalQuantityForProduct} requested, but only ${available} available`);
+          stockErrors.push(`${product?.name || 'Product'}: ${item.quantity} requested, but only ${effectiveAvailable} available (after accounting for items already in invoice)`);
         }
       });
       
@@ -761,6 +767,7 @@ const InvoiceForm = () => {
         supplier_id: invoiceType === 'buy' ? selectedEntity : null,
         total_amount: calculateTotal(),
         due_date: dueDate || null,
+        paid_directly: !isEditMode ? paidDirectly : false, // Only apply to new invoices
         items: validItems.map((item) => ({
           product_id: item.product_id,
           quantity: item.quantity,
@@ -835,12 +842,12 @@ const InvoiceForm = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-1">
+      <div className="space-y-0.5">
         <div>
-          <h2 className="text-lg sm:text-xl font-bold tracking-tight">
+          <h2 className="text-base sm:text-lg font-bold tracking-tight">
             {isEditMode ? (invoiceType === 'sell' ? t('invoiceForm.editSellInvoice') : t('invoiceForm.editBuyInvoice')) : (invoiceType === 'sell' ? t('invoiceForm.newSellInvoice') : t('invoiceForm.newBuyInvoice'))}
           </h2>
-          <p className="text-muted-foreground text-[10px] sm:text-xs">
+          <p className="text-muted-foreground text-[9px] sm:text-[10px]">
             {isEditMode 
               ? (invoiceType === 'sell' ? 'Edit sell invoice details and items' : 'Edit buy invoice details and items')
               : (invoiceType === 'sell' ? 'Create a new sell invoice' : 'Create a new buy invoice')}
@@ -848,97 +855,130 @@ const InvoiceForm = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-1.5">
-          <Card>
-            <CardHeader className="pb-1 pt-1.5 px-3">
-              <CardTitle className="text-xs sm:text-sm">{t('invoiceForm.invoiceDetails')}</CardTitle>
+          <Card className="border-2">
+            <CardHeader className="pb-1 pt-1.5 px-2.5 bg-gradient-to-r from-muted/30 to-transparent">
+              <CardTitle className="text-xs sm:text-sm font-bold">{t('invoiceForm.invoiceDetails')}</CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-1.5 sm:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)] pt-1 px-3 pb-2">
-              <div className="space-y-0.5">
-                <Label htmlFor="entity-select" className="text-[10px] sm:text-xs">
-                  {invoiceType === 'sell' ? t('invoiceForm.selectCustomer') : t('invoiceForm.selectSupplier')}
-                </Label>
-                <Select 
-                  key={`${invoiceType}-${selectedEntity}-${(invoiceType === 'sell' ? customers : suppliers).length}`}
-                  value={selectedEntity || ""} 
-                  onValueChange={setSelectedEntity}
-                >
-                  <SelectTrigger id="entity-select" className="h-8 text-sm">
-                    <SelectValue placeholder={invoiceType === 'sell' ? t('invoiceForm.selectCustomer') : t('invoiceForm.selectSupplier')} />
-                  </SelectTrigger>
-                  <SelectContent side="bottom" align="start">
-                    {(invoiceType === 'sell' ? customers : suppliers).length === 0 ? (
-                      <SelectItem value="loading" disabled>Loading...</SelectItem>
-                    ) : (
-                      (invoiceType === 'sell' ? customers : suppliers).map((entity) => {
-                        const entityId = String(entity.id);
-                        return (
-                          <SelectItem key={entity.id} value={entityId}>
-                            {entity.name}
-                          </SelectItem>
-                        );
-                      })
-                    )}
-                  </SelectContent>
-                </Select>
+            <CardContent className="pt-1.5 px-2.5 pb-2">
+              <div className="grid gap-2 sm:grid-cols-3 items-start">
+                {/* Supplier */}
+                <div className="space-y-0.5">
+                  <Label htmlFor="entity-select" className="text-[10px] sm:text-xs font-medium flex items-center gap-1">
+                    {invoiceType === 'sell' ? '👤 Customer' : '📦 Supplier'}
+                  </Label>
+                  <Select 
+                    key={`${invoiceType}-${selectedEntity}-${(invoiceType === 'sell' ? customers : suppliers).length}`}
+                    value={selectedEntity || ""} 
+                    onValueChange={setSelectedEntity}
+                  >
+                    <SelectTrigger id="entity-select" className="h-8 text-xs border-2 hover:border-primary/50 transition-colors">
+                      <SelectValue placeholder={invoiceType === 'sell' ? t('invoiceForm.selectCustomer') : t('invoiceForm.selectSupplier')} />
+                    </SelectTrigger>
+                    <SelectContent side="bottom" align="start" className="max-h-[50vh] overflow-y-auto">
+                      {(invoiceType === 'sell' ? customers : suppliers).length === 0 ? (
+                        <SelectItem value="loading" disabled>Loading...</SelectItem>
+                      ) : (
+                        (invoiceType === 'sell' ? customers : suppliers).map((entity) => {
+                          const entityId = String(entity.id);
+                          return (
+                            <SelectItem key={entity.id} value={entityId}>
+                              {entity.name}
+                            </SelectItem>
+                          );
+                        })
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Due Date */}
+                <div className="space-y-0.5">
+                  <Label htmlFor="due_date" className="text-[10px] sm:text-xs font-medium flex items-center gap-1">
+                    📅 Due Date <span className="text-muted-foreground text-[9px] font-normal">(optional)</span>
+                  </Label>
+                  <Input
+                    id="due_date"
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    placeholder={t("commonPlaceholders.selectDueDate")}
+                    className="h-8 text-xs border-2 hover:border-primary/50 transition-colors"
+                  />
+                </div>
+
+                {/* Barcode/SKU Scanner */}
+                <div className="space-y-0.5 border-2 border-primary/40 rounded-lg p-1.5 bg-gradient-to-br from-primary/10 via-primary/5 to-accent/5 shadow-sm">
+                  <Label className="text-[10px] sm:text-xs font-semibold flex items-center gap-1 text-primary">
+                    🔍 Scan Barcode/SKU
+                  </Label>
+                  <Input
+                    ref={barcodeInputRef}
+                    placeholder="Scan or type barcode/SKU..."
+                    value={barcodeInput}
+                    onChange={(e) => setBarcodeInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (barcodeInput.trim()) {
+                          handleTopBarcodeSearch(barcodeInput);
+                        }
+                      }
+                    }}
+                    className="w-full h-8 text-xs border-2 border-primary/40 hover:border-primary/60 focus:border-primary bg-background/50 font-mono font-semibold transition-all"
+                    disabled={isEditMode}
+                  />
+                  <p className="text-[8px] sm:text-[9px] text-muted-foreground font-medium">
+                    {isEditMode ? "⚠️ Disabled in edit mode" : "Press Enter to search"}
+                  </p>
+                </div>
               </div>
               
-              <div className="space-y-0.5">
-                <Label htmlFor="due_date" className="text-[10px] sm:text-xs">
-                  Due Date <span className="text-muted-foreground text-[9px] sm:text-[10px]">(optional)</span>
-                </Label>
-                <Input
-                  id="due_date"
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  placeholder={t("commonPlaceholders.selectDueDate")}
-                  className="h-8 text-sm"
+              <div className="flex items-center gap-2 pt-2 border-t mt-2">
+                <input
+                  type="checkbox"
+                  id="paid-directly"
+                  checked={paidDirectly}
+                  onChange={(e) => setPaidDirectly(e.target.checked)}
+                  className="rounded border-input w-4 h-4"
+                  disabled={isEditMode}
                 />
+                <Label htmlFor="paid-directly" className="cursor-pointer text-[10px] sm:text-xs font-medium">
+                  💰 Mark as paid directly (invoice will be fully paid on creation)
+                </Label>
               </div>
+              {isEditMode && (
+                <div className="mt-1">
+                  <p className="text-[9px] text-muted-foreground">
+                    ⚠️ Payment status cannot be changed in edit mode
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-1 pt-1.5 px-3">
-              <CardTitle className="text-xs sm:text-sm">{t('invoiceForm.items')}</CardTitle>
-              <CardDescription className="text-[9px] sm:text-[10px]">{t('invoiceForm.addProducts')}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-1.5 pt-1 px-3 pb-2">
-              {/* Barcode/SKU Scanner Section */}
-              <div className="border rounded-lg p-1.5 bg-muted/30 space-y-1">
-                <Label className="text-[10px] sm:text-xs font-semibold">Scan or Enter Barcode/SKU</Label>
-                <Input
-                  ref={barcodeInputRef}
-                  placeholder="Enter barcode or SKU and press Enter"
-                  value={barcodeInput}
-                  onChange={(e) => setBarcodeInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      if (barcodeInput.trim()) {
-                        handleTopBarcodeSearch(barcodeInput);
-                      }
-                    }
-                  }}
-                  className="w-full h-8 text-sm"
-                  disabled={isEditMode}
-                />
-                <p className="text-[9px] sm:text-[10px] text-muted-foreground">
-                  {isEditMode 
-                    ? "Barcode/SKU scanning is disabled in edit mode" 
-                    : "Scan barcode or SKU with scanner or type manually (press Enter to search)"}
-                </p>
+          <Card className="border-2">
+            <CardHeader className="pb-1 pt-1.5 px-2.5 bg-gradient-to-r from-muted/30 to-transparent">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-xs sm:text-sm font-bold">{t('invoiceForm.items')}</CardTitle>
+                  <CardDescription className="text-[9px] sm:text-[10px]">{t('invoiceForm.addProducts')}</CardDescription>
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  {items.length} {items.length === 1 ? 'item' : 'items'}
+                </div>
               </div>
+            </CardHeader>
+            <CardContent className="space-y-1.5 pt-1.5 px-2.5 pb-2">
               {items.map((item, index) => {
-                const availableQty = invoiceType === 'sell' && item.product_id ? (availableStock.get(String(item.product_id)) || 0) : null;
+                const availableQty = getEffectiveAvailableStock(String(item.product_id), index);
                 const isLowStock = availableQty !== null && availableQty < 10;
                 const isOutOfStock = availableQty !== null && availableQty === 0;
                 
                 return (
-                  <div key={index} className="border rounded-lg p-1.5 bg-card">
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-1.5 items-end">
+                  <div key={index} className="border-2 rounded-lg p-1.5 bg-gradient-to-br from-card to-muted/10 hover:shadow-md transition-all">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-1 items-end">
                       <div className="md:col-span-3 space-y-0.5">
-                        <Label htmlFor={`product-${index}`} className="text-[10px] sm:text-xs">{t('invoiceForm.product')}</Label>
+                        <Label htmlFor={`product-${index}`} className="text-[9px] sm:text-[10px]">{t('invoiceForm.product')}</Label>
                         <Select
                           value={item.product_id}
                           onValueChange={(value) => {
@@ -963,10 +1003,17 @@ const InvoiceForm = () => {
                           }}
                           disabled={isEditMode}
                         >
-                          <SelectTrigger id={`product-${index}`} className="h-8 text-sm">
+                          <SelectTrigger id={`product-${index}`} className="h-7 text-xs">
                             <SelectValue placeholder={t('invoiceForm.selectProduct')} />
                           </SelectTrigger>
-                          <SelectContent side="bottom" align="start" className="max-h-[400px]">
+                          <SelectContent 
+                            side="bottom" 
+                            align="start" 
+                            position="popper" 
+                            avoidCollisions={false}
+                            sideOffset={4}
+                            className="max-h-[200px] overflow-y-auto"
+                          >
                             <div className="sticky top-0 z-10 bg-popover border-b p-1.5">
                               <div className="relative">
                                 <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
@@ -982,7 +1029,7 @@ const InvoiceForm = () => {
                                   }}
                                   onClick={(e) => e.stopPropagation()}
                                   onKeyDown={(e) => e.stopPropagation()}
-                                  className="w-full pl-8 pr-8 h-8 text-sm"
+                                  className="w-full pl-8 pr-8 h-7 text-xs"
                                   autoFocus
                                 />
                                 {(productSearchQuery[index] || "").trim() && (
@@ -1043,17 +1090,17 @@ const InvoiceForm = () => {
                       
                       <div className="md:col-span-2 space-y-0.5">
                         <div className="flex items-center justify-between">
-                          <Label className="text-[10px] sm:text-xs">{t('invoiceForm.quantity')}</Label>
+                          <Label className="text-[9px] sm:text-[10px]">{t('invoiceForm.quantity')}</Label>
                           {invoiceType === 'sell' && item.product_id && availableQty !== null && (
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-0.5">
                               {isOutOfStock ? (
-                                <AlertTriangle className="w-3 h-3 text-destructive" />
+                                <AlertTriangle className="w-2.5 h-2.5 text-destructive" />
                               ) : isLowStock ? (
-                                <AlertTriangle className="w-3 h-3 text-warning" />
+                                <AlertTriangle className="w-2.5 h-2.5 text-warning" />
                               ) : (
-                                <Package className="w-3 h-3 text-muted-foreground" />
+                                <Package className="w-2.5 h-2.5 text-muted-foreground" />
                               )}
-                              <span className={`text-xs ${
+                              <span className={`text-[10px] ${
                                 isOutOfStock ? "text-destructive" : 
                                 isLowStock ? "text-warning" : 
                                 "text-muted-foreground"
@@ -1063,7 +1110,7 @@ const InvoiceForm = () => {
                             </div>
                           )}
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-0.5">
                           <Input
                             type="number"
                             min="1"
@@ -1073,14 +1120,14 @@ const InvoiceForm = () => {
                               const val = e.target.value === '' ? 1 : parseInt(e.target.value);
                               handleQuantityChange(index, isNaN(val) || val < 1 ? 1 : val);
                             }}
-                            className="flex-1 h-8 text-sm"
+                            className="flex-1 h-7 text-xs"
                           />
                           <div className="flex flex-col">
                             <Button
                               type="button"
                               variant="outline"
                               size="icon"
-                              className="h-4 w-6 sm:h-4 sm:w-6 rounded-b-none border-b-0 p-0"
+                              className="h-3.5 w-5 rounded-b-none border-b-0 p-0"
                               onClick={() => {
                                 const currentQty = isNaN(item.quantity) || item.quantity === 0 ? 1 : item.quantity;
                                 const maxQty = availableQty !== null ? availableQty : undefined;
@@ -1089,13 +1136,13 @@ const InvoiceForm = () => {
                               }}
                               disabled={availableQty !== null && item.quantity >= availableQty}
                             >
-                              <ChevronUp className="w-2.5 h-2.5" />
+                              <ChevronUp className="w-2 h-2" />
                             </Button>
                             <Button
                               type="button"
                               variant="outline"
                               size="icon"
-                              className="h-4 w-6 sm:h-4 sm:w-6 rounded-t-none p-0"
+                              className="h-3.5 w-5 rounded-t-none p-0"
                               onClick={() => {
                                 const currentQty = isNaN(item.quantity) || item.quantity === 0 ? 1 : item.quantity;
                                 const newQty = currentQty > 1 ? currentQty - 1 : 1;
@@ -1103,7 +1150,7 @@ const InvoiceForm = () => {
                               }}
                               disabled={item.quantity <= 1}
                             >
-                              <ChevronDown className="w-2.5 h-2.5" />
+                              <ChevronDown className="w-2 h-2" />
                             </Button>
                           </div>
                         </div>
@@ -1111,15 +1158,15 @@ const InvoiceForm = () => {
                       
                       {invoiceType === 'sell' && (
                         <div className="md:col-span-2 space-y-0.5">
-                          <Label htmlFor={`price-type-${index}`} className="text-[10px] sm:text-xs">{t('invoiceForm.priceType')}</Label>
+                          <Label htmlFor={`price-type-${index}`} className="text-[9px] sm:text-[10px]">{t('invoiceForm.priceType')}</Label>
                           <Select
                             value={item.price_type}
                             onValueChange={(value: 'retail' | 'wholesale') => handlePriceTypeChange(index, value)}
                           >
-                            <SelectTrigger id={`price-type-${index}`} className="h-8 text-sm">
+                            <SelectTrigger id={`price-type-${index}`} className="h-7 text-xs">
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent side="bottom" align="start">
+                            <SelectContent side="bottom" align="start" className="max-h-[50vh] overflow-y-auto">
                               <SelectItem value="retail">{t('invoiceForm.retail')}</SelectItem>
                               <SelectItem value="wholesale">{t('invoiceForm.wholesale')}</SelectItem>
                             </SelectContent>
@@ -1128,7 +1175,7 @@ const InvoiceForm = () => {
                       )}
                       
                       <div className={`${invoiceType === 'sell' ? 'md:col-span-2' : 'md:col-span-3'} space-y-0.5`}>
-                        <Label className="text-[10px] sm:text-xs">{invoiceType === 'buy' ? t('invoiceForm.cost') : t('invoiceForm.unitPrice')}</Label>
+                        <Label className="text-[9px] sm:text-[10px]">{invoiceType === 'buy' ? t('invoiceForm.cost') : t('invoiceForm.unitPrice')}</Label>
                         <Input
                           type="number"
                           step="0.01"
@@ -1140,17 +1187,17 @@ const InvoiceForm = () => {
                           }}
                           disabled={invoiceType === 'sell' && !item.is_private_price}
                           placeholder={invoiceType === 'buy' ? t('invoiceForm.enterCost') : ''}
-                          className={`h-8 text-sm ${invoiceType === 'sell' && !item.is_private_price ? "bg-muted" : ""}`}
+                          className={`h-7 text-xs ${invoiceType === 'sell' && !item.is_private_price ? "bg-muted" : ""}`}
                         />
                       </div>
                       
                       <div className="md:col-span-2 space-y-0.5">
-                        <Label className="text-[10px] sm:text-xs">{t('invoiceForm.total')}</Label>
+                        <Label className="text-[9px] sm:text-[10px]">{t('invoiceForm.total')}</Label>
                         <Input
                           type="number"
                           value={isNaN(item.total_price) ? '' : item.total_price.toFixed(2)}
                           disabled
-                          className="h-8 text-sm bg-muted font-semibold cursor-default"
+                          className="h-7 text-xs bg-muted font-semibold cursor-default"
                         />
                       </div>
                       
@@ -1162,7 +1209,7 @@ const InvoiceForm = () => {
                             size="icon"
                             onClick={() => removeItem(index)}
                             disabled={hasPayments}
-                            className={`h-8 w-8 ${
+                            className={`h-7 w-7 ${
                               hasPayments
                                 ? 'opacity-60 cursor-not-allowed bg-warning/10 text-warning hover:bg-warning/20 hover:text-warning'
                                 : ''
@@ -1180,24 +1227,24 @@ const InvoiceForm = () => {
                     </div>
 
                   {invoiceType === 'sell' && (
-                    <div className="space-y-1 border-t pt-1.5 mt-1.5">
-                      <div className="flex items-center gap-2">
+                    <div className="space-y-0.5 border-t pt-1 mt-1">
+                      <div className="flex items-center gap-1.5">
                         <input
                           type="checkbox"
                           id={`private-${index}`}
                           checked={item.is_private_price}
                           onChange={(e) => handlePrivatePriceToggle(index, e.target.checked)}
-                          className="rounded border-input"
+                          className="rounded border-input w-3.5 h-3.5"
                         />
-                        <Label htmlFor={`private-${index}`} className="cursor-pointer text-[10px] sm:text-xs font-medium">
+                        <Label htmlFor={`private-${index}`} className="cursor-pointer text-[9px] sm:text-[10px] font-medium">
                           {t('invoiceForm.useCustomPrice')} {item.price_type === 'retail' ? t('invoiceForm.retail') : t('invoiceForm.wholesale')})
                         </Label>
                       </div>
                       
                       {item.is_private_price && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
                           <div className="space-y-0.5">
-                            <Label className="text-[10px] sm:text-xs">{t('invoiceForm.customPriceAmount')}</Label>
+                            <Label className="text-[9px] sm:text-[10px]">{t('invoiceForm.customPriceAmount')}</Label>
                             <Input
                               type="number"
                               step="0.01"
@@ -1208,11 +1255,11 @@ const InvoiceForm = () => {
                                 handlePrivatePriceChange(index, isNaN(val) ? 0 : val);
                               }}
                               placeholder={t('invoiceForm.enterCustomPrice')}
-                              className="h-8 text-sm"
+                              className="h-7 text-xs"
                             />
                           </div>
                           <div className="space-y-0.5">
-                            <Label className="text-[10px] sm:text-xs">{t('invoiceForm.reasonNote')}</Label>
+                            <Label className="text-[9px] sm:text-[10px]">{t('invoiceForm.reasonNote')}</Label>
                             <Input
                               type="text"
                               value={item.private_price_note}
@@ -1222,7 +1269,7 @@ const InvoiceForm = () => {
                                 setItems(newItems);
                               }}
                               placeholder={t('invoiceForm.whyCustomPrice')}
-                              className="h-8 text-sm"
+                              className="h-7 text-xs"
                             />
                           </div>
                         </div>
@@ -1235,26 +1282,26 @@ const InvoiceForm = () => {
               
               {/* Hide Add Item button in edit mode */}
               {!isEditMode && (
-                <Button type="button" variant="outline" onClick={addItem} className="w-full h-8 text-xs">
+                <Button type="button" variant="outline" onClick={addItem} className="w-full h-8 text-xs border-2 border-dashed hover:border-primary hover:bg-primary/5 transition-all">
                   <Plus className="w-3.5 h-3.5 mr-1.5" />
                   {t('invoiceForm.addItem')}
                 </Button>
               )}
               
-              <div className="flex justify-end pt-1.5 border-t">
-                <div className="text-right space-y-0.5">
-                  <div className="text-[10px] sm:text-xs text-muted-foreground">{t('invoiceForm.totalAmount')}</div>
-                  <div className="text-lg sm:text-xl font-bold">${calculateTotal().toFixed(2)}</div>
+              <div className="flex justify-end pt-2 border-t-2 mt-2">
+                <div className="text-right space-y-0.5 bg-gradient-to-br from-primary/5 to-accent/5 px-4 py-2 rounded-lg border-2">
+                  <div className="text-[10px] sm:text-xs text-muted-foreground font-medium">{t('invoiceForm.totalAmount')}</div>
+                  <div className="text-lg sm:text-2xl font-bold text-primary">${calculateTotal().toFixed(2)}</div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <div className="flex flex-col-reverse sm:flex-row gap-1.5">
-            <Button type="button" variant="outline" onClick={() => navigate("/invoices")} className="w-full sm:w-auto h-8 text-xs">
+          <div className="flex flex-col-reverse sm:flex-row gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => navigate("/invoices")} className="w-full sm:w-auto h-9 text-xs border-2 hover:bg-muted">
               {t('invoiceForm.cancel')}
             </Button>
-            <Button type="submit" disabled={loading} className="w-full sm:w-auto h-8 text-xs">
+            <Button type="submit" disabled={loading} className="w-full sm:w-auto h-9 text-xs font-semibold shadow-md hover:shadow-lg transition-all">
               {loading ? (isEditMode ? t('invoiceForm.updating') : t('invoiceForm.creating')) : (isEditMode ? t('invoiceForm.updateInvoice') : t('invoiceForm.createInvoice'))}
             </Button>
           </div>

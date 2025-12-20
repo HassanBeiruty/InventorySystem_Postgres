@@ -23,13 +23,13 @@ export function LanguageSwitcher() {
           <span className="sr-only">Switch language</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => changeLanguage("en")}>
+      <DropdownMenuContent align="end" className="p-0.5">
+        <DropdownMenuItem onClick={() => changeLanguage("en")} className="px-1.5 py-1 text-xs">
           <span className={i18n.language === "en" ? "font-bold" : ""}>
             English
           </span>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => changeLanguage("ar")}>
+        <DropdownMenuItem onClick={() => changeLanguage("ar")} className="px-1.5 py-1 text-xs">
           <span className={i18n.language === "ar" ? "font-bold" : ""}>
             العربية
           </span>

@@ -129,7 +129,7 @@ const ProductCosts = () => {
         <div className="flex items-center justify-between gap-2">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              Product Costs History
+              💰 Product Costs History
             </h1>
             <p className="text-xs sm:text-sm text-muted-foreground">Track purchase costs from all suppliers</p>
           </div>

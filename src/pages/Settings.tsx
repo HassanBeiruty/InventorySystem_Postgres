@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
@@ -126,24 +126,25 @@ const Settings = () => {
     },
   });
 
-  const formatDate = (dateString: string | null) => {
+  // Memoize formatDate to avoid recreating function on every render
+  const formatDate = useCallback((dateString: string | null) => {
     if (!dateString) return t("settings.never");
     try {
       return formatDateTimeLebanon(dateString, "MMM dd, yyyy HH:mm");
     } catch {
       return dateString;
     }
-  };
+  }, [t]);
 
   // Wait for admin check to complete before rendering anything
   // This prevents the flash of content/access denied
   if (isAdminLoading) {
     return (
       <DashboardLayout>
-        <div className="space-y-6 p-4 sm:p-6">
-          <div className="space-y-4">
-            <Skeleton className="h-10 w-64" />
-            <Skeleton className="h-64 w-full" />
+        <div className="space-y-2 sm:space-y-3">
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-48 w-full" />
           </div>
         </div>
       </DashboardLayout>
@@ -152,109 +153,110 @@ const Settings = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 p-4 sm:p-6">
+      <div className="space-y-2 sm:space-y-3">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <SettingsIcon className="w-8 h-8" />
-            {t("settings.title")}
+          <h1 className="text-lg sm:text-xl font-bold flex items-center gap-1.5">
+            
+            ⚙️ {t("settings.title")}
           </h1>
-          <p className="text-muted-foreground mt-2">{t("settings.subtitle")}</p>
+          <p className="text-[10px] sm:text-xs text-muted-foreground">{t("settings.subtitle")}</p>
         </div>
 
         {/* Admin Section */}
         {isAdmin ? (
-          <div className="space-y-6">
+          <div className="space-y-2 sm:space-y-3">
             {/* System Health Card */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
+            <Card className="border-2">
+              <CardHeader className="p-2 sm:p-3 border-b">
+                <div className="flex items-center justify-between gap-2">
                   <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <Activity className="w-5 h-5" />
+                    <CardTitle className="flex items-center gap-1.5 text-xs sm:text-sm">
+                      <Activity className="w-4 h-4" />
                       {t("settings.systemHealth")}
                     </CardTitle>
-                    <CardDescription>{t("settings.systemHealthDescription")}</CardDescription>
+                    <CardDescription className="text-[10px] sm:text-xs">{t("settings.systemHealthDescription")}</CardDescription>
                   </div>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => refetchHealth()}
                     disabled={healthLoading}
+                    className="h-7 text-[10px] sm:text-xs"
                   >
-                    <RefreshCw className={`w-4 h-4 ${healthLoading ? "animate-spin" : ""}`} />
+                    <RefreshCw className={`w-3 h-3 ${healthLoading ? "animate-spin" : ""}`} />
                     {t("settings.refresh")}
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-2 sm:p-3">
                 {healthLoading ? (
-                  <div className="space-y-4">
-                    <Skeleton className="h-20 w-full" />
-                    <Skeleton className="h-20 w-full" />
-                    <Skeleton className="h-20 w-full" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-14 w-full" />
+                    <Skeleton className="h-14 w-full" />
+                    <Skeleton className="h-14 w-full" />
                   </div>
                 ) : health ? (
-                  <div className="space-y-4">
+                  <div className="space-y-2">
                     {/* Database Status */}
-                    <div className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <Database className="w-5 h-5 text-primary" />
+                    <div className="flex items-center justify-between p-2 border rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Database className="w-4 h-4 text-primary" />
                         <div>
-                          <p className="font-medium">{t("settings.database")}</p>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="font-medium text-xs sm:text-sm">{t("settings.database")}</p>
+                          <p className="text-[10px] sm:text-xs text-muted-foreground">
                             {health.database.host} / {health.database.database}
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         {health.database.status === "connected" ? (
                           <>
-                            <CheckCircle2 className="w-5 h-5 text-success" />
-                            <Badge variant="success">
+                            <CheckCircle2 className="w-4 h-4 text-success" />
+                            <Badge variant="success" className="text-[10px] px-1.5 py-0">
                               {t("settings.connected")}
                             </Badge>
                           </>
                         ) : (
                           <>
-                            <XCircle className="w-5 h-5 text-destructive" />
-                            <Badge variant="destructive">{t("settings.disconnected")}</Badge>
+                            <XCircle className="w-4 h-4 text-destructive" />
+                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0">{t("settings.disconnected")}</Badge>
                           </>
                         )}
-                        <span className="text-sm text-muted-foreground">
+                        <span className="text-[10px] sm:text-xs text-muted-foreground">
                           {health.database.responseTime}
                         </span>
                       </div>
                     </div>
 
                     {/* Server Status */}
-                    <div className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <Server className="w-5 h-5 text-primary" />
+                    <div className="flex items-center justify-between p-2 border rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Server className="w-4 h-4 text-primary" />
                         <div>
-                          <p className="font-medium">{t("settings.server")}</p>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="font-medium text-xs sm:text-sm">{t("settings.server")}</p>
+                          <p className="text-[10px] sm:text-xs text-muted-foreground">
                             Node {health.server.nodeVersion} • {health.server.environment}
                           </p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-medium">{t("settings.uptime")}: {health.server.uptime}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-[10px] sm:text-xs font-medium">{t("settings.uptime")}: {health.server.uptime}</p>
+                        <p className="text-[9px] text-muted-foreground">
                           {t("settings.memory")}: {health.server.memory.used} / {health.server.memory.total}
                         </p>
                       </div>
                     </div>
 
                     {/* Daily Stock Snapshot */}
-                    <div className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <Clock className="w-5 h-5 text-primary" />
+                    <div className="flex items-center justify-between p-2 border rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-primary" />
                         <div>
-                          <p className="font-medium">{t("settings.dailyStockSnapshot")}</p>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="font-medium text-xs sm:text-sm">{t("settings.dailyStockSnapshot")}</p>
+                          <p className="text-[10px] sm:text-xs text-muted-foreground">
                             {t("settings.lastRun")}: {formatDate(health.dailyStockSnapshot.lastRun)}
                           </p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-[9px] text-muted-foreground">
                             {t("settings.scheduled")}: {health.dailyStockSnapshot.scheduledTime}
                           </p>
                         </div>
@@ -262,44 +264,44 @@ const Settings = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 text-destructive">
-                    <AlertCircle className="w-5 h-5" />
-                    <p>{t("settings.failedToLoad")}</p>
+                  <div className="flex items-center gap-1.5 text-destructive">
+                    <AlertCircle className="w-4 h-4" />
+                    <p className="text-xs">{t("settings.failedToLoad")}</p>
                   </div>
                 )}
               </CardContent>
             </Card>
 
             {/* Admin Actions Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <HardDrive className="w-5 h-5" />
+            <Card className="border-2">
+              <CardHeader className="p-2 sm:p-3 border-b">
+                <CardTitle className="flex items-center gap-1.5 text-xs sm:text-sm">
+                  <HardDrive className="w-4 h-4" />
                   {t("settings.adminActions")}
                 </CardTitle>
-                <CardDescription>{t("settings.adminActionsDescription")}</CardDescription>
+                <CardDescription className="text-[10px] sm:text-xs">{t("settings.adminActionsDescription")}</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-3">
+              <CardContent className="space-y-2 sm:space-y-3 p-2 sm:p-3">
+                <div className="grid gap-2 sm:gap-3 sm:grid-cols-3">
                   {/* Trigger Daily Snapshot */}
-                  <div className="p-4 border rounded-lg">
-                    <h4 className="font-medium mb-2">{t("settings.dailyStockSnapshotTitle")}</h4>
-                    <p className="text-sm text-muted-foreground mb-4">
+                  <div className="p-2 border rounded-lg">
+                    <h4 className="font-medium mb-1 text-xs sm:text-sm">{t("settings.dailyStockSnapshotTitle")}</h4>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mb-2">
                       {t("settings.dailyStockSnapshotDescription")}
                     </p>
                     <Button
                       onClick={() => snapshotMutation.mutate()}
                       disabled={snapshotMutation.isPending}
-                      className="w-full"
+                      className="w-full h-7 text-[10px] sm:text-xs"
                     >
                       {snapshotMutation.isPending ? (
                         <>
-                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <RefreshCw className="w-3 h-3 animate-spin" />
                           {t("settings.running")}
                         </>
                       ) : (
                         <>
-                          <Play className="w-4 h-4" />
+                          <Play className="w-3 h-3" />
                           {t("settings.triggerSnapshot")}
                         </>
                       )}
@@ -307,9 +309,9 @@ const Settings = () => {
                   </div>
 
                   {/* Database Initialization */}
-                  <div className="p-4 border rounded-lg">
-                    <h4 className="font-medium mb-2">{t("settings.databaseInitialization")}</h4>
-                    <p className="text-sm text-muted-foreground mb-4">
+                  <div className="p-2 border rounded-lg">
+                    <h4 className="font-medium mb-1 text-xs sm:text-sm">{t("settings.databaseInitialization")}</h4>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mb-2">
                       {t("settings.databaseInitializationDescription")}
                     </p>
                     <Button
@@ -320,16 +322,16 @@ const Settings = () => {
                         }
                       }}
                       disabled={initMutation.isPending}
-                      className="w-full"
+                      className="w-full h-7 text-[10px] sm:text-xs"
                     >
                       {initMutation.isPending ? (
                         <>
-                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <RefreshCw className="w-3 h-3 animate-spin" />
                           {t("settings.initializing")}
                         </>
                       ) : (
                         <>
-                          <Database className="w-4 h-4" />
+                          <Database className="w-3 h-3" />
                           {t("settings.initializeDatabase")}
                         </>
                       )}
@@ -337,9 +339,9 @@ const Settings = () => {
                   </div>
 
                   {/* Seed Master Data */}
-                  <div className="p-4 border rounded-lg">
-                    <h4 className="font-medium mb-2">Seed Master Data</h4>
-                    <p className="text-sm text-muted-foreground mb-4">
+                  <div className="p-2 border rounded-lg">
+                    <h4 className="font-medium mb-1 text-xs sm:text-sm">Seed Master Data</h4>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mb-2">
                       Clear all data and seed fresh master data (categories, products with barcode/SKU/shelf, prices, customers, suppliers). No invoices created.
                     </p>
                     <Button
@@ -350,16 +352,16 @@ const Settings = () => {
                         }
                       }}
                       disabled={seedMasterDataMutation.isPending}
-                      className="w-full"
+                      className="w-full h-7 text-[10px] sm:text-xs"
                     >
                       {seedMasterDataMutation.isPending ? (
                         <>
-                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <RefreshCw className="w-3 h-3 animate-spin" />
                           Seeding...
                         </>
                       ) : (
                         <>
-                          <Database className="w-4 h-4" />
+                          <Database className="w-3 h-3" />
                           Seed Master Data
                         </>
                       )}
@@ -367,17 +369,17 @@ const Settings = () => {
                   </div>
 
                   {/* Recompute Positions */}
-                  <div className="p-4 border rounded-lg">
-                    <h4 className="font-medium mb-2">{t("settings.recomputeStockPositions")}</h4>
-                    <p className="text-sm text-muted-foreground mb-4">
+                  <div className="p-2 border rounded-lg">
+                    <h4 className="font-medium mb-1 text-xs sm:text-sm">{t("settings.recomputeStockPositions")}</h4>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mb-2">
                       {t("settings.recomputeStockPositionsDescription")}
                     </p>
                     <Button
                       variant="outline"
                       onClick={() => setRecomputeDialogOpen(true)}
-                      className="w-full"
+                      className="w-full h-7 text-[10px] sm:text-xs"
                     >
-                      <RefreshCw className="w-4 h-4" />
+                      <RefreshCw className="w-3 h-3" />
                       {t("settings.recomputePositions") || "Recompute Positions"}
                     </Button>
                   </div>
@@ -386,51 +388,51 @@ const Settings = () => {
             </Card>
 
             {/* User Management Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="w-5 h-5" />
+            <Card className="border-2">
+              <CardHeader className="p-2 sm:p-3 border-b">
+                <CardTitle className="flex items-center gap-1.5 text-xs sm:text-sm">
+                  <Users className="w-4 h-4" />
                   {t("settings.userManagement")}
                 </CardTitle>
-                <CardDescription>{t("settings.userManagementDescription")}</CardDescription>
+                <CardDescription className="text-[10px] sm:text-xs">{t("settings.userManagementDescription")}</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-2 sm:p-3">
                 {usersLoading ? (
-                  <div className="space-y-3">
-                    <Skeleton className="h-16 w-full" />
-                    <Skeleton className="h-16 w-full" />
-                    <Skeleton className="h-16 w-full" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
                   </div>
                 ) : users && users.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {users.map((user) => {
                       const isCurrentUser = user.id === userInfo?.id;
-                      const isUserAdmin = user.is_admin === true || user.is_admin === 1;
+                      const isUserAdmin = Boolean(user.is_admin);
                       
                       return (
                         <div
                           key={user.id}
-                          className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
+                          className="flex items-center justify-between p-2 border rounded-lg hover:bg-accent/50 transition-colors"
                         >
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium">{user.email}</p>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="font-medium text-xs sm:text-sm truncate">{user.email}</p>
                               {isCurrentUser && (
-                                <Badge variant="secondary" className="text-xs">{t("settings.you")}</Badge>
+                                <Badge variant="secondary" className="text-[9px] px-1 py-0">{t("settings.you")}</Badge>
                               )}
                               {isUserAdmin && (
-                                <Badge variant="default" className="bg-primary">
-                                  <Shield className="w-3 h-3 mr-1" />
+                                <Badge variant="default" className="bg-primary text-[9px] px-1 py-0">
+                                  <Shield className="w-2.5 h-2.5 mr-0.5" />
                                   {t("settings.admin")}
                                 </Badge>
                               )}
                             </div>
-                            <p className="text-xs text-muted-foreground mt-1">
+                            <p className="text-[9px] sm:text-[10px] text-muted-foreground mt-0.5">
                               {t("settings.joined")}: {formatDateTimeLebanon(user.created_at, "MMM dd, yyyy")}
                             </p>
                           </div>
                           {!isCurrentUser && (
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1 ml-2 flex-shrink-0">
                               {isUserAdmin ? (
                                 <>
                                   <Button
@@ -446,8 +448,9 @@ const Settings = () => {
                                       }
                                     }}
                                     disabled={updateAdminMutation.isPending}
+                                    className="h-7 text-[10px] sm:text-xs px-2"
                                   >
-                                    <ShieldOff className="w-4 h-4 mr-1" />
+                                    <ShieldOff className="w-3 h-3 mr-1" />
                                     {t("settings.removeAdmin")}
                                   </Button>
                                   <Button
@@ -463,8 +466,9 @@ const Settings = () => {
                                       }
                                     }}
                                     disabled={deleteUserMutation.isPending}
+                                    className="h-7 text-[10px] sm:text-xs px-2"
                                   >
-                                    <Trash2 className="w-4 h-4 mr-1" />
+                                    <Trash2 className="w-3 h-3 mr-1" />
                                     {t("settings.removeUser") || "Remove User"}
                                   </Button>
                                 </>
@@ -483,8 +487,9 @@ const Settings = () => {
                                       }
                                     }}
                                     disabled={updateAdminMutation.isPending}
+                                    className="h-7 text-[10px] sm:text-xs px-2"
                                   >
-                                    <Shield className="w-4 h-4 mr-1" />
+                                    <Shield className="w-3 h-3 mr-1" />
                                     {t("settings.makeAdmin")}
                                   </Button>
                                   <Button
@@ -500,8 +505,9 @@ const Settings = () => {
                                       }
                                     }}
                                     disabled={deleteUserMutation.isPending}
+                                    className="h-7 text-[10px] sm:text-xs px-2"
                                   >
-                                    <Trash2 className="w-4 h-4 mr-1" />
+                                    <Trash2 className="w-3 h-3 mr-1" />
                                     {t("settings.removeUser") || "Remove User"}
                                   </Button>
                                 </>
@@ -513,13 +519,13 @@ const Settings = () => {
                     })}
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>{t("settings.noUsers")}</p>
+                  <div className="text-center py-4 text-muted-foreground">
+                    <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-xs">{t("settings.noUsers")}</p>
                   </div>
                 )}
               </CardContent>
-              <CardFooter className="border-t pt-4">
+              <CardFooter className="border-t pt-2 p-2 sm:p-3">
                 <Button
                   variant="destructive"
                   size="sm"
@@ -536,19 +542,19 @@ const Settings = () => {
                       });
                     }
                   }}
-                  className="w-full sm:w-auto"
+                  className="w-full sm:w-auto h-7 text-[10px] sm:text-xs"
                 >
-                  <AlertCircle className="w-4 h-4 mr-2" />
+                  <AlertCircle className="w-3 h-3 mr-1.5" />
                   {t("settings.clearAllUsers")}
                 </Button>
               </CardFooter>
             </Card>
           </div>
         ) : (
-          <Card>
-            <CardContent className="p-6 text-center">
-              <AlertCircle className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">{t("settings.adminAccessRequired")}</p>
+          <Card className="border-2">
+            <CardContent className="p-3 sm:p-4 text-center">
+              <AlertCircle className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+              <p className="text-xs text-muted-foreground">{t("settings.adminAccessRequired")}</p>
             </CardContent>
           </Card>
         )}

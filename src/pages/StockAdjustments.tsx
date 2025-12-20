@@ -112,7 +112,7 @@ const StockAdjustments = () => {
         <div className="flex items-center justify-between">
           <div className="space-y-2">
             <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              {t('stockAdjustments.title')}
+              🔧 {t('stockAdjustments.title')}
             </h1>
             <p className="text-muted-foreground text-lg">{t('stockAdjustments.subtitle')}</p>
           </div>

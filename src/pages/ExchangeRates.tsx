@@ -196,7 +196,7 @@ const ExchangeRates = () => {
           <div>
             <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-1.5">
               <DollarSign className="w-5 h-5 sm:w-6 sm:h-6" />
-              Exchange Rates
+              💱 Exchange Rates
             </h1>
             <p className="text-xs sm:text-sm text-muted-foreground mt-1">Manage currency exchange rates</p>
           </div>
@@ -228,7 +228,7 @@ const ExchangeRates = () => {
       <div className="space-y-3 sm:space-y-4">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold">{t("exchangeRates.title")}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">💱 {t("exchangeRates.title")}</h1>
             <p className="text-xs sm:text-sm text-muted-foreground">{t("exchangeRates.subtitle")}</p>
           </div>
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>

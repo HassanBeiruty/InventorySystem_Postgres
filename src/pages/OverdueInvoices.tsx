@@ -115,7 +115,7 @@ const OverdueInvoices = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-destructive via-warning to-destructive bg-clip-text text-transparent">
-              Overdue Invoices
+              ⚠️ Overdue Invoices
             </h1>
             <p className="text-muted-foreground">
               Invoices with due date past today and payment status not paid

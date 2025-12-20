@@ -796,9 +796,15 @@ router.get('/invoices', async (req, res) => {
 		if (invoiceIds.length > 0) {
 			const placeholders = invoiceIds.map((_, i) => `$${i + 1}`).join(',');
 			invoiceItemsResult = await query(
-				`SELECT * FROM invoice_items 
-				WHERE invoice_id IN (${placeholders})
-				ORDER BY invoice_id, id`,
+				`SELECT 
+					ii.*,
+					p.name as product_name,
+					p.barcode as product_barcode,
+					p.sku as product_sku
+				FROM invoice_items ii
+				LEFT JOIN products p ON ii.product_id = p.id
+				WHERE ii.invoice_id IN (${placeholders})
+				ORDER BY ii.invoice_id, ii.id`,
 				invoiceIds
 			);
 		}
@@ -899,11 +905,11 @@ router.get('/invoices/recent/:limit', async (req, res) => {
 				c.id as customer_id_val, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, c.credit_limit as customer_credit_limit, c.created_at as customer_created_at,
 				s.id as supplier_id_val, s.name as supplier_name, s.phone as supplier_phone, s.address as supplier_address, s.created_at as supplier_created_at
 			FROM (
-				SELECT * FROM invoices ORDER BY invoice_date DESC LIMIT $1
+				SELECT * FROM invoices ORDER BY id DESC LIMIT $1
 			) i
 			LEFT JOIN customers c ON i.customer_id = c.id
 			LEFT JOIN suppliers s ON i.supplier_id = s.id
-			ORDER BY i.invoice_date DESC`,
+			ORDER BY i.id DESC`,
 			[{ limit }]
 		);
 		
@@ -1275,7 +1281,7 @@ router.post('/invoices', [
 	try {
 		await client.query('BEGIN');
 		
-		const { invoice_type, customer_id, supplier_id, total_amount, due_date, items } = req.body;
+		const { invoice_type, customer_id, supplier_id, total_amount, due_date, items, paid_directly } = req.body;
 		const today = getTodayLocal();
 		const invoiceTimestamp = nowIso();
 		
@@ -1395,6 +1401,35 @@ router.post('/invoices', [
 				 DO UPDATE SET available_qty = EXCLUDED.available_qty, avg_cost = EXCLUDED.avg_cost, updated_at = EXCLUDED.updated_at`,
 				stockParams
 			);
+		}
+		
+		// If paid_directly is true, create a payment record for the full amount
+		if (paid_directly === true) {
+			const totalAmountNum = parseFloat(String(total_amount));
+			if (totalAmountNum > 0) {
+				// Create payment record with full amount in USD
+				await client.query(
+					`INSERT INTO invoice_payments (invoice_id, paid_amount, currency_code, exchange_rate_on_payment, usd_equivalent_amount, payment_date, payment_method, notes, created_at) 
+					 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+					[
+						invoiceId,
+						totalAmountNum, // paid_amount in USD
+						'USD', // currency_code
+						1.0, // exchange_rate_on_payment (1 USD = 1 USD)
+						totalAmountNum, // usd_equivalent_amount
+						invoiceTimestamp, // payment_date (same as invoice creation)
+						'direct', // payment_method
+						'Paid directly on invoice creation', // notes
+						invoiceTimestamp // created_at
+					]
+				);
+				
+				// Update invoice payment status to 'paid'
+				await client.query(
+					'UPDATE invoices SET amount_paid = $1, payment_status = $2 WHERE id = $3',
+					[totalAmountNum, 'paid', invoiceId]
+				);
+			}
 		}
 		
 		await client.query('COMMIT');
@@ -2308,19 +2343,33 @@ router.get('/inventory/daily-history', async (req, res) => {
 router.get('/stock-movements/recent/:limit', async (req, res) => {
 	try {
 		const limit = Math.min(parseInt(req.params.limit) || 20, 500); // Cap at 500 for performance
+		const { start_date, end_date } = req.query;
 		
-		// Optimized query - use index on invoice_date
-		const result = await query(
-			`SELECT 
+		let sql = `SELECT 
 				sm.*,
 				p.id as product_id_val, p.name as product_name, p.barcode as product_barcode, p.category_id as product_category_id,
 				p.description as product_description, p.sku as product_sku, p.shelf as product_shelf, p.created_at as product_created_at
 			FROM stock_movements sm
 			LEFT JOIN products p ON sm.product_id = p.id
-			ORDER BY sm.invoice_date DESC, sm.created_at DESC
-			LIMIT $1`,
-			[limit]
-		);
+			WHERE 1=1`;
+		const params = [];
+		let paramIndex = 0;
+		
+		if (start_date) {
+			paramIndex++;
+			sql += ` AND CAST(sm.invoice_date AS DATE) >= $${paramIndex}`;
+			params.push(start_date);
+		}
+		if (end_date) {
+			paramIndex++;
+			sql += ` AND CAST(sm.invoice_date AS DATE) <= $${paramIndex}`;
+			params.push(end_date);
+		}
+		
+		sql += ` ORDER BY sm.invoice_date DESC, sm.created_at DESC LIMIT $${paramIndex + 1}`;
+		params.push(limit);
+		
+		const result = await query(sql, params);
 		
 		const formattedResult = result.recordset.map((row) => {
 			const { product_id_val, product_name, product_barcode, product_category_id, product_description, 
