@@ -1113,6 +1113,21 @@ router.put('/invoices/:id', async (req, res) => {
 
 		// Call the function to recalculate stock for each affected product
 		// The function will update existing stock movements and recalculate all later movements
+		
+		// First, handle deleted items (products in oldItems but not in new items)
+		const newProductIds = new Set(items.map(item => parseInt(item.product_id)));
+		for (const oldItem of oldItems) {
+			const productId = oldItem.product_id;
+			if (!newProductIds.has(productId)) {
+				// This product was deleted from the invoice - call with DELETE action
+				await query(
+					'SELECT recalculate_stock_after_invoice($1, $2, $3, NULL, NULL)',
+					[id, productId, 'DELETE']
+				);
+			}
+		}
+		
+		// Then, handle items that exist in new items (either new or edited)
 		for (const productId of affectedProducts) {
 			const item = items.find(item => parseInt(item.product_id) === productId);
 			if (item) {
