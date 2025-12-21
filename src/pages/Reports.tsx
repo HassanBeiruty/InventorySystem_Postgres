@@ -84,12 +84,13 @@ const Reports = () => {
   const fetchReports = useCallback(async () => {
     setLoading(true);
     try {
-      const [all, products, customers, suppliers] = await Promise.all([
+      const [all, productsResponse, customers, suppliers] = await Promise.all([
         invoicesRepo.listWithRelations(),
-        productsRepo.list(),
+        productsRepo.list({ limit: 1000 }),
         customersRepo.list(),
         suppliersRepo.list(),
       ]);
+      const products = Array.isArray(productsResponse) ? productsResponse : productsResponse.data;
       
       const sales = (all || []).filter((i: any) => i.invoice_type === "sell");
       const purchases = (all || []).filter((i: any) => i.invoice_type === "buy");

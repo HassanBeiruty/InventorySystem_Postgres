@@ -487,8 +487,23 @@ router.put('/suppliers/:id', [
 // ===== CATEGORIES =====
 router.get('/categories', async (req, res) => {
 	try {
+		const cache = require('../cache');
+		const cacheKey = 'categories:list';
+		
+		// Check cache first
+		let categories = cache.get(cacheKey);
+		if (categories) {
+			return res.json(categories);
+		}
+		
+		// Fetch from database
 		const result = await query('SELECT * FROM categories ORDER BY name ASC', []);
-		res.json(result.recordset);
+		categories = result.recordset;
+		
+		// Cache for 5 minutes (categories don't change often)
+		cache.set(cacheKey, categories, 5 * 60 * 1000);
+		
+		res.json(categories);
 	} catch (err) {
 		console.error('List categories error:', err);
 		res.status(500).json({ error: err.message });
@@ -507,6 +522,11 @@ router.post('/categories', [
 			[name, description || null, createdAt]
 		);
 		const id = result.recordset[0].id;
+		
+		// Invalidate cache
+		const cache = require('../cache');
+		cache.invalidate('categories:*');
+		
 		res.json({ id });
 	} catch (err) {
 		console.error('Create category error:', err);
@@ -536,6 +556,11 @@ router.put('/categories/:id', [
 		}
 		params.unshift(id); // Add id as first parameter
 		await query(`UPDATE categories SET ${updates.join(', ')} WHERE id = $1`, params);
+		
+		// Invalidate cache
+		const cache = require('../cache');
+		cache.invalidate('categories:*');
+		
 		res.json({ id });
 	} catch (err) {
 		console.error('Update category error:', err);
@@ -554,6 +579,11 @@ router.delete('/categories/:id', [
 			return res.status(400).json({ error: 'Cannot delete category: products are still assigned to it' });
 		}
 		await query('DELETE FROM categories WHERE id = $1', [id]);
+		
+		// Invalidate cache
+		const cache = require('../cache');
+		cache.invalidate('categories:*');
+		
 		res.json({ success: true });
 	} catch (err) {
 		console.error('Delete category error:', err);
@@ -564,15 +594,62 @@ router.delete('/categories/:id', [
 // ===== PRODUCTS =====
 router.get('/products', async (req, res) => {
 	try {
+		const cache = require('../cache');
 		// Add pagination for performance
 		const limit = Math.min(parseInt(req.query.limit) || 200, 1000);
 		const offset = Math.max(parseInt(req.query.offset) || 0, 0);
+		const search = req.query.search || '';
 		
-		const result = await query(
-			'SELECT p.id, p.name, p.barcode, p.category_id, p.description, p.sku, p.shelf, p.created_at, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id ORDER BY p.created_at DESC LIMIT $1 OFFSET $2',
-			[limit, offset]
-		);
-		res.json(result.recordset);
+		// Create cache key based on pagination and search
+		const cacheKey = `products:list:${limit}:${offset}:${search}`;
+		
+		// Check cache first (only for first page without search)
+		if (offset === 0 && !search) {
+			const cached = cache.get(cacheKey);
+			if (cached) {
+				return res.json(cached);
+			}
+		}
+		
+		// Build query with optional search
+		let queryText = 'SELECT p.id, p.name, p.barcode, p.category_id, p.description, p.sku, p.shelf, p.created_at, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id';
+		const queryParams = [];
+		
+		if (search) {
+			queryText += ' WHERE p.name ILIKE $1 OR p.barcode ILIKE $1 OR p.sku ILIKE $1';
+			queryParams.push(`%${search}%`);
+			queryText += ` ORDER BY p.created_at DESC LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
+			queryParams.push(limit, offset);
+		} else {
+			queryText += ` ORDER BY p.created_at DESC LIMIT $1 OFFSET $2`;
+			queryParams.push(limit, offset);
+		}
+		
+		const result = await query(queryText, queryParams);
+		
+		// Get total count for pagination info (only if first page)
+		let totalCount = null;
+		if (offset === 0) {
+			const countResult = await query('SELECT COUNT(*) as count FROM products' + (search ? ' WHERE name ILIKE $1 OR barcode ILIKE $1 OR sku ILIKE $1' : ''), search ? [`%${search}%`] : []);
+			totalCount = parseInt(countResult.recordset[0].count);
+		}
+		
+		const response = {
+			data: result.recordset,
+			pagination: {
+				limit,
+				offset,
+				total: totalCount,
+				hasMore: totalCount ? offset + limit < totalCount : null
+			}
+		};
+		
+		// Cache first page without search for 2 minutes
+		if (offset === 0 && !search) {
+			cache.set(cacheKey, response, 2 * 60 * 1000);
+		}
+		
+		res.json(response);
 	} catch (err) {
 		console.error('List products error:', err);
 		res.status(500).json({ error: err.message });
@@ -612,6 +689,10 @@ router.post('/products/quick-add', [
 			 ON CONFLICT (product_id, date) DO NOTHING`,
 			[id, today, stockTimestamp]
 		);
+		// Invalidate products cache
+		const cache = require('../cache');
+		cache.invalidate('products:*');
+		
 		res.json({ id });
 	} catch (err) {
 		console.error('Quick add product error:', err);
@@ -652,6 +733,10 @@ router.post('/products/quick-add-sku', [
 			 ON CONFLICT (product_id, date) DO NOTHING`,
 			[id, today, stockTimestamp]
 		);
+		// Invalidate products cache
+		const cache = require('../cache');
+		cache.invalidate('products:*');
+		
 		res.json({ id });
 	} catch (err) {
 		console.error('Quick add product (SKU) error:', err);
@@ -680,6 +765,10 @@ router.post('/products', [
 			 ON CONFLICT (product_id, date) DO NOTHING`,
 			[id, today, stockTimestamp]
 		);
+		// Invalidate products cache
+		const cache = require('../cache');
+		cache.invalidate('products:*');
+		
 		res.json({ id });
 	} catch (err) {
 		console.error('Create product error:', err);
@@ -725,6 +814,11 @@ router.put('/products/:id', [
 		}
 		params.unshift(id); // Add id as first parameter
 		await query(`UPDATE products SET ${updates.join(', ')} WHERE id = $1`, params);
+		
+		// Invalidate products cache
+		const cache = require('../cache');
+		cache.invalidate('products:*');
+		
 		res.json({ id });
 	} catch (err) {
 		console.error('Update product error:', err);
@@ -762,6 +856,11 @@ router.delete('/products/:id', [
 		
 		// Now delete the product
 		await query('DELETE FROM products WHERE id = $1', [id]);
+		
+		// Invalidate products cache
+		const cache = require('../cache');
+		cache.invalidate('products:*');
+		
 		res.json({ success: true, id });
 	} catch (err) {
 		console.error('Delete product error:', err);

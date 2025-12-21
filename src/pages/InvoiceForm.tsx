@@ -92,13 +92,14 @@ const InvoiceForm = () => {
     
     const initializeData = async () => {
       try {
-        const [prods, custs, supps, latest, stockData] = await Promise.all([
-          productsRepo.list(),
+        const [prodsResponse, custs, supps, latest, stockData] = await Promise.all([
+          productsRepo.list({ limit: 1000 }),
           customersRepo.list(),
           suppliersRepo.list(),
           productPricesRepo.latestAll(),
           invoiceType === 'sell' ? inventoryRepo.today() : Promise.resolve([]),
         ]);
+        const prods = Array.isArray(prodsResponse) ? prodsResponse : prodsResponse.data;
         
                 // Don't update state if component unmounted
         if (cancelled) return;
@@ -586,7 +587,7 @@ const InvoiceForm = () => {
   };
 
   const addItem = () => {
-    setItems([...items, {
+    setItems([{
       product_id: "",
       quantity: 1,
       unit_price: 0,
@@ -596,7 +597,7 @@ const InvoiceForm = () => {
       private_price_amount: 0,
       private_price_note: "",
       barcode: "",
-    }]);
+    }, ...items]);
   };
 
   const removeItem = (index: number) => {

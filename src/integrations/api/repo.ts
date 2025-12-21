@@ -224,8 +224,23 @@ export const categoriesRepo = {
 };
 
 export const productsRepo = {
-  async list(): Promise<ProductEntity[]> {
-    return fetchJson<ProductEntity[]>(`/api/products`);
+  async list(options?: { limit?: number; offset?: number; search?: string }): Promise<{ data: ProductEntity[]; pagination?: { limit: number; offset: number; total: number | null; hasMore: boolean | null } } | ProductEntity[]> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.offset) params.append('offset', options.offset.toString());
+    if (options?.search) params.append('search', options.search);
+    const queryString = params.toString();
+    const response = await fetchJson<{ data: ProductEntity[]; pagination?: { limit: number; offset: number; total: number | null; hasMore: boolean | null } } | ProductEntity[]>(`/api/products${queryString ? `?${queryString}` : ''}`);
+    // Backward compatibility: if response is array, return as-is
+    if (Array.isArray(response)) {
+      return response;
+    }
+    return response;
+  },
+  // Helper method to get just the data array (for backward compatibility)
+  async listArray(): Promise<ProductEntity[]> {
+    const response = await this.list({ limit: 1000 });
+    return Array.isArray(response) ? response : response.data;
   },
   async listWithoutPrices(): Promise<ProductEntity[]> {
     return fetchJson<ProductEntity[]>(`/api/products/without-prices`);

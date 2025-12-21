@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Receipt, Package, Users, UserPlus, DollarSign } from "lucide-react";
+import { Receipt, Package, Users, UserPlus, DollarSign, TrendingUp, TrendingDown } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { invoicesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
@@ -174,7 +174,7 @@ const Dashboard = () => {
                   {recentInvoices.map((invoice, idx) => (
                     <div 
                       key={invoice.id} 
-                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5 p-2 rounded-lg hover:bg-muted/50 transition-colors border-b last:border-0 animate-fade-in"
+                      className="grid grid-cols-1 sm:grid-cols-3 items-center gap-1.5 p-2 rounded-lg hover:bg-muted/50 transition-colors border-b last:border-0 animate-fade-in"
                       style={{ animationDelay: `${idx * 0.1}s` }}
                     >
                       <div className="flex-1 min-w-0">
@@ -185,6 +185,16 @@ const Dashboard = () => {
                           <span className="w-1 h-1 rounded-full bg-muted-foreground" />
                           {formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}
                         </p>
+                      </div>
+                      <div className="flex items-center justify-center gap-1.5 px-2 py-1 rounded-md bg-primary/5 dark:bg-primary/10 border border-primary/20 self-center mx-auto">
+                        {invoice.invoice_type === 'buy' ? (
+                          <TrendingUp className="w-3.5 h-3.5 text-success" />
+                        ) : (
+                          <TrendingDown className="w-3.5 h-3.5 text-primary" />
+                        )}
+                        <span className="text-[10px] font-medium text-foreground whitespace-nowrap">
+                          {invoice.invoice_type === 'sell' ? t('invoices.sell') : t('invoices.buy')}
+                        </span>
                       </div>
                       <div className="text-left sm:text-right w-full sm:w-auto">
                         <p className="font-bold text-sm sm:text-base">${Number(invoice.total_amount).toFixed(2)}</p>

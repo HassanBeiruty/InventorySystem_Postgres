@@ -48,7 +48,8 @@ export function RecomputePositionsDialog({
   const fetchProducts = async () => {
     setFetchingProducts(true);
     try {
-      const data = await productsRepo.list();
+      const dataResponse = await productsRepo.list({ limit: 1000 });
+      const data = Array.isArray(dataResponse) ? dataResponse : dataResponse.data;
       setProducts(data || []);
     } catch (error: any) {
       console.error("Error fetching products:", error);

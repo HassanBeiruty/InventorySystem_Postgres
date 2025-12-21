@@ -41,8 +41,10 @@ const Products = () => {
 
   const fetchProducts = async () => {
     try {
-    const data = await productsRepo.list();
-    setProducts(data || []);
+      const response = await productsRepo.list({ limit: 200 });
+      // Handle both old format (array) and new format (object with data property)
+      const products = Array.isArray(response) ? response : (response.data || []);
+      setProducts(products);
     } catch (error: any) {
       console.error('Error fetching products:', error);
       toast({ 

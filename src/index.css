@@ -69,6 +69,10 @@ All colors MUST be HSL.
     --warning-foreground: 0 0% 100%;
     --warning-light: 38 92% 96%;
 
+    --info: 217 92% 65%;
+    --info-foreground: 0 0% 100%;
+    --info-light: 217 92% 96%;
+
     --border: 220 13% 91%;
     --input: 220 13% 91%;
     --ring: 270 91% 65%;
@@ -129,6 +133,10 @@ All colors MUST be HSL.
     --warning-foreground: 0 0% 100%;
     --warning-light: 35 65% 15%;
 
+    --info: 217 92% 68%;
+    --info-foreground: 0 0% 100%;
+    --info-light: 217 92% 12%;
+
     --border: 220 20% 15%;
     --input: 220 20% 12%;
     --ring: 270 91% 68%;
@@ -187,6 +195,10 @@ All colors MUST be HSL.
     --warning: 35 75% 50%;
     --warning-foreground: 0 0% 100%;
     --warning-light: 35 50% 94%;
+
+    --info: 30 50% 50%;
+    --info-foreground: 0 0% 100%;
+    --info-light: 30 30% 94%;
 
     --border: 35 20% 85%;
     --input: 35 20% 88%;
@@ -629,6 +641,104 @@ All colors MUST be HSL.
     .container {
       padding-left: 0.75rem;
       padding-right: 0.75rem;
+    }
+
+    /* Ensure touch-friendly button sizes (minimum 44x44px) */
+    button,
+    [role="button"],
+    a[role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+    }
+
+    /* Improve input touch targets on mobile */
+    input[type="text"],
+    input[type="number"],
+    input[type="date"],
+    input[type="email"],
+    input[type="password"],
+    select,
+    textarea {
+      min-height: 44px;
+    }
+
+    /* Prevent iOS zoom on small inputs - only apply to text-xs and smaller */
+    input[type="text"].text-xs,
+    input[type="number"].text-xs,
+    input[type="date"].text-xs,
+    select.text-xs {
+      font-size: 16px; /* Prevents zoom on iOS */
+    }
+
+    /* Make tables horizontally scrollable on mobile */
+    table {
+      display: block;
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Improve card spacing on mobile */
+    .card,
+    [class*="Card"] {
+      margin-bottom: 1rem;
+    }
+
+    /* Better spacing for form elements */
+    form > * {
+      margin-bottom: 1rem;
+    }
+
+    /* Improve dialog/modal on mobile */
+    [role="dialog"],
+    [data-radix-dialog-content] {
+      width: 100vw !important;
+      max-width: 100vw !important;
+      margin: 0 !important;
+      border-radius: 0 !important;
+      max-height: 100vh !important;
+    }
+
+    /* Improve dropdown menus on mobile */
+    [data-radix-dropdown-menu-content] {
+      max-width: calc(100vw - 2rem);
+    }
+
+    /* Better text readability on mobile */
+    body {
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
+
+    /* Prevent horizontal scroll */
+    body,
+    html {
+      overflow-x: hidden;
+      width: 100%;
+    }
+
+    /* Improve navigation scroll on mobile */
+    nav {
+      -webkit-overflow-scrolling: touch;
+    }
+  }
+
+  /* Tablet and mobile improvements */
+  @media (max-width: 768px) {
+    /* Make grid layouts stack on mobile */
+    .grid {
+      grid-template-columns: 1fr !important;
+    }
+
+    /* Improve spacing in cards */
+    [class*="CardContent"] {
+      padding: 1rem;
+    }
+
+    /* Better button spacing */
+    .flex.gap-1,
+    .flex.gap-2 {
+      flex-wrap: wrap;
     }
   }
 }

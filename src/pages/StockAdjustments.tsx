@@ -36,7 +36,8 @@ const StockAdjustments = () => {
 
   const fetchProducts = async () => {
     try {
-      const data = await productsRepo.list();
+      const dataResponse = await productsRepo.list({ limit: 1000 });
+      const data = Array.isArray(dataResponse) ? dataResponse : dataResponse.data;
       setProducts(data || []);
     } catch (error) {
       console.error("Error fetching products:", error);

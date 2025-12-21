@@ -7,20 +7,30 @@ if (process.env.DATABASE_URL) {
 	// Use DATABASE_URL if provided (common in Render or Supabase)
 	// This is the easiest and most reliable method
 	const isSupabase = process.env.DATABASE_URL.includes('supabase.co');
+	const usePgbouncer = process.env.DATABASE_URL.includes('pgbouncer=true') || process.env.USE_PGBOUNCER === 'true';
+	
+	// Optimize pool settings for production
+	const maxConnections = usePgbouncer ? 10 : 20; // Lower for pgbouncer since it handles pooling
+	
 	poolConfig = {
 		connectionString: process.env.DATABASE_URL,
 		ssl: process.env.PG_SSL === 'true' || process.env.DATABASE_URL.includes('render.com') || process.env.DATABASE_URL.includes('dpg-') || isSupabase
 			? { rejectUnauthorized: false } 
 			: false,
-		max: 20,
+		max: maxConnections,
+		min: 2, // Keep minimum connections ready
 		idleTimeoutMillis: 30000,
-		connectionTimeoutMillis: 30000,
+		connectionTimeoutMillis: 10000, // Faster timeout for production
+		allowExitOnIdle: false, // Keep pool alive
 		// Force IPv4 for Supabase if needed (connection pooler handles this better)
 		...(isSupabase && { 
 			// Supabase connection pooler handles IPv4/IPv6 automatically
 		}),
 	};
 	console.log('[DB] Using DATABASE_URL connection string');
+	if (usePgbouncer) {
+		console.log('[DB] ✅ PgBouncer connection pooling enabled');
+	}
 } else {
 	// Use individual connection parameters
 	const password = process.env.PG_PASSWORD || '';
@@ -36,6 +46,9 @@ if (process.env.DATABASE_URL) {
 	
 	const isSupabase = process.env.PG_HOST && process.env.PG_HOST.includes('supabase.co');
 	
+	const usePgbouncer = process.env.USE_PGBOUNCER === 'true';
+	const maxConnections = usePgbouncer ? 10 : 20;
+	
 	poolConfig = {
 		host: process.env.PG_HOST || 'localhost',
 		port: parseInt(process.env.PG_PORT || '5432'),
@@ -43,14 +56,20 @@ if (process.env.DATABASE_URL) {
 		user: process.env.PG_USER || 'postgres',
 		password: password,
 		ssl: process.env.PG_SSL === 'true' || isSupabase ? { rejectUnauthorized: false } : false,
-		max: 20,
+		max: maxConnections,
+		min: 2, // Keep minimum connections ready
 		idleTimeoutMillis: 30000,
-		connectionTimeoutMillis: 30000,
+		connectionTimeoutMillis: 10000, // Faster timeout for production
+		allowExitOnIdle: false, // Keep pool alive
 		// For Supabase, prefer IPv4 by using connection pooler port
 		...(isSupabase && process.env.PG_PORT === '5432' && {
 			// Note: If direct connection fails, use connection pooler port 6543
 		}),
 	};
+	
+	if (usePgbouncer) {
+		console.log('[DB] ✅ PgBouncer connection pooling enabled');
+	}
 }
 
 // Log connection details (without password) for debugging
