@@ -45,6 +45,11 @@ export default {
           foreground: "hsl(var(--info-foreground))",
           light: "hsl(var(--info-light))",
         },
+        pending: {
+          DEFAULT: "hsl(var(--pending))",
+          foreground: "hsl(var(--pending-foreground))",
+          light: "hsl(var(--pending-light))",
+        },
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",

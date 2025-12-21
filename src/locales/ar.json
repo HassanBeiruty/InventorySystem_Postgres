@@ -48,6 +48,7 @@
     "lowStockAlerts": "تنبيهات المخزون المنخفض",
     "viewAll": "عرض الكل",
     "paid": "مدفوع",
+    "partial": "جزئي",
     "pending": "قيد الانتظار"
   },
   "products": {

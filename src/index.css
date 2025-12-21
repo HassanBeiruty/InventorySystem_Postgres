@@ -73,6 +73,10 @@ All colors MUST be HSL.
     --info-foreground: 0 0% 100%;
     --info-light: 217 92% 96%;
 
+    --pending: 217 92% 55%;
+    --pending-foreground: 0 0% 100%;
+    --pending-light: 217 92% 95%;
+
     --border: 220 13% 91%;
     --input: 220 13% 91%;
     --ring: 270 91% 65%;
@@ -137,6 +141,10 @@ All colors MUST be HSL.
     --info-foreground: 0 0% 100%;
     --info-light: 217 92% 12%;
 
+    --pending: 217 92% 60%;
+    --pending-foreground: 0 0% 100%;
+    --pending-light: 217 92% 15%;
+
     --border: 220 20% 15%;
     --input: 220 20% 12%;
     --ring: 270 91% 68%;
@@ -199,6 +207,10 @@ All colors MUST be HSL.
     --info: 30 50% 50%;
     --info-foreground: 0 0% 100%;
     --info-light: 30 30% 94%;
+
+    --pending: 25 60% 45%;
+    --pending-foreground: 0 0% 100%;
+    --pending-light: 25 40% 92%;
 
     --border: 35 20% 85%;
     --input: 35 20% 88%;
