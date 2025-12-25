@@ -104,10 +104,17 @@ const Dashboard = () => {
     <DashboardLayout>
       <div className="space-y-2 sm:space-y-3 animate-fade-in">
         <div className="space-y-0.5">
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-            📊 {t('dashboard.title')}
-          </h2>
-          <p className="text-muted-foreground text-xs sm:text-sm">{t('dashboard.subtitle')}</p>
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10">
+              <Receipt className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+                {t('dashboard.title')}
+              </h2>
+              <p className="text-muted-foreground text-xs sm:text-sm">{t('dashboard.subtitle')}</p>
+            </div>
+          </div>
         </div>
 
         <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">

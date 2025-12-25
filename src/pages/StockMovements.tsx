@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { TrendingUp, TrendingDown, Package, Search, X, Calendar } from "lucide-react";
+import { TrendingUp, TrendingDown, Package, Search, X, Calendar, History } from "lucide-react";
 import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { useTranslation } from "react-i18next";
 
@@ -74,11 +74,16 @@ const StockMovements = () => {
     <DashboardLayout>
       <div className="space-y-1.5 sm:space-y-2 animate-fade-in">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-          <div className="space-y-0.5">
-            <h1 className="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              📊 {t('stockMovements.title')}
-            </h1>
-            <p className="text-muted-foreground text-[10px] sm:text-xs">{t('stockMovements.subtitle')}</p>
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10">
+              <History className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+                {t('stockMovements.title')}
+              </h1>
+              <p className="text-muted-foreground text-[10px] sm:text-xs">{t('stockMovements.subtitle')}</p>
+            </div>
           </div>
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
             <div className="flex items-center gap-2">

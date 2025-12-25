@@ -389,11 +389,16 @@ const Products = () => {
     <DashboardLayout>
       <div className="space-y-3 sm:space-y-4 animate-fade-in">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-          <div className="space-y-1">
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              📦 {t('products.title')}
-            </h2>
-            <p className="text-muted-foreground text-xs sm:text-sm">{t('products.subtitle')}</p>
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10">
+              <Package className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+                {t('products.title')}
+              </h2>
+              <p className="text-muted-foreground text-xs sm:text-sm">{t('products.subtitle')}</p>
+            </div>
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
             <Button 

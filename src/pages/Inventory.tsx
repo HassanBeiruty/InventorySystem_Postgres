@@ -4,7 +4,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Package, AlertTriangle, Search, X } from "lucide-react";
+import { Package, AlertTriangle, Search, X, Warehouse } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -62,11 +62,16 @@ const Inventory = () => {
     <DashboardLayout>
       <div className="space-y-3 sm:space-y-4 animate-fade-in">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-          <div className="space-y-1">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              📦 {t('inventory.title')} - {t('inventory.todayPosition')}
-            </h1>
-            <p className="text-muted-foreground text-xs sm:text-sm">{t('inventory.subtitle')}</p>
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10">
+              <Warehouse className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+                {t('inventory.title')} - {t('inventory.todayPosition')}
+              </h1>
+              <p className="text-muted-foreground text-xs sm:text-sm">{t('inventory.subtitle')}</p>
+            </div>
           </div>
         </div>
 

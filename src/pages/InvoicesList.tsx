@@ -193,11 +193,16 @@ const InvoicesList = () => {
       <div className="space-y-1.5 sm:space-y-2">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
-          <div>
-            <h1 className="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              📄 {t('invoices.title')}
-            </h1>
-            <p className="text-muted-foreground text-[10px] sm:text-xs">{t('invoices.subtitle')}</p>
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10">
+              <FileText className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+                {t('invoices.title')}
+              </h1>
+              <p className="text-muted-foreground text-[10px] sm:text-xs">{t('invoices.subtitle')}</p>
+            </div>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1 w-full sm:w-auto">
              <Button

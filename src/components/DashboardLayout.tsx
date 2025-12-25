@@ -95,7 +95,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 className={`gap-1 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-lg font-semibold pointer-events-auto text-[10px] sm:text-xs h-7 whitespace-nowrap ${
                   location.pathname === "/" 
                     ? "text-primary [&_svg]:text-primary dark:text-primary dark:[&_svg]:text-primary system:text-primary system:[&_svg]:text-primary" 
-                    : "text-foreground [&_svg]:text-foreground dark:text-white dark:[&_svg]:text-white system:text-foreground system:[&_svg]:text-foreground hover:bg-primary/20 hover:text-foreground"
+                    : "text-foreground [&_svg]:text-foreground dark:text-white dark:[&_svg]:text-white hover:bg-primary/20 hover:text-foreground"
                 }`}
               >
                 <Home className="w-3 h-3" />
