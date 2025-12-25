@@ -15,7 +15,9 @@ const tables = [
 );
 
 CREATE INDEX IF NOT EXISTS IX_users_email ON users(email);
-CREATE INDEX IF NOT EXISTS IX_users_is_admin ON users(is_admin);`
+CREATE INDEX IF NOT EXISTS IX_users_is_admin ON users(is_admin);
+
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;`
 	},
 	{
 		name: 'categories',
@@ -26,7 +28,9 @@ CREATE INDEX IF NOT EXISTS IX_users_is_admin ON users(is_admin);`
 	created_at TIMESTAMP NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS IX_categories_name ON categories(name);`
+CREATE INDEX IF NOT EXISTS IX_categories_name ON categories(name);
+
+ALTER TABLE categories ENABLE ROW LEVEL SECURITY;`
 	},
 	{
 		name: 'products',
@@ -45,7 +49,9 @@ CREATE INDEX IF NOT EXISTS IX_categories_name ON categories(name);`
 CREATE INDEX IF NOT EXISTS IX_products_name ON products(name);
 CREATE INDEX IF NOT EXISTS IX_products_category ON products(category_id);
 CREATE INDEX IF NOT EXISTS IX_products_barcode ON products(barcode) WHERE barcode IS NOT NULL;
-CREATE INDEX IF NOT EXISTS IX_products_sku ON products(sku) WHERE sku IS NOT NULL;`
+CREATE INDEX IF NOT EXISTS IX_products_sku ON products(sku) WHERE sku IS NOT NULL;
+
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;`
 	},
 	{
 		name: 'product_prices',
@@ -62,7 +68,9 @@ CREATE INDEX IF NOT EXISTS IX_products_sku ON products(sku) WHERE sku IS NOT NUL
 CREATE INDEX IF NOT EXISTS IX_product_prices_product_date ON product_prices(product_id, effective_date);
 CREATE INDEX IF NOT EXISTS IX_product_prices_product ON product_prices(product_id);
 CREATE INDEX IF NOT EXISTS IX_product_prices_effective_date ON product_prices(effective_date);
-CREATE INDEX IF NOT EXISTS IX_product_prices_created_at ON product_prices(created_at);`
+CREATE INDEX IF NOT EXISTS IX_product_prices_created_at ON product_prices(created_at);
+
+ALTER TABLE product_prices ENABLE ROW LEVEL SECURITY;`
 	},
 	{
 		name: 'customers',
@@ -75,7 +83,9 @@ CREATE INDEX IF NOT EXISTS IX_product_prices_created_at ON product_prices(create
 	created_at TIMESTAMP NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS IX_customers_name ON customers(name);`
+CREATE INDEX IF NOT EXISTS IX_customers_name ON customers(name);
+
+ALTER TABLE customers ENABLE ROW LEVEL SECURITY;`
 	},
 	{
 		name: 'suppliers',
@@ -87,7 +97,9 @@ CREATE INDEX IF NOT EXISTS IX_customers_name ON customers(name);`
 	created_at TIMESTAMP NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS IX_suppliers_name ON suppliers(name);`
+CREATE INDEX IF NOT EXISTS IX_suppliers_name ON suppliers(name);
+
+ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;`
 	},
 	{
 		name: 'invoices',
@@ -112,7 +124,9 @@ CREATE INDEX IF NOT EXISTS IX_invoices_supplier_id ON invoices(supplier_id) WHER
 CREATE INDEX IF NOT EXISTS IX_invoices_invoice_type ON invoices(invoice_type);
 CREATE INDEX IF NOT EXISTS IX_invoices_payment_status ON invoices(payment_status);
 CREATE INDEX IF NOT EXISTS IX_invoices_due_date ON invoices(due_date) WHERE due_date IS NOT NULL;
-CREATE INDEX IF NOT EXISTS IX_invoices_created_at ON invoices(created_at);`
+CREATE INDEX IF NOT EXISTS IX_invoices_created_at ON invoices(created_at);
+
+ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;`
 	},
 	{
 		name: 'invoice_items',
@@ -133,7 +147,9 @@ CREATE INDEX IF NOT EXISTS IX_invoices_created_at ON invoices(created_at);`
 
 CREATE INDEX IF NOT EXISTS IX_invoice_items_invoice ON invoice_items(invoice_id);
 CREATE INDEX IF NOT EXISTS IX_invoice_items_product ON invoice_items(product_id);
-CREATE INDEX IF NOT EXISTS IX_invoice_items_invoice_product ON invoice_items(invoice_id, product_id);`
+CREATE INDEX IF NOT EXISTS IX_invoice_items_invoice_product ON invoice_items(invoice_id, product_id);
+
+ALTER TABLE invoice_items ENABLE ROW LEVEL SECURITY;`
 	},
 	{
 		name: 'daily_stock',
@@ -153,7 +169,9 @@ CREATE INDEX IF NOT EXISTS IX_daily_stock_product_date ON daily_stock(product_id
 CREATE INDEX IF NOT EXISTS IX_daily_stock_product ON daily_stock(product_id);
 CREATE INDEX IF NOT EXISTS IX_daily_stock_date ON daily_stock(date);
 CREATE INDEX IF NOT EXISTS IX_daily_stock_available_qty ON daily_stock(available_qty);
-CREATE INDEX IF NOT EXISTS IX_daily_stock_updated_at ON daily_stock(updated_at);`
+CREATE INDEX IF NOT EXISTS IX_daily_stock_updated_at ON daily_stock(updated_at);
+
+ALTER TABLE daily_stock ENABLE ROW LEVEL SECURITY;`
 	},
 	{
 		name: 'stock_movements',
@@ -177,7 +195,9 @@ CREATE INDEX IF NOT EXISTS IX_stock_movements_product_id ON stock_movements(prod
 CREATE INDEX IF NOT EXISTS IX_stock_movements_invoice_id ON stock_movements(invoice_id);
 CREATE INDEX IF NOT EXISTS IX_stock_movements_product_invoice ON stock_movements(product_id, invoice_id);
 CREATE INDEX IF NOT EXISTS IX_stock_movements_product_invoice_date ON stock_movements(product_id, invoice_id, invoice_date);
-CREATE INDEX IF NOT EXISTS IX_stock_movements_created_at ON stock_movements(created_at);`
+CREATE INDEX IF NOT EXISTS IX_stock_movements_created_at ON stock_movements(created_at);
+
+ALTER TABLE stock_movements ENABLE ROW LEVEL SECURITY;`
 	},
 	{
 		name: 'stock_movements_add_cost_columns',
@@ -208,7 +228,9 @@ END $$;`
 
 CREATE INDEX IF NOT EXISTS IX_invoice_payments_invoice ON invoice_payments(invoice_id);
 CREATE INDEX IF NOT EXISTS IX_invoice_payments_payment_date ON invoice_payments(payment_date);
-CREATE INDEX IF NOT EXISTS IX_invoice_payments_created_at ON invoice_payments(created_at);`
+CREATE INDEX IF NOT EXISTS IX_invoice_payments_created_at ON invoice_payments(created_at);
+
+ALTER TABLE invoice_payments ENABLE ROW LEVEL SECURITY;`
 	},
 	{
 		name: 'invoice_payment_columns',
@@ -307,6 +329,7 @@ CREATE OR REPLACE FUNCTION recalculate_stock_after_invoice(
 )
 RETURNS VOID
 LANGUAGE plpgsql
+SET search_path = public
 AS $$
 DECLARE
 	v_quantity_before DECIMAL(18,4);
@@ -432,6 +455,7 @@ RETURNS void
 LANGUAGE 'plpgsql'
 COST 100
 VOLATILE PARALLEL UNSAFE
+SET search_path = public
 AS $BODY$
 DECLARE
 	v_yesterday DATE := CURRENT_DATE - INTERVAL '1 day';
@@ -497,6 +521,7 @@ ALTER FUNCTION public.sp_daily_stock_snapshot()
 CREATE OR REPLACE FUNCTION sp_recompute_positions(p_product_id INT DEFAULT NULL)
 RETURNS VOID
 LANGUAGE plpgsql
+SET search_path = public
 AS $$
 DECLARE
 	v_now TIMESTAMP := NOW();
@@ -648,7 +673,9 @@ $$;`
 
 CREATE INDEX IF NOT EXISTS IX_exchange_rates_currency ON exchange_rates(currency_code);
 CREATE INDEX IF NOT EXISTS IX_exchange_rates_effective_date ON exchange_rates(effective_date);
-CREATE INDEX IF NOT EXISTS IX_exchange_rates_active ON exchange_rates(is_active);`
+CREATE INDEX IF NOT EXISTS IX_exchange_rates_active ON exchange_rates(is_active);
+
+ALTER TABLE exchange_rates ENABLE ROW LEVEL SECURITY;`
 	},
 	{
 		name: 'invoice_payments_multi_currency',

@@ -323,7 +323,7 @@ if (process.env.NODE_ENV !== 'test') {
 				await query("SET TIMEZONE = 'Asia/Beirut';", []);
 				
 				// Call the stored procedure - it uses CURRENT_DATE which now uses Beirut timezone
-				const result = await query('SELECT sp_daily_stock_snapshot();', []);
+				const result = await query('SELECT sp_recompute_positions(NULL);', []);
 				
 				// Verify records were created for today (using PostgreSQL CURRENT_DATE with Beirut timezone)
 				// Query using CURRENT_DATE directly to match what the function used
