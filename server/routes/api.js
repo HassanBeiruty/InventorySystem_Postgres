@@ -3001,7 +3001,7 @@ router.get('/admin/health', authenticateToken, requireAdmin, async (req, res) =>
 			},
 			dailyStockSnapshot: {
 				lastRun: lastSnapshot,
-				scheduledTime: '00:05 (Asia/Beirut)'
+				scheduledTime: '00:00 (Asia/Beirut)'
 			},
 			responseTime: `${responseTime}ms`
 		});

@@ -247,7 +247,7 @@ app.get('/api/admin/init-status', async (req, res) => {
 	}
 });
 
-// Schedule daily stock snapshot at 12:05 AM (midnight) - Lebanon timezone
+// Schedule daily stock snapshot at 12:00 AM (midnight) - Lebanon timezone
 // This is the alternative to pgAgent for cloud databases
 // Wait for DB initialization to complete before setting up cron job
 // Skip in test environment to prevent Jest teardown issues
@@ -310,9 +310,9 @@ if (process.env.NODE_ENV !== 'test') {
 			return timeStr.replace(' ', 'T');
 		}
 
-		// Run daily at 12:05 AM (midnight) - Lebanon timezone
-		// Cron format: '5 0 * * *' = minute 5, hour 0 (midnight), every day, every month, every day of week
-		cron.schedule('5 0 * * *', async () => {
+		// Run daily at 12:00 AM (midnight) - Lebanon timezone
+		// Cron format: '0 0 * * *' = minute 0, hour 0 (midnight), every day, every month, every day of week
+		cron.schedule('0 0 * * *', async () => {
 			try {
 				const startTime = lebanonTimeForLog();
 				console.log(`[Cron] Running daily stock snapshot at ${startTime} (Lebanon time)`);
@@ -354,7 +354,7 @@ if (process.env.NODE_ENV !== 'test') {
 			timezone: "Asia/Beirut" // Change to your timezone if needed
 		});
 		
-		console.log('✓ Scheduled job: Daily stock snapshot (runs daily at 12:05 AM Beirut time)');
+		console.log('✓ Scheduled job: Daily stock snapshot (runs daily at 12:00 AM Beirut time)');
 		} catch (error) {
 			// node-cron might not be installed, that's okay
 			if (error.code !== 'MODULE_NOT_FOUND') {
