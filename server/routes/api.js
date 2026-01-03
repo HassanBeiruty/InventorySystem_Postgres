@@ -616,8 +616,10 @@ router.get('/products', async (req, res) => {
 		const queryParams = [];
 		
 		if (search) {
-			queryText += ' WHERE p.name ILIKE $1 OR p.barcode ILIKE $1 OR p.sku ILIKE $1';
-			queryParams.push(`%${search}%`);
+			// Remove all spaces from search term for comparison
+			const normalizedSearch = search.trim().replace(/\s+/g, '');
+			queryText += ' WHERE p.name ILIKE $1 OR REPLACE(TRIM(COALESCE(p.barcode, \'\')), \' \', \'\') ILIKE $2 OR REPLACE(TRIM(COALESCE(p.sku, \'\')), \' \', \'\') ILIKE $2';
+			queryParams.push(`%${search.trim()}%`, `%${normalizedSearch}%`);
 			queryText += ` ORDER BY p.created_at DESC LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
 			queryParams.push(limit, offset);
 		} else {
@@ -630,8 +632,14 @@ router.get('/products', async (req, res) => {
 		// Get total count for pagination info (only if first page)
 		let totalCount = null;
 		if (offset === 0) {
-			const countResult = await query('SELECT COUNT(*) as count FROM products' + (search ? ' WHERE name ILIKE $1 OR barcode ILIKE $1 OR sku ILIKE $1' : ''), search ? [`%${search}%`] : []);
-			totalCount = parseInt(countResult.recordset[0].count);
+			if (search) {
+				const normalizedSearch = search.trim().replace(/\s+/g, '');
+				const countResult = await query('SELECT COUNT(*) as count FROM products WHERE name ILIKE $1 OR REPLACE(TRIM(COALESCE(barcode, \'\')), \' \', \'\') ILIKE $2 OR REPLACE(TRIM(COALESCE(sku, \'\')), \' \', \'\') ILIKE $2', [`%${search.trim()}%`, `%${normalizedSearch}%`]);
+				totalCount = parseInt(countResult.recordset[0].count);
+			} else {
+				const countResult = await query('SELECT COUNT(*) as count FROM products', []);
+				totalCount = parseInt(countResult.recordset[0].count);
+			}
 		}
 		
 		const response = {
@@ -663,11 +671,12 @@ router.post('/products/quick-add', [
 ], handleValidationErrors, async (req, res) => {
 	try {
 		const { name, barcode } = req.body;
+		const trimmedBarcode = barcode.trim();
 		
-		// Check if barcode already exists
+		// Check if barcode already exists (compare trimmed values)
 		const existingBarcode = await query(
-			'SELECT id FROM products WHERE barcode = $1',
-			[barcode]
+			'SELECT id FROM products WHERE TRIM(barcode) = $1',
+			[trimmedBarcode]
 		);
 		if (existingBarcode.recordset.length > 0) {
 			return res.status(400).json({ error: 'Barcode already exists' });
@@ -677,7 +686,7 @@ router.post('/products/quick-add', [
 		// Using plain array params
 		const result = await query(
 			'INSERT INTO products (name, barcode, category_id, description, sku, shelf, created_at) VALUES ($1, $2, NULL, NULL, NULL, NULL, $3) RETURNING id',
-			[name, barcode, createdAt]
+			[name, trimmedBarcode, createdAt]
 		);
 		const id = result.recordset[0].id;
 		// Ensure daily stock entry - using plain array params
@@ -707,11 +716,12 @@ router.post('/products/quick-add-sku', [
 ], handleValidationErrors, async (req, res) => {
 	try {
 		const { name, sku } = req.body;
+		const trimmedSku = sku.trim();
 		
-		// Check if SKU already exists
+		// Check if SKU already exists (compare trimmed values)
 		const existingSku = await query(
-			'SELECT id FROM products WHERE sku = $1',
-			[sku]
+			'SELECT id FROM products WHERE TRIM(sku) = $1',
+			[trimmedSku]
 		);
 		if (existingSku.recordset.length > 0) {
 			return res.status(400).json({ error: 'SKU already exists' });
@@ -721,7 +731,7 @@ router.post('/products/quick-add-sku', [
 		// Using plain array params
 		const result = await query(
 			'INSERT INTO products (name, barcode, category_id, description, sku, shelf, created_at) VALUES ($1, NULL, NULL, NULL, $2, NULL, $3) RETURNING id',
-			[name, sku, createdAt]
+			[name, trimmedSku, createdAt]
 		);
 		const id = result.recordset[0].id;
 		// Ensure daily stock entry - using plain array params
@@ -749,11 +759,13 @@ router.post('/products', [
 ], handleValidationErrors, async (req, res) => {
 	try {
 		const { name, barcode, category_id, description, sku, shelf } = req.body;
+		const trimmedBarcode = barcode ? barcode.trim() : null;
+		const trimmedSku = sku ? sku.trim() : null;
 		const createdAt = nowIso();
 		// Using plain array params
 		const result = await query(
 			'INSERT INTO products (name, barcode, category_id, description, sku, shelf, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
-			[name, barcode || null, category_id ? parseInt(category_id) : null, description || null, sku || null, shelf || null, createdAt]
+			[name, trimmedBarcode, category_id ? parseInt(category_id) : null, description || null, trimmedSku, shelf || null, createdAt]
 		);
 		const id = result.recordset[0].id;
 		// Ensure daily stock entry - using plain array params
@@ -791,7 +803,7 @@ router.put('/products/:id', [
 		}
 		if (barcode !== undefined) {
 			updates.push(`barcode = $${++paramIndex}`);
-			params.push(barcode || null);
+			params.push(barcode ? barcode.trim() : null);
 		}
 		if (category_id !== undefined) {
 			updates.push(`category_id = $${++paramIndex}`);
@@ -803,7 +815,7 @@ router.put('/products/:id', [
 		}
 		if (sku !== undefined) {
 			updates.push(`sku = $${++paramIndex}`);
-			params.push(sku || null);
+			params.push(sku ? sku.trim() : null);
 		}
 		if (shelf !== undefined) {
 			updates.push(`shelf = $${++paramIndex}`);
@@ -3526,6 +3538,7 @@ router.post('/products/import-excel',
 					// Use SKU as name if name is missing, or name if SKU is missing
 					const productName = name || sku || 'Imported Product';
 					const productSku = sku || null;
+					const trimmedBarcode = barcode ? barcode.trim() : null;
 
 					// Find category ID
 					let categoryId = null;
@@ -3538,7 +3551,7 @@ router.post('/products/import-excel',
 					let existingProduct = null;
 					if (productSku) {
 						const existingCheck = await client.query(
-							'SELECT id FROM products WHERE sku = $1',
+							'SELECT id FROM products WHERE TRIM(sku) = $1',
 							[productSku]
 						);
 						if (existingCheck.rows.length > 0) {
@@ -3574,9 +3587,9 @@ router.post('/products/import-excel',
 							updates.push(`description = $${++paramIndex}`);
 							params.push(description);
 						}
-						if (barcode) {
+						if (trimmedBarcode) {
 							updates.push(`barcode = $${++paramIndex}`);
-							params.push(barcode);
+							params.push(trimmedBarcode);
 						}
 						if (categoryId) {
 							updates.push(`category_id = $${++paramIndex}`);
@@ -3598,7 +3611,7 @@ router.post('/products/import-excel',
 						// Insert new product
 						const insertResult = await client.query(
 							'INSERT INTO products (name, barcode, category_id, description, sku, shelf, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
-							[productName, barcode, categoryId, description, productSku, shelf, createdAt]
+							[productName, trimmedBarcode, categoryId, description, productSku, shelf, createdAt]
 						);
 						productId = insertResult.rows[0].id;
 

@@ -68,9 +68,10 @@ const DailyStocks = () => {
   // Memoize filtered groups to avoid recalculating on every render
   const filteredGroups = useMemo(() => {
     return Object.entries(groupedByDate).reduce((acc, [date, items]) => {
+      const trimmedSearch = searchTerm.trim().replace(/\s+/g, '').toLowerCase();
       const filtered = items.filter(item => 
-        item.products?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.products?.barcode?.toLowerCase().includes(searchTerm.toLowerCase())
+        item.products?.name.toLowerCase().includes(trimmedSearch) ||
+        (item.products?.barcode && item.products.barcode.replace(/\s+/g, '').toLowerCase().includes(trimmedSearch))
       );
       if (filtered.length > 0) {
         acc[date] = filtered;

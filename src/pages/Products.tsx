@@ -80,10 +80,10 @@ const Products = () => {
   const filteredProducts = products.filter(p => {
     // Search filter - search across all fields
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+      const query = searchQuery.trim().replace(/\s+/g, '').toLowerCase();
       const name = (p.name || "").toLowerCase();
-      const barcode = (p.barcode || "").toLowerCase();
-      const sku = (p.sku || "").toLowerCase();
+      const barcode = (p.barcode || "").replace(/\s+/g, '').toLowerCase();
+      const sku = (p.sku || "").replace(/\s+/g, '').toLowerCase();
       const shelf = (p.shelf || "").toLowerCase();
       const category = (p.category_name || "").toLowerCase();
       const description = (p.description || "").toLowerCase();
@@ -118,10 +118,10 @@ const Products = () => {
       // Add product
       const result = await productsRepo.add({
         name,
-        barcode: barcode || null,
+        barcode: barcode ? barcode.trim() : null,
         category_id: formCategoryId ? parseInt(formCategoryId) : null,
         description: description || null,
-        sku: sku || null,
+        sku: sku ? sku.trim() : null,
         shelf: shelf || null,
       });
 
@@ -197,10 +197,10 @@ const Products = () => {
       // Update product
       await productsRepo.update(editingProduct.id, {
         name,
-        barcode: barcode || null,
+        barcode: barcode ? barcode.trim() : null,
         category_id: editFormCategoryId ? parseInt(editFormCategoryId) : null,
         description: description || null,
-        sku: sku || null,
+        sku: sku ? sku.trim() : null,
         shelf: shelf || null,
       });
 
@@ -655,6 +655,7 @@ const Products = () => {
                           <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('products.barcode')}</TableHead>
                           <TableHead className="font-bold whitespace-nowrap p-2 text-xs">SKU</TableHead>
                           <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('products.shelf')}</TableHead>
+                          <TableHead className="font-bold whitespace-nowrap p-2 text-xs">Description</TableHead>
                           <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('common.actions')}</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -677,6 +678,18 @@ const Products = () => {
                               <TableCell className="text-muted-foreground whitespace-nowrap font-mono text-xs p-2">{product.barcode || "-"}</TableCell>
                               <TableCell className="text-muted-foreground whitespace-nowrap font-mono text-xs p-2">{product.sku || "-"}</TableCell>
                               <TableCell className="text-muted-foreground whitespace-nowrap text-xs p-2">{product.shelf || "-"}</TableCell>
+                              <TableCell className="text-muted-foreground text-xs p-2 max-w-[200px]">
+                                {product.description ? (
+                                  <span 
+                                    className="block truncate" 
+                                    title={product.description}
+                                  >
+                                    {product.description}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground/50">-</span>
+                                )}
+                              </TableCell>
                               <TableCell className="p-2" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex items-center gap-1">
                                   <Button 

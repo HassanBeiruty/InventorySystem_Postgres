@@ -48,10 +48,10 @@ const Inventory = () => {
 
   const filteredInventory = inventory.filter(item => {
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+      const query = searchQuery.trim().replace(/\s+/g, '').toLowerCase();
       const name = (item.products?.name || "").toLowerCase();
-      const barcode = (item.products?.barcode || "").toLowerCase();
-      const sku = (item.products?.sku || "").toLowerCase();
+      const barcode = (item.products?.barcode || "").replace(/\s+/g, '').toLowerCase();
+      const sku = (item.products?.sku || "").replace(/\s+/g, '').toLowerCase();
       const id = (item.product_id || "").toString();
       return name.includes(query) || barcode.includes(query) || sku.includes(query) || id.includes(query);
     }

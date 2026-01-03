@@ -388,6 +388,9 @@ const InvoiceForm = () => {
     const trimmed = input.trim();
     if (!trimmed) return;
     
+    // Normalize by removing all spaces for comparison
+    const normalizedInput = trimmed.replace(/\s+/g, '').toLowerCase();
+    
     // In edit mode, don't allow adding new items via barcode/SKU
     if (isEditMode) {
       toast({
@@ -400,10 +403,12 @@ const InvoiceForm = () => {
     }
 
     // Try to find product by barcode first, then by SKU
-    const product = products.find(p => 
-      (p.barcode && p.barcode.toLowerCase() === trimmed.toLowerCase()) ||
-      (p.sku && p.sku.toLowerCase() === trimmed.toLowerCase())
-    );
+    // Remove all spaces from barcode/SKU for comparison to handle cases like "11 22 33" matching "112233"
+    const product = products.find(p => {
+      const normalizedBarcode = p.barcode ? p.barcode.replace(/\s+/g, '').toLowerCase() : '';
+      const normalizedSku = p.sku ? p.sku.replace(/\s+/g, '').toLowerCase() : '';
+      return normalizedBarcode === normalizedInput || normalizedSku === normalizedInput;
+    });
 
     if (!product) {
       toast({
