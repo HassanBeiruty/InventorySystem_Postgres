@@ -620,10 +620,10 @@ router.get('/products', async (req, res) => {
 			const normalizedSearch = search.trim().replace(/\s+/g, '');
 			queryText += ' WHERE p.name ILIKE $1 OR REPLACE(TRIM(COALESCE(p.barcode, \'\')), \' \', \'\') ILIKE $2 OR REPLACE(TRIM(COALESCE(p.sku, \'\')), \' \', \'\') ILIKE $2';
 			queryParams.push(`%${search.trim()}%`, `%${normalizedSearch}%`);
-			queryText += ` ORDER BY p.created_at DESC LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
+			queryText += ` ORDER BY p.id DESC LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
 			queryParams.push(limit, offset);
 		} else {
-			queryText += ` ORDER BY p.created_at DESC LIMIT $1 OFFSET $2`;
+			queryText += ` ORDER BY p.id DESC LIMIT $1 OFFSET $2`;
 			queryParams.push(limit, offset);
 		}
 		
