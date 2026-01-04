@@ -652,9 +652,9 @@ const Products = () => {
                       <TableHeader>
                         <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5 hover:from-primary/10 hover:to-accent/10">
                           <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('products.productName')}</TableHead>
+                          <TableHead className="font-bold whitespace-nowrap p-2 text-xs">Category</TableHead>
                           <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('products.barcode')}</TableHead>
                           <TableHead className="font-bold whitespace-nowrap p-2 text-xs">SKU</TableHead>
-                          <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('products.shelf')}</TableHead>
                           <TableHead className="font-bold whitespace-nowrap p-2 text-xs">Description</TableHead>
                           <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('common.actions')}</TableHead>
                         </TableRow>
@@ -675,9 +675,9 @@ const Products = () => {
                                   <span className="text-muted-foreground text-[10px] ml-1.5">#{product.id}</span>
                                 </div>
                               </TableCell>
+                              <TableCell className="text-muted-foreground whitespace-nowrap text-xs p-2">{product.category_name || "-"}</TableCell>
                               <TableCell className="text-muted-foreground whitespace-nowrap font-mono text-xs p-2">{product.barcode || "-"}</TableCell>
                               <TableCell className="text-muted-foreground whitespace-nowrap font-mono text-xs p-2">{product.sku || "-"}</TableCell>
-                              <TableCell className="text-muted-foreground whitespace-nowrap text-xs p-2">{product.shelf || "-"}</TableCell>
                               <TableCell className="text-muted-foreground text-xs p-2 max-w-[200px]">
                                 {product.description ? (
                                   <span 
