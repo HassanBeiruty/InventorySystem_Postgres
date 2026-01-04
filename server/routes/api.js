@@ -3455,7 +3455,7 @@ router.post('/products/import-excel',
 			description: ['desc', 'description', 'chinese name', 'chinese_name'],
 			barcode: ['barcode', 'barcode_no', 'barcode no'],
 			category: ['category', 'category_name'],
-			wholesale_price: ['wholesale_price', 'wholesale price', 'wholesaleprice', 'wholesale', 'unit price', 'unit_price', 'unitprice', 'price', 'price (rmb)', 'price(rmb)'],
+			wholesale_price: ['wholesale_price', 'wholesale price', 'wholesale retail price', 'wholesaleretailprice', 'wholesaleprice', 'wholesale', 'unit price', 'unit_price', 'unitprice', 'price', 'price (rmb)', 'price(rmb)'],
 			retail_price: ['retail_price', 'retail price', 'retail'],
 			shelf: ['shelf', 'shelf_location', 'location']
 		};
@@ -3482,10 +3482,16 @@ router.post('/products/import-excel',
 			}
 		}
 
+		// Log detected columns for debugging
+		console.log('Detected columns:', columnMap);
+		console.log('Available columns in file:', Object.keys(firstRow));
+
 		// Validate required columns
 		if (!columnMap.name && !columnMap.sku) {
 			return res.status(400).json({ 
-				error: 'Excel file must contain at least one of: Name/English Name or SKU/OEM/OEM NO./ITEM column' 
+				error: 'Excel file must contain at least one of: Name/English Name or SKU/OEM/OEM NO./ITEM column',
+				availableColumns: Object.keys(firstRow),
+				detectedColumns: columnMap
 			});
 		}
 
@@ -3540,14 +3546,25 @@ router.post('/products/import-excel',
 					const productSku = sku || null;
 					const trimmedBarcode = barcode ? barcode.trim() : null;
 
-					// Find category ID
+					// Find category ID, create if doesn't exist
 					let categoryId = null;
 					if (categoryName) {
 						const lowerCategoryName = categoryName.toLowerCase();
 						categoryId = categoryMap.get(lowerCategoryName) || null;
+						
+						// Create category if it doesn't exist
+						if (!categoryId && categoryName.trim()) {
+							const createCategoryResult = await client.query(
+								'INSERT INTO categories (name, description, created_at) VALUES ($1, NULL, $2) RETURNING id',
+								[categoryName.trim(), createdAt]
+							);
+							categoryId = createCategoryResult.rows[0].id;
+							// Add to map for subsequent rows
+							categoryMap.set(lowerCategoryName, categoryId);
+						}
 					}
 
-					// Check if product with same SKU or name already exists
+					// Check if product with same SKU or barcode already exists (allow duplicate names)
 					let existingProduct = null;
 					if (productSku) {
 						const existingCheck = await client.query(
@@ -3559,11 +3576,11 @@ router.post('/products/import-excel',
 						}
 					}
 
-					// If not found by SKU, check by name
-					if (!existingProduct) {
+					// If not found by SKU, check by barcode (if provided)
+					if (!existingProduct && trimmedBarcode) {
 						const existingCheck = await client.query(
-							'SELECT id FROM products WHERE LOWER(name) = LOWER($1)',
-							[productName]
+							'SELECT id FROM products WHERE TRIM(barcode) = $1',
+							[trimmedBarcode]
 						);
 						if (existingCheck.rows.length > 0) {
 							existingProduct = existingCheck.rows[0];
