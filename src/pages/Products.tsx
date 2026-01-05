@@ -651,8 +651,8 @@ const Products = () => {
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5 hover:from-primary/10 hover:to-accent/10">
-                          <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('products.productName')}</TableHead>
-                          <TableHead className="font-bold whitespace-nowrap p-2 text-xs">Category</TableHead>
+                          <TableHead className="font-bold whitespace-nowrap p-2 pl-2 pr-0.5 text-xs">{t('products.productName')}</TableHead>
+                          <TableHead className="font-bold whitespace-nowrap p-2 pl-0.5 text-xs">Category</TableHead>
                           <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('products.barcode')}</TableHead>
                           <TableHead className="font-bold whitespace-nowrap p-2 text-xs">SKU</TableHead>
                           <TableHead className="font-bold whitespace-nowrap p-2 text-xs">Description</TableHead>
@@ -669,13 +669,13 @@ const Products = () => {
                               style={{ animationDelay: `${idx * 0.05}s` }}
                               onClick={() => handleViewDetails(String(product.id))}
                             >
-                              <TableCell className="font-medium whitespace-nowrap p-2">
+                              <TableCell className="font-medium whitespace-nowrap p-2 pl-2 pr-0.5">
                                 <div>
                                   <span className="font-semibold text-sm">{product.name}</span>
                                   <span className="text-muted-foreground text-[10px] ml-1.5">#{product.id}</span>
                                 </div>
                               </TableCell>
-                              <TableCell className="text-muted-foreground whitespace-nowrap text-xs p-2">{product.category_name || "-"}</TableCell>
+                              <TableCell className="text-muted-foreground whitespace-nowrap text-xs p-2 pl-0.5">{product.category_name || "-"}</TableCell>
                               <TableCell className="text-muted-foreground whitespace-nowrap font-mono text-xs p-2">{product.barcode || "-"}</TableCell>
                               <TableCell className="text-muted-foreground whitespace-nowrap font-mono text-xs p-2">{product.sku || "-"}</TableCell>
                               <TableCell className="text-muted-foreground text-xs p-2 max-w-[200px]">

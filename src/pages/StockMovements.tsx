@@ -192,9 +192,9 @@ const StockMovements = () => {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-warning/5 to-accent/5 hover:from-warning/10 hover:to-accent/10">
-                      <TableHead className="font-bold p-1.5 text-[10px]">{t('stockMovements.date')}</TableHead>
-                      <TableHead className="font-bold p-1.5 text-[10px]">{t('stockMovements.product')}</TableHead>
-                      <TableHead className="text-center font-bold p-1.5 text-[10px]">{t('stockMovements.quantityBefore')}</TableHead>
+                      <TableHead className="font-bold p-1.5 pl-2 text-[10px]">{t('stockMovements.date')}</TableHead>
+                      <TableHead className="font-bold p-1.5 pr-0.5 text-[10px]">{t('stockMovements.product')}</TableHead>
+                      <TableHead className="text-center font-bold p-1.5 pl-0.5 text-[10px]">{t('stockMovements.quantityBefore')}</TableHead>
                       <TableHead className="text-center font-bold p-1.5 text-[10px]">{t('stockMovements.change')}</TableHead>
                       <TableHead className="text-center font-bold p-1.5 text-[10px]">{t('stockMovements.quantityAfter')}</TableHead>
                       <TableHead className="text-center font-bold p-1.5 text-[10px]">Unit Cost</TableHead>
@@ -209,10 +209,10 @@ const StockMovements = () => {
                         className="hover:bg-warning/5 transition-colors animate-fade-in"
                         style={{ animationDelay: `${idx * 0.02}s` }}
                       >
-                        <TableCell className="text-[10px] p-1.5">
+                        <TableCell className="text-[10px] p-1.5 pl-2">
                           {formatDateTimeLebanon(movement.invoice_date, "MMM dd, yyyy HH:mm")}
                         </TableCell>
-                        <TableCell className="font-semibold p-1.5 text-xs">
+                        <TableCell className="font-semibold p-1.5 pr-0.5 text-xs">
                           <span className="text-muted-foreground text-[10px]">#{movement.product_id}</span> {movement.products?.name || "Unknown Product"}
                           {(movement.products?.barcode || movement.products?.sku) && (
                             <span className="text-muted-foreground text-[10px] ml-1">
@@ -220,7 +220,7 @@ const StockMovements = () => {
                             </span>
                           )}
                         </TableCell>
-                        <TableCell className="text-center font-medium text-muted-foreground p-1.5 text-[10px]">
+                        <TableCell className="text-center font-medium text-muted-foreground p-1.5 pl-0.5 text-[10px]">
                           {movement.quantity_before}
                         </TableCell>
                         <TableCell className="text-center p-1.5">

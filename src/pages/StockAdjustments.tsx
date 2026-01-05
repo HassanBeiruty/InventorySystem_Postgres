@@ -238,7 +238,7 @@ const StockAdjustments = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>{t('invoices.date')}</TableHead>
+                      <TableHead className="pl-2">{t('invoices.date')}</TableHead>
                       <TableHead>{t('stockAdjustments.product')}</TableHead>
                       <TableHead>{t('stockAdjustments.movementType')}</TableHead>
                       <TableHead>{t('stockMovements.quantityBefore')}</TableHead>
@@ -250,7 +250,7 @@ const StockAdjustments = () => {
                   <TableBody>
                     {recentAdjustments.map((adj) => (
                       <TableRow key={adj.id}>
-                        <TableCell>{formatDateTimeLebanon(adj.created_at, "MMM dd, yyyy HH:mm")}</TableCell>
+                        <TableCell className="pl-2">{formatDateTimeLebanon(adj.created_at, "MMM dd, yyyy HH:mm")}</TableCell>
                         <TableCell>{adj.product_name || `Product #${adj.product_id}`}</TableCell>
                         <TableCell>
                           <span className="px-2 py-1 text-xs rounded-full bg-primary/10 text-primary">

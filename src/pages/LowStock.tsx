@@ -159,8 +159,8 @@ const LowStock = () => {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-destructive/5 to-warning/5">
-                      <TableHead className="font-bold p-2 text-xs">{t('lowStock.product')}</TableHead>
-                      <TableHead className="font-bold p-2 text-xs">{t('products.barcode')}</TableHead>
+                      <TableHead className="font-bold p-2 pr-0.5 text-xs">{t('lowStock.product')}</TableHead>
+                      <TableHead className="font-bold p-2 pl-0.5 text-xs">{t('products.barcode')}</TableHead>
                       <TableHead className="font-bold p-2 text-xs">SKU</TableHead>
                       <TableHead className="text-center font-bold p-2 text-xs">{t('lowStock.availableQty')}</TableHead>
                       <TableHead className="text-center font-bold p-2 text-xs">{t('invoices.status')}</TableHead>
@@ -178,7 +178,7 @@ const LowStock = () => {
                           }`}
                           style={{ animationDelay: `${idx * 0.05}s` }}
                         >
-                          <TableCell className="font-medium p-2 text-sm">
+                          <TableCell className="font-medium p-2 pl-2 pr-0.5 text-sm">
                             <div className="flex items-center gap-1.5">
                               {isCritical && (
                                 <AlertTriangle className="w-3.5 h-3.5 text-destructive animate-pulse" />
@@ -186,7 +186,7 @@ const LowStock = () => {
                               <span className="text-muted-foreground text-xs">#{item.product_id}</span> {item.products?.name || 'Unknown Product'}
                             </div>
                           </TableCell>
-                          <TableCell className="text-muted-foreground p-2 text-xs">
+                          <TableCell className="text-muted-foreground p-2 pl-0.5 text-xs">
                             {item.products?.barcode || 'N/A'}
                           </TableCell>
                           <TableCell className="text-muted-foreground p-2 text-xs">

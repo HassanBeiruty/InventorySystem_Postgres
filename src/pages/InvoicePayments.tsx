@@ -343,7 +343,7 @@ const InvoicePayments = () => {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5">
-                      <TableHead className="font-bold whitespace-nowrap p-1.5 text-[10px]">Date</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap p-1.5 pl-2 text-[10px]">Date</TableHead>
                       <TableHead className="font-bold whitespace-nowrap p-1.5 text-[10px]">Invoice#</TableHead>
                       <TableHead className="font-bold whitespace-nowrap p-1.5 text-[10px]">Entity</TableHead>
                       <TableHead className="font-bold whitespace-nowrap p-1.5 text-[10px]">Amount</TableHead>
@@ -380,7 +380,7 @@ const InvoicePayments = () => {
                             className={`hover:bg-primary/5 transition-colors cursor-pointer ${isSelected ? 'bg-primary/10 border-l-4 border-l-primary' : ''}`}
                             onClick={() => handleViewPayment(payment)}
                           >
-                            <TableCell className="p-1.5 text-[10px]">
+                            <TableCell className="p-1.5 pl-2 text-[10px]">
                               {formatDateTimeLebanon(payment.payment_date, "MMM dd, yyyy")}
                             </TableCell>
                             <TableCell className="font-bold text-primary p-1.5 text-[10px]">

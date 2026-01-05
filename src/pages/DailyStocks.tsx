@@ -215,8 +215,8 @@ const DailyStocks = () => {
                         <Table>
                           <TableHeader>
                             <TableRow className="bg-gradient-to-r from-accent/5 to-primary/5">
-                              <TableHead className="font-bold p-1.5 text-[10px]">{t('invoices.product')}</TableHead>
-                              <TableHead className="font-bold p-1.5 text-[10px]">{t('products.barcode')}</TableHead>
+                              <TableHead className="font-bold p-1.5 pl-2 pr-0.5 text-[10px]">{t('invoices.product')}</TableHead>
+                              <TableHead className="font-bold p-1.5 pl-0.5 text-[10px]">{t('products.barcode')}</TableHead>
                               <TableHead className="font-bold p-1.5 text-[10px]">SKU</TableHead>
                             <TableHead className="text-center font-bold p-1.5 text-[10px]">{t('inventory.availableQty')}</TableHead>
                             <TableHead className="text-center font-bold p-1.5 text-[10px]">Avg Cost</TableHead>
@@ -230,10 +230,10 @@ const DailyStocks = () => {
                                   key={item.id} 
                                   className="hover:bg-accent/5 transition-colors"
                                 >
-                                  <TableCell className="font-semibold p-1.5 text-xs">
+                                  <TableCell className="font-semibold p-1.5 pl-2 pr-0.5 text-xs">
                                     <span className="text-muted-foreground text-[10px]">#{item.product_id}</span> {item.products?.name || "Unknown Product"}
                                   </TableCell>
-                                  <TableCell className="font-mono text-[10px] text-muted-foreground p-1.5">
+                                  <TableCell className="font-mono text-[10px] text-muted-foreground p-1.5 pl-0.5">
                                     {item.products?.barcode || "N/A"}
                                   </TableCell>
                                   <TableCell className="font-mono text-[10px] text-muted-foreground p-1.5">

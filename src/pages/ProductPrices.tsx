@@ -405,7 +405,7 @@ const ProductPrices = () => {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5">
-                        <TableHead className="font-bold p-2 text-xs">{t('invoiceForm.product')}</TableHead>
+                        <TableHead className="font-bold p-2 pl-2 text-xs">{t('invoiceForm.product')}</TableHead>
                         <TableHead className="font-bold p-2 text-xs">{t('productPrices.effectiveDate')}</TableHead>
                         <TableHead className="text-right font-bold p-2 text-xs">{t('productPrices.wholesalePrice')}</TableHead>
                         <TableHead className="text-right font-bold p-2 text-xs">{t('productPrices.retailPrice')}</TableHead>
@@ -426,7 +426,7 @@ const ProductPrices = () => {
                         className="hover:bg-primary/5 transition-colors animate-fade-in"
                         style={{ animationDelay: `${idx * 0.01}s` }}
                       >
-                        <TableCell className="font-semibold p-2 text-sm"><span className="text-muted-foreground text-xs">#{price.product_id}</span> {price.product_name}</TableCell>
+                        <TableCell className="font-semibold p-2 pl-2 text-sm"><span className="text-muted-foreground text-xs">#{price.product_id}</span> {price.product_name}</TableCell>
                         <TableCell className="text-xs p-2">
                           {formatDateTimeLebanon(price.effective_date, "MMM dd, yyyy")}
                         </TableCell>

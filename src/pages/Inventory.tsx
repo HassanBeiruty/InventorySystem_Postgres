@@ -136,8 +136,8 @@ const Inventory = () => {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5 hover:from-primary/10 hover:to-accent/10">
-                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('invoiceForm.product')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap hidden sm:table-cell p-2 text-xs">{t('products.barcode')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap p-2 pl-2 pr-0.5 text-xs">{t('invoiceForm.product')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap hidden sm:table-cell p-2 pl-0.5 text-xs">{t('products.barcode')}</TableHead>
                       <TableHead className="font-bold whitespace-nowrap hidden sm:table-cell p-2 text-xs">SKU</TableHead>
                       <TableHead className="text-center font-bold whitespace-nowrap p-2 text-xs">{t('inventory.availableQty')}</TableHead>
                       <TableHead className="text-right font-bold whitespace-nowrap p-2 text-xs">Average Cost</TableHead>
@@ -151,10 +151,10 @@ const Inventory = () => {
                           className="hover:bg-primary/5 transition-colors animate-fade-in"
                           style={{ animationDelay: `${idx * 0.03}s` }}
                         >
-                          <TableCell className="font-semibold p-2 text-sm">
+                          <TableCell className="font-semibold p-2 pl-2 pr-0.5 text-sm">
                             <span className="text-muted-foreground text-xs">#{item.product_id}</span> {item.products?.name || "Unknown Product"}
                           </TableCell>
-                          <TableCell className="font-mono text-xs text-muted-foreground p-2">
+                          <TableCell className="font-mono text-xs text-muted-foreground p-2 pl-0.5">
                             {item.products?.barcode || "N/A"}
                           </TableCell>
                           <TableCell className="font-mono text-xs text-muted-foreground p-2">

@@ -379,12 +379,12 @@ const InvoicesList = () => {
                 <Table>
                     <TableHeader>
                       <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5">
-                        <TableHead className="font-bold whitespace-nowrap p-1 text-[10px] w-[80px]">Invoice#</TableHead>
+                        <TableHead className="font-bold whitespace-nowrap p-1 pl-2 text-[10px] w-[80px]">Invoice#</TableHead>
                         <TableHead className="font-bold whitespace-nowrap p-1 text-[10px] w-[100px]">Date</TableHead>
                         <TableHead className="font-bold whitespace-nowrap p-1 text-[10px] w-[80px]">Type</TableHead>
-                        <TableHead className="font-bold whitespace-nowrap p-1 text-[10px] w-[120px]">Entity</TableHead>
-                        <TableHead className="font-bold whitespace-nowrap p-1 text-[10px] w-[200px]">Items</TableHead>
-                        <TableHead className="text-right font-bold whitespace-nowrap p-1 text-[10px] w-[100px]">Amount</TableHead>
+                        <TableHead className="font-bold whitespace-nowrap p-1 pr-0.5 text-[10px] w-[120px]">Entity</TableHead>
+                        <TableHead className="font-bold whitespace-nowrap p-1 pl-0.5 pr-0.5 text-[10px] w-[200px]">Items</TableHead>
+                        <TableHead className="text-right font-bold whitespace-nowrap p-1 pl-0.5 text-[10px] w-[100px]">Amount</TableHead>
                         <TableHead className="text-center font-bold whitespace-nowrap p-1 text-[10px] w-[100px]">Status</TableHead>
                         <TableHead className="text-center font-bold whitespace-nowrap p-1 text-[10px] w-[100px]">Actions</TableHead>
                       </TableRow>
@@ -422,7 +422,7 @@ const InvoicesList = () => {
                             className={`hover:bg-primary/5 transition-colors cursor-pointer ${isSelected ? 'bg-primary/10 border-l-4 border-l-primary' : ''}`}
                             onClick={() => handleRowClick(String(invoice.id))}
                           >
-                            <TableCell className="font-bold text-primary p-1 text-[10px]">
+                            <TableCell className="font-bold text-primary p-1 pl-2 text-[10px]">
                               #{invoice.id}
                             </TableCell>
                             <TableCell className="p-1 text-[10px]">
@@ -436,10 +436,10 @@ const InvoicesList = () => {
                                 {invoice.invoice_type === 'sell' ? t('invoices.sell') : t('invoices.buy')}
                               </Badge>
                             </TableCell>
-                            <TableCell className="font-medium p-1 text-xs max-w-[120px] truncate">
+                            <TableCell className="font-medium p-1 pr-0.5 text-xs max-w-[120px] truncate">
                               {invoice.customers?.name || invoice.suppliers?.name || "N/A"}
                             </TableCell>
-                            <TableCell className="p-1">
+                            <TableCell className="p-1 pl-0.5 pr-0.5">
                               {items.length > 0 ? (
                                 <div className="space-y-0.5">
                                   {itemsPreview.map((item: any, itemIdx: number) => {
@@ -467,7 +467,7 @@ const InvoicesList = () => {
                                 <span className="text-muted-foreground text-[10px] italic">No items</span>
                               )}
                             </TableCell>
-                            <TableCell className={`text-right font-bold p-1 ${
+                            <TableCell className={`text-right font-bold p-1 pl-0.5 ${
                               invoice.payment_status === 'paid' 
                                 ? 'text-success' 
                                 : invoice.payment_status === 'partial'

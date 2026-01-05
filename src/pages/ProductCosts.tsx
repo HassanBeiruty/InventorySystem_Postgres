@@ -309,7 +309,7 @@ const ProductCosts = () => {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-warning/5 to-accent/5">
-                      <TableHead className="font-bold p-2 text-xs">Product</TableHead>
+                      <TableHead className="font-bold p-2 pl-2 text-xs">Product</TableHead>
                       <TableHead className="text-center font-bold p-2 text-xs">Quantity</TableHead>
                       <TableHead className="text-right font-bold p-2 text-xs">Avg Cost</TableHead>
                       <TableHead className="text-right font-bold p-2 text-xs">Total Value</TableHead>
@@ -322,7 +322,7 @@ const ProductCosts = () => {
                         className="hover:bg-warning/5 transition-colors animate-fade-in"
                         style={{ animationDelay: `${idx * 0.02}s` }}
                       >
-                        <TableCell className="font-semibold p-2 text-sm"><span className="text-muted-foreground text-xs">#{item.product_id}</span> {item.product_name}</TableCell>
+                        <TableCell className="font-semibold p-2 pl-2 text-sm"><span className="text-muted-foreground text-xs">#{item.product_id}</span> {item.product_name}</TableCell>
                         <TableCell className="text-center font-bold text-sm p-2">{item.total_quantity}</TableCell>
                         <TableCell className="text-right font-bold text-warning text-sm p-2">
                           ${item.average_cost.toFixed(2)}
