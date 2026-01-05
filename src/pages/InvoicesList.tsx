@@ -159,16 +159,33 @@ const InvoicesList = () => {
       });
     }
 
-    // Search filter (invoice number, entity name, or amount)
+    // Search filter (invoice number, entity name, amount, or invoice items)
     if (searchQuery.trim()) {
       const searchLower = searchQuery.toLowerCase();
       result = result.filter(inv => {
         const invoiceNumber = inv.id?.toString() || "";
         const entityName = inv.customers?.name || inv.suppliers?.name || "";
         const amount = inv.total_amount?.toString() || "";
-        return invoiceNumber.includes(searchLower) || 
-               entityName.toLowerCase().includes(searchLower) || 
-               amount.includes(searchLower);
+        
+        // Check if search matches invoice number, entity name, or amount
+        if (invoiceNumber.includes(searchLower) || 
+            entityName.toLowerCase().includes(searchLower) || 
+            amount.includes(searchLower)) {
+          return true;
+        }
+        
+        // Check if search matches any invoice item (product name, barcode, or SKU)
+        const items = inv.invoice_items || [];
+        const matchesItem = items.some((item: any) => {
+          const productName = (item.product_name || "").toLowerCase();
+          const productBarcode = (item.product_barcode || "").toLowerCase();
+          const productSku = (item.product_sku || "").toLowerCase();
+          return productName.includes(searchLower) || 
+                 productBarcode.includes(searchLower) || 
+                 productSku.includes(searchLower);
+        });
+        
+        return matchesItem;
       });
     }
 
@@ -230,7 +247,7 @@ const InvoicesList = () => {
             <Search className="absolute left-1.5 top-1/2 transform -translate-y-1/2 w-2.5 h-2.5 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Search invoices (ID, customer, supplier, amount)..."
+              placeholder="Search invoices (ID, customer, supplier, amount, items)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-6 pr-6 h-6 text-[10px]"
@@ -362,14 +379,13 @@ const InvoicesList = () => {
                 <Table>
                     <TableHeader>
                       <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5">
-                        <TableHead className="font-bold whitespace-nowrap p-1 text-[10px]">Invoice#</TableHead>
-                        <TableHead className="font-bold whitespace-nowrap p-1 text-[10px]">Date</TableHead>
-                        <TableHead className="font-bold whitespace-nowrap hidden lg:table-cell p-1 text-[10px]">Due Date</TableHead>
-                        <TableHead className="font-bold whitespace-nowrap p-1 text-[10px]">Type</TableHead>
-                        <TableHead className="font-bold whitespace-nowrap p-1 text-[10px]">Entity</TableHead>
-                        <TableHead className="font-bold whitespace-nowrap p-1 text-[10px] min-w-[130px]">Items</TableHead>
-                        <TableHead className="text-right font-bold whitespace-nowrap p-1 text-[10px] w-[80px]">Amount</TableHead>
-                        <TableHead className="text-center font-bold whitespace-nowrap p-1 text-[10px]">Status</TableHead>
+                        <TableHead className="font-bold whitespace-nowrap p-1 text-[10px] w-[80px]">Invoice#</TableHead>
+                        <TableHead className="font-bold whitespace-nowrap p-1 text-[10px] w-[100px]">Date</TableHead>
+                        <TableHead className="font-bold whitespace-nowrap p-1 text-[10px] w-[80px]">Type</TableHead>
+                        <TableHead className="font-bold whitespace-nowrap p-1 text-[10px] w-[120px]">Entity</TableHead>
+                        <TableHead className="font-bold whitespace-nowrap p-1 text-[10px] w-[200px]">Items</TableHead>
+                        <TableHead className="text-right font-bold whitespace-nowrap p-1 text-[10px] w-[100px]">Amount</TableHead>
+                        <TableHead className="text-center font-bold whitespace-nowrap p-1 text-[10px] w-[100px]">Status</TableHead>
                         <TableHead className="text-center font-bold whitespace-nowrap p-1 text-[10px] w-[100px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -379,7 +395,6 @@ const InvoicesList = () => {
                         <TableRow key={i}>
                           <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                           <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                          <TableCell className="hidden lg:table-cell"><Skeleton className="h-5 w-24" /></TableCell>
                           <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                           <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                           <TableCell><Skeleton className="h-5 w-full" /></TableCell>
@@ -390,7 +405,7 @@ const InvoicesList = () => {
                       ))
                     ) : filteredInvoices.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
+                        <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                           {searchQuery || startDate || endDate ? t('invoices.noInvoicesMatch') : t('invoices.noInvoices')}
                         </TableCell>
                       </TableRow>
@@ -413,17 +428,6 @@ const InvoicesList = () => {
                             <TableCell className="p-1 text-[10px]">
                               {formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}
                             </TableCell>
-                            <TableCell className="hidden lg:table-cell p-1 text-[10px]">
-                              {invoice.due_date ? (
-                                <span className={new Date(invoice.due_date) < new Date() && invoice.payment_status !== 'paid' 
-                                  ? 'text-destructive font-semibold' 
-                                  : 'text-muted-foreground'}>
-                                  {formatDateTimeLebanon(invoice.due_date, "MMM dd, yyyy")}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground italic">-</span>
-                              )}
-                            </TableCell>
                             <TableCell className="p-1">
                               <Badge 
                                 variant={invoice.invoice_type === 'sell' ? 'default' : 'success'}
@@ -435,7 +439,7 @@ const InvoicesList = () => {
                             <TableCell className="font-medium p-1 text-xs max-w-[120px] truncate">
                               {invoice.customers?.name || invoice.suppliers?.name || "N/A"}
                             </TableCell>
-                            <TableCell className="p-1 pr-0.5">
+                            <TableCell className="p-1">
                               {items.length > 0 ? (
                                 <div className="space-y-0.5">
                                   {itemsPreview.map((item: any, itemIdx: number) => {
@@ -463,7 +467,7 @@ const InvoicesList = () => {
                                 <span className="text-muted-foreground text-[10px] italic">No items</span>
                               )}
                             </TableCell>
-                            <TableCell className={`text-right font-bold p-1 pl-0.5 ${
+                            <TableCell className={`text-right font-bold p-1 ${
                               invoice.payment_status === 'paid' 
                                 ? 'text-success' 
                                 : invoice.payment_status === 'partial'

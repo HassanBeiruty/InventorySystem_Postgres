@@ -25,6 +25,8 @@ interface StockMovement {
   created_at: string;
   products?: {
     name: string;
+    barcode: string;
+    sku: string;
   };
 }
 
@@ -212,6 +214,11 @@ const StockMovements = () => {
                         </TableCell>
                         <TableCell className="font-semibold p-1.5 text-xs">
                           <span className="text-muted-foreground text-[10px]">#{movement.product_id}</span> {movement.products?.name || "Unknown Product"}
+                          {(movement.products?.barcode || movement.products?.sku) && (
+                            <span className="text-muted-foreground text-[10px] ml-1">
+                              - {movement.products?.barcode || movement.products?.sku}
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell className="text-center font-medium text-muted-foreground p-1.5 text-[10px]">
                           {movement.quantity_before}
