@@ -126,12 +126,15 @@ export function RecomputePositionsDialog({
               </SelectTrigger>
               <SelectContent side="bottom" align="start">
                 <SelectItem value="all">All Products</SelectItem>
-                {products.map((product) => (
-                  <SelectItem key={product.id} value={String(product.id)}>
-                    {product.name}
-                    {product.barcode && ` (${product.barcode})`}
-                  </SelectItem>
-                ))}
+                {products.map((product) => {
+                  const identifier = product.barcode || product.sku || null;
+                  return (
+                    <SelectItem key={product.id} value={String(product.id)}>
+                      {product.name}
+                      {identifier && ` (${identifier})`}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">

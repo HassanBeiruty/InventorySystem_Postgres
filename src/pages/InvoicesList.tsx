@@ -255,7 +255,15 @@ const InvoicesList = () => {
               id="start-date-invoice"
               type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(e) => {
+                const newStartDate = e.target.value;
+                setStartDate(newStartDate);
+                // If end date is before new start date, update end date
+                if (endDate && newStartDate > endDate) {
+                  setEndDate(newStartDate);
+                }
+              }}
+              max={endDate || getTodayLebanon()}
               className="h-6 text-[10px] w-28"
             />
           </div>
@@ -267,7 +275,13 @@ const InvoicesList = () => {
               id="end-date-invoice"
               type="date"
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              onChange={(e) => {
+                const newEndDate = e.target.value;
+                if (!startDate || newEndDate >= startDate) {
+                  setEndDate(newEndDate);
+                }
+              }}
+              min={startDate}
               max={getTodayLebanon()}
               className="h-6 text-[10px] w-28"
             />

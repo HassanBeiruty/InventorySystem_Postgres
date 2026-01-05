@@ -440,67 +440,64 @@ const InvoiceForm = () => {
       return;
     }
 
-    // Insert or reuse a row and assign the product in a single, synchronous update
-    let newActiveIndex = activeItemIndex;
+    // First try to use an empty line, if none exists, create new one at top
     const productIdStr = String(product.id);
+    
+    // Calculate price based on invoice type
+    let unitPrice = 0;
+    let priceType: 'retail' | 'wholesale' = invoiceType === 'sell' ? 'retail' : 'wholesale';
+    
+    if (invoiceType === "sell") {
+      const lp = latestPrices[productIdStr];
+      unitPrice = lp?.retail_price != null ? Number(lp.retail_price) : 0;
+      
+      if (unitPrice === 0 && (!lp || lp.retail_price === null)) {
+        toast({
+          title: "Price Not Set",
+          description: `Product "${product.name}" has no price set. Please add a price in the Product Prices page before selling this product.`,
+          variant: "destructive",
+        });
+      }
+    }
 
     setItems(prevItems => {
-      const updated = [...prevItems];
-
-      // Find target row
-      let targetIndex = newActiveIndex;
-      if (!updated[targetIndex] || updated[targetIndex].product_id) {
-        const emptyIndex = updated.findIndex(item => !item.product_id);
-        if (emptyIndex >= 0) {
-          targetIndex = emptyIndex;
-        } else {
-          // No empty row – append a new one
-          updated.push({
-            product_id: "",
-            quantity: 1,
-            unit_price: 0,
-            price_type: "retail",
-            total_price: 0,
-            is_private_price: false,
-            private_price_amount: 0,
-            private_price_note: "",
-            barcode: "",
-          });
-          targetIndex = updated.length - 1;
-        }
-      }
-
-      const item = updated[targetIndex];
-      item.product_id = productIdStr;
-
-      if (invoiceType === "sell") {
-        const lp = latestPrices[productIdStr];
-        const retailPrice = lp?.retail_price != null ? Number(lp.retail_price) : 0;
-        item.unit_price = retailPrice;
-        item.price_type = "retail";
-
-        if (retailPrice === 0 && (!lp || lp.retail_price === null)) {
-          toast({
-            title: "Price Not Set",
-            description: `Product "${product.name}" has no price set. Please add a price in the Product Prices page before selling this product.`,
-            variant: "destructive",
-          });
-        }
+      // Find first empty line (where product_id is empty)
+      const emptyIndex = prevItems.findIndex(item => !item.product_id);
+      
+      if (emptyIndex >= 0) {
+        // Use existing empty line
+        const updated = [...prevItems];
+        updated[emptyIndex] = {
+          ...updated[emptyIndex],
+          product_id: productIdStr,
+          quantity: 1,
+          unit_price: unitPrice,
+          price_type: priceType,
+          total_price: unitPrice,
+          is_private_price: false,
+          private_price_amount: 0,
+          private_price_note: "",
+          barcode: "",
+        };
+        setActiveItemIndex(emptyIndex);
+        return updated;
       } else {
-        item.unit_price = 0;
-        item.price_type = "wholesale";
+        // No empty line - create new one at top
+        const newItem: InvoiceItem = {
+          product_id: productIdStr,
+          quantity: 1,
+          unit_price: unitPrice,
+          price_type: priceType,
+          total_price: unitPrice,
+          is_private_price: false,
+          private_price_amount: 0,
+          private_price_note: "",
+          barcode: "",
+        };
+        setActiveItemIndex(0);
+        return [newItem, ...prevItems];
       }
-
-      const effectivePrice = item.is_private_price
-        ? item.private_price_amount
-        : item.unit_price;
-      item.total_price = effectivePrice * item.quantity;
-
-      newActiveIndex = targetIndex;
-      return updated;
     });
-
-    setActiveItemIndex(newActiveIndex);
     setBarcodeInput("");
     setTimeout(() => {
       barcodeInputRef.current?.focus();
@@ -1077,17 +1074,17 @@ const InvoiceForm = () => {
                                   );
                                 }
                                 
-                                return filteredProducts.map((product) => (
-                                  <SelectItem key={product.id} value={String(product.id)}>
-                                    <span className="text-muted-foreground text-xs">#{product.id}</span> {product.name}
-                                    {product.barcode && (
-                                      <span className="text-muted-foreground text-xs ml-2">({product.barcode})</span>
-                                    )}
-                                    {product.sku && (
-                                      <span className="text-muted-foreground text-xs ml-1">SKU: {product.sku}</span>
-                                    )}
-                                  </SelectItem>
-                                ));
+                                return filteredProducts.map((product) => {
+                                  const identifier = product.barcode || product.sku || null;
+                                  return (
+                                    <SelectItem key={product.id} value={String(product.id)}>
+                                      <span className="text-muted-foreground text-xs">#{product.id}</span> {product.name}
+                                      {identifier && (
+                                        <span className="text-muted-foreground text-xs ml-2">({identifier})</span>
+                                      )}
+                                    </SelectItem>
+                                  );
+                                });
                               })()}
                             </div>
                           </SelectContent>

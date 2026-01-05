@@ -319,7 +319,15 @@ const ProductPrices = () => {
                 <Input
                   type="date"
                   value={filters.start_date}
-                  onChange={(e) => setFilters({...filters, start_date: e.target.value})}
+                  onChange={(e) => {
+                    const newStartDate = e.target.value;
+                    setFilters({...filters, start_date: newStartDate});
+                    // If end date is before new start date, update end date
+                    if (filters.end_date && newStartDate > filters.end_date) {
+                      setFilters({...filters, start_date: newStartDate, end_date: newStartDate});
+                    }
+                  }}
+                  max={filters.end_date || getTodayLebanon()}
                 />
               </div>
               
@@ -328,7 +336,14 @@ const ProductPrices = () => {
                 <Input
                   type="date"
                   value={filters.end_date}
-                  onChange={(e) => setFilters({...filters, end_date: e.target.value})}
+                  onChange={(e) => {
+                    const newEndDate = e.target.value;
+                    if (!filters.start_date || newEndDate >= filters.start_date) {
+                      setFilters({...filters, end_date: newEndDate});
+                    }
+                  }}
+                  min={filters.start_date}
+                  max={getTodayLebanon()}
                 />
               </div>
             </div>

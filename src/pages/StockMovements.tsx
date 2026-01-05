@@ -95,7 +95,15 @@ const StockMovements = () => {
                 id="start-date"
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  const newStartDate = e.target.value;
+                  setStartDate(newStartDate);
+                  // If end date is before new start date, update end date
+                  if (endDate && newStartDate > endDate) {
+                    setEndDate(newStartDate);
+                  }
+                }}
+                max={endDate || getTodayLebanon()}
                 className="h-7 text-xs w-32"
               />
             </div>
@@ -107,7 +115,13 @@ const StockMovements = () => {
                 id="end-date"
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => {
+                  const newEndDate = e.target.value;
+                  if (!startDate || newEndDate >= startDate) {
+                    setEndDate(newEndDate);
+                  }
+                }}
+                min={startDate}
                 max={getTodayLebanon()}
                 className="h-7 text-xs w-32"
               />

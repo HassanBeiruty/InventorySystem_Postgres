@@ -137,11 +137,14 @@ const StockAdjustments = () => {
                       <SelectValue placeholder={t('invoiceForm.selectProduct')} />
                     </SelectTrigger>
                     <SelectContent side="bottom" align="start">
-                      {products.map((product) => (
-                        <SelectItem key={product.id} value={product.id.toString()}>
-                          {product.name} {product.barcode ? `(${product.barcode})` : ""}
-                        </SelectItem>
-                      ))}
+                      {products.map((product) => {
+                        const identifier = product.barcode || product.sku || null;
+                        return (
+                          <SelectItem key={product.id} value={product.id.toString()}>
+                            {product.name} {identifier ? `(${identifier})` : ""}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>

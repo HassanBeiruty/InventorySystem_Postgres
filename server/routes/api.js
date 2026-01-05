@@ -1584,7 +1584,7 @@ router.get('/invoices/:id', async (req, res) => {
 		
 		// Get invoice items with product details - using plain array params
 		const itemsResult = await query(
-			`SELECT ii.*, p.name as product_name, p.barcode as product_barcode
+			`SELECT ii.*, p.name as product_name, p.barcode as product_barcode, p.sku as product_sku
 			 FROM invoice_items ii
 			 LEFT JOIN products p ON ii.product_id = p.id
 			 WHERE ii.invoice_id = $1
@@ -2002,25 +2002,25 @@ router.get('/payments', async (req, res) => {
 		
 		if (invoice_id) {
 			sql += ` AND ip.invoice_id = $${paramIndex}`;
-			params.push({ invoice_id: parseInt(invoice_id) });
+			params.push(parseInt(invoice_id));
 			paramIndex++;
 		}
 		
 		if (start_date) {
 			sql += ` AND CAST(ip.payment_date AS DATE) >= $${paramIndex}`;
-			params.push({ start_date });
+			params.push(start_date);
 			paramIndex++;
 		}
 		
 		if (end_date) {
 			sql += ` AND CAST(ip.payment_date AS DATE) <= $${paramIndex}`;
-			params.push({ end_date });
+			params.push(end_date);
 			paramIndex++;
 		}
 		
 		if (currency_code) {
 			sql += ` AND ip.currency_code = $${paramIndex}`;
-			params.push({ currency_code: currency_code.toUpperCase() });
+			params.push(currency_code.toUpperCase());
 			paramIndex++;
 		}
 		
@@ -2579,25 +2579,25 @@ router.get('/daily-stock/avg-costs', async (req, res) => {
         if (product_id) { 
             paramIndex++;
             sql += ` AND ds.product_id = $${paramIndex}`; 
-            params.push({ product_id: parseInt(product_id) }); 
+            params.push(parseInt(product_id)); 
         }
         
         // If no date filters provided, default to today only (live/current costs)
         if (!start_date && !end_date) {
             paramIndex++;
             sql += ` AND ds.date = $${paramIndex}`;
-            params.push({ today });
+            params.push(today);
         } else {
             // If date filters are provided, use them
             if (start_date) { 
                 paramIndex++;
                 sql += ` AND ds.date >= $${paramIndex}`; 
-                params.push({ start_date }); 
+                params.push(start_date); 
             }
             if (end_date) { 
                 paramIndex++;
                 sql += ` AND ds.date <= $${paramIndex}`; 
-                params.push({ end_date }); 
+                params.push(end_date); 
             }
         }
 

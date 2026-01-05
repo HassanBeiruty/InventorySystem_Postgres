@@ -22,6 +22,7 @@ interface DailyStockItem {
   products?: {
     name: string;
     barcode: string;
+    sku: string;
   };
 }
 
@@ -105,7 +106,15 @@ const DailyStocks = () => {
                 id="start-date-daily"
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  const newStartDate = e.target.value;
+                  setStartDate(newStartDate);
+                  // If end date is before new start date, update end date
+                  if (endDate && newStartDate > endDate) {
+                    setEndDate(newStartDate);
+                  }
+                }}
+                max={endDate || getTodayLebanon()}
                 className="h-7 text-xs w-32"
               />
             </div>
@@ -117,7 +126,13 @@ const DailyStocks = () => {
                 id="end-date-daily"
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => {
+                  const newEndDate = e.target.value;
+                  if (!startDate || newEndDate >= startDate) {
+                    setEndDate(newEndDate);
+                  }
+                }}
+                min={startDate}
                 max={getTodayLebanon()}
                 className="h-7 text-xs w-32"
               />
@@ -202,6 +217,7 @@ const DailyStocks = () => {
                             <TableRow className="bg-gradient-to-r from-accent/5 to-primary/5">
                               <TableHead className="font-bold p-1.5 text-[10px]">{t('invoices.product')}</TableHead>
                               <TableHead className="font-bold p-1.5 text-[10px]">{t('products.barcode')}</TableHead>
+                              <TableHead className="font-bold p-1.5 text-[10px]">SKU</TableHead>
                             <TableHead className="text-center font-bold p-1.5 text-[10px]">{t('inventory.availableQty')}</TableHead>
                             <TableHead className="text-center font-bold p-1.5 text-[10px]">Avg Cost</TableHead>
                               <TableHead className="font-bold p-1.5 text-[10px]">{t('inventory.lastUpdated')}</TableHead>
@@ -219,6 +235,9 @@ const DailyStocks = () => {
                                   </TableCell>
                                   <TableCell className="font-mono text-[10px] text-muted-foreground p-1.5">
                                     {item.products?.barcode || "N/A"}
+                                  </TableCell>
+                                  <TableCell className="font-mono text-[10px] text-muted-foreground p-1.5">
+                                    {item.products?.sku || "N/A"}
                                   </TableCell>
                                   <TableCell className="text-center p-1.5">
                                     <span className={`font-bold text-xs ${item.available_qty === 0 ? 'text-destructive' : item.available_qty < 10 ? 'text-warning' : 'text-success'}`}>

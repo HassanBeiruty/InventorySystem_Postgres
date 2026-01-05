@@ -92,15 +92,21 @@ const InvoicePayments = () => {
 
     if (filters.start_date) {
       filtered = filtered.filter(p => {
-        const paymentDate = new Date(p.payment_date).toISOString().split('T')[0];
-        return paymentDate >= filters.start_date;
+        const paymentDate = new Date(p.payment_date);
+        paymentDate.setHours(0, 0, 0, 0);
+        const start = new Date(filters.start_date);
+        start.setHours(0, 0, 0, 0);
+        return paymentDate >= start;
       });
     }
 
     if (filters.end_date) {
       filtered = filtered.filter(p => {
-        const paymentDate = new Date(p.payment_date).toISOString().split('T')[0];
-        return paymentDate <= filters.end_date;
+        const paymentDate = new Date(p.payment_date);
+        paymentDate.setHours(0, 0, 0, 0);
+        const end = new Date(filters.end_date);
+        end.setHours(23, 59, 59, 999);
+        return paymentDate <= end;
       });
     }
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,13 +12,14 @@ import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 
 interface LowStockItem {
-  id: string;
-  product_id: string;
+  id: string | number;
+  product_id: string | number;
   available_qty: number;
   date: string;
   products?: {
     name: string;
     barcode: string;
+    sku: string;
   };
 }
 
@@ -65,8 +67,9 @@ const LowStock = () => {
       const query = searchQuery.toLowerCase();
       const name = (item.products?.name || "").toLowerCase();
       const barcode = (item.products?.barcode || "").toLowerCase();
+      const sku = (item.products?.sku || "").toLowerCase();
       const id = (item.product_id || "").toString();
-      return name.includes(query) || barcode.includes(query) || id.includes(query);
+      return name.includes(query) || barcode.includes(query) || sku.includes(query) || id.includes(query);
     }
     return true;
   });
@@ -107,7 +110,7 @@ const LowStock = () => {
           <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Search low stock (name, barcode, ID)"
+            placeholder="Search low stock (name, barcode, SKU, ID)"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-8 pr-8 h-8 text-sm"
@@ -158,6 +161,7 @@ const LowStock = () => {
                     <TableRow className="bg-gradient-to-r from-destructive/5 to-warning/5">
                       <TableHead className="font-bold p-2 text-xs">{t('lowStock.product')}</TableHead>
                       <TableHead className="font-bold p-2 text-xs">{t('products.barcode')}</TableHead>
+                      <TableHead className="font-bold p-2 text-xs">SKU</TableHead>
                       <TableHead className="text-center font-bold p-2 text-xs">{t('lowStock.availableQty')}</TableHead>
                       <TableHead className="text-center font-bold p-2 text-xs">{t('invoices.status')}</TableHead>
                     </TableRow>
@@ -184,6 +188,9 @@ const LowStock = () => {
                           </TableCell>
                           <TableCell className="text-muted-foreground p-2 text-xs">
                             {item.products?.barcode || 'N/A'}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground p-2 text-xs">
+                            {item.products?.sku || 'N/A'}
                           </TableCell>
                           <TableCell className="text-center p-2">
                             <span className={`text-sm font-bold ${

@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { DollarSign, TrendingUp, TrendingDown, Filter, X, Search } from "lucide-react";
-import { formatDateTimeLebanon } from "@/utils/dateUtils";
+import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { productCostsRepo, productsRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 
@@ -170,7 +170,15 @@ const ProductCosts = () => {
                 <Input
                   type="date"
                   value={filters.start_date}
-                  onChange={(e) => setFilters({...filters, start_date: e.target.value})}
+                  onChange={(e) => {
+                    const newStartDate = e.target.value;
+                    setFilters({...filters, start_date: newStartDate});
+                    // If end date is before new start date, update end date
+                    if (filters.end_date && newStartDate > filters.end_date) {
+                      setFilters({...filters, start_date: newStartDate, end_date: newStartDate});
+                    }
+                  }}
+                  max={filters.end_date || getTodayLebanon()}
                 />
               </div>
               
@@ -179,7 +187,14 @@ const ProductCosts = () => {
                 <Input
                   type="date"
                   value={filters.end_date}
-                  onChange={(e) => setFilters({...filters, end_date: e.target.value})}
+                  onChange={(e) => {
+                    const newEndDate = e.target.value;
+                    if (!filters.start_date || newEndDate >= filters.start_date) {
+                      setFilters({...filters, end_date: newEndDate});
+                    }
+                  }}
+                  min={filters.start_date}
+                  max={getTodayLebanon()}
                 />
               </div>
             </div>

@@ -27,6 +27,7 @@ interface InvoiceItem {
   private_price_note: string | null;
   product_name?: string;
   product_barcode?: string;
+  product_sku?: string;
 }
 
 interface InvoiceDetails {
@@ -598,8 +599,10 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                               <TableRow key={item.id}>
                                 <TableCell>
                                   <div className="font-medium"><span className="text-muted-foreground text-sm">#{item.product_id}</span> {item.product_name || `Product`}</div>
-                                  {item.product_barcode && (
-                                    <div className="text-xs text-muted-foreground">Barcode: {item.product_barcode}</div>
+                                  {(item.product_barcode || item.product_sku) && (
+                                    <div className="text-xs text-muted-foreground">
+                                      {item.product_barcode ? `Barcode: ${item.product_barcode}` : `SKU: ${item.product_sku}`}
+                                    </div>
                                   )}
                                 </TableCell>
                                 <TableCell>{item.quantity}</TableCell>
