@@ -49,6 +49,10 @@ const authLimiter = rateLimit({
 	legacyHeaders: false,
 	skipSuccessfulRequests: true, // Don't count successful requests
 	skipFailedRequests: false,
+	skip: (req) => {
+		// Skip rate limiting entirely in development mode, keep in production
+		return process.env.NODE_ENV !== 'production';
+	},
 	validate: {
 		trustProxy: false, // Skip trust proxy validation since we configure it in Express
 		xForwardedForHeader: false, // Skip X-Forwarded-For validation

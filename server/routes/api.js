@@ -255,10 +255,12 @@ router.post('/auth/signup', requestSizeLimiter('10mb'), authLimiter, sanitizeInp
 			return res.status(400).json({ error: 'User already exists' });
 		}
 		
-		// Check if this is the first user (table is empty)
-		const userCountResult = await query('SELECT COUNT(*) as count FROM users', []);
-		const userCount = userCountResult.recordset[0]?.count || 0;
-		const isFirstUser = userCount === 0;
+		// Check if there are any admins in the system
+		// If no admins exist, this new user will become admin
+		// Otherwise, they will be a regular user
+		const adminCountResult = await query('SELECT COUNT(*) as count FROM users WHERE is_admin = true', []);
+		const adminCount = parseInt(adminCountResult.recordset[0]?.count || 0);
+		const willBeAdmin = adminCount === 0;
 		
 		// Use bcrypt for secure password hashing
 		const passwordHash = await hashPassword(password);
@@ -271,13 +273,13 @@ router.post('/auth/signup', requestSizeLimiter('10mb'), authLimiter, sanitizeInp
 		const createdAt = nowIso();
 		const insertResult = await query(
 			'INSERT INTO users (email, passwordhash, is_admin, created_at) VALUES ($1, $2, $3, $4) RETURNING id, is_admin',
-			[email, passwordHash, isFirstUser, createdAt]
+			[email, passwordHash, willBeAdmin, createdAt]
 		);
 		const user = insertResult.recordset[0];
 		const isAdmin = user.is_admin === true || user.is_admin === 1;
 		
-		if (isFirstUser && process.env.NODE_ENV !== 'production') {
-			console.log(`✓ First user created and set as admin: ${email}`);
+		if (willBeAdmin && process.env.NODE_ENV !== 'production') {
+			console.log(`✓ New user created as admin (no admins existed): ${email}`);
 		}
 		
 		// Generate JWT token
@@ -3408,22 +3410,35 @@ router.post('/admin/setup-first-admin', async (req, res) => {
 	}
 });
 
-// Admin: Clear all users (WARNING: This will delete ALL users - next signup becomes admin)
+// Admin: Clear all users (WARNING: This will delete ALL users EXCEPT the first admin)
 router.post('/admin/users/clear', authenticateToken, requireAdmin, async (req, res) => {
 	try {
-		// Get user count before deletion
+		// Get first admin (lowest ID admin) to protect
+		const firstAdminResult = await query('SELECT id, email FROM users WHERE is_admin = true ORDER BY id ASC LIMIT 1', []);
+		
+		if (firstAdminResult.recordset.length === 0) {
+			return res.status(400).json({ 
+				error: 'Cannot clear users: No admin found. At least one admin must exist.' 
+			});
+		}
+		
+		const firstAdmin = firstAdminResult.recordset[0];
+		const firstAdminId = firstAdmin.id;
+		
+		// Get total user count before deletion
 		const countResult = await query('SELECT COUNT(*) as count FROM users', []);
-		const userCount = parseInt(countResult.recordset[0]?.count || 0);
+		const totalCount = parseInt(countResult.recordset[0]?.count || 0);
 		
-		// Delete ALL users (including current admin)
-		await query('DELETE FROM users', []);
+		// Delete all users EXCEPT the first admin
+		await query('DELETE FROM users WHERE id != $1', [firstAdminId]);
 		
-		console.log(`[Admin] All ${userCount} user(s) cleared from database`);
-		console.log(`[Admin] Next user to sign up will automatically become admin`);
+		const deletedCount = totalCount - 1; // Subtract 1 for the first admin that was kept
+		
+		console.log(`[Admin] ${deletedCount} user(s) cleared from database (first admin ${firstAdmin.email} preserved)`);
 		
 		res.json({ 
 			success: true, 
-			message: `All ${userCount} user(s) cleared. Next user to sign up will become admin.` 
+			message: `${deletedCount} user(s) cleared. First admin (${firstAdmin.email}) has been preserved.` 
 		});
 	} catch (err) {
 		console.error('[Admin] Clear users error:', err);
@@ -3453,12 +3468,13 @@ router.delete('/admin/users/:id', authenticateToken, requireAdmin, async (req, r
 		
 		const user = userCheck.recordset[0];
 		
-		// If deleting an admin, ensure at least one admin remains
-		if (user.is_admin === true || user.is_admin === 1) {
-			const adminCountResult = await query('SELECT COUNT(*) as count FROM users WHERE is_admin = true', []);
-			const adminCount = adminCountResult.recordset[0]?.count || 0;
-			if (adminCount <= 1) {
-				return res.status(400).json({ error: 'Cannot delete last admin. At least one admin must exist.' });
+		// Prevent deleting the first admin (user with lowest ID)
+		// The first admin is the original admin created in the system and should always remain
+		const firstAdminResult = await query('SELECT id, email FROM users WHERE is_admin = true ORDER BY id ASC LIMIT 1', []);
+		if (firstAdminResult.recordset.length > 0) {
+			const firstAdmin = firstAdminResult.recordset[0];
+			if (userId === firstAdmin.id) {
+				return res.status(400).json({ error: 'Cannot delete the first admin user. The first admin must always remain in the system.' });
 			}
 		}
 		
@@ -3496,12 +3512,15 @@ router.put('/admin/users/:id/admin', authenticateToken, requireAdmin, async (req
 			return res.status(400).json({ error: 'Cannot remove admin status from yourself' });
 		}
 		
-		// Ensure at least one admin remains
+		// Prevent removing admin status from the first admin (user with lowest ID)
+		// The first admin is the original admin created in the system and should always remain admin
 		if (isAdmin === false) {
-			const adminCountResult = await query('SELECT COUNT(*) as count FROM users WHERE is_admin = true', []);
-			const adminCount = adminCountResult.recordset[0]?.count || 0;
-			if (adminCount <= 1) {
-				return res.status(400).json({ error: 'Cannot remove last admin. At least one admin must exist.' });
+			const firstAdminResult = await query('SELECT id, email FROM users WHERE is_admin = true ORDER BY id ASC LIMIT 1', []);
+			if (firstAdminResult.recordset.length > 0) {
+				const firstAdmin = firstAdminResult.recordset[0];
+				if (userId === firstAdmin.id) {
+					return res.status(400).json({ error: 'Cannot remove admin status from the first admin user. The first admin must always remain as admin.' });
+				}
 			}
 		}
 		

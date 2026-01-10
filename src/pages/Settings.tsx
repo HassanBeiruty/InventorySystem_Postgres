@@ -282,17 +282,18 @@ const Settings = () => {
                 <CardDescription className="text-[10px] sm:text-xs">{t("settings.adminActionsDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2 sm:space-y-3 p-2 sm:p-3">
-                <div className="grid gap-2 sm:gap-3 sm:grid-cols-3">
+                <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
                   {/* Trigger Daily Snapshot */}
-                  <div className="p-2 border rounded-lg">
+                  <div className="p-2 border rounded-lg flex flex-col">
                     <h4 className="font-medium mb-1 text-xs sm:text-sm">{t("settings.dailyStockSnapshotTitle")}</h4>
-                    <p className="text-[10px] sm:text-xs text-muted-foreground mb-2">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mb-2 flex-1 min-h-[2.5rem]">
                       {t("settings.dailyStockSnapshotDescription")}
                     </p>
                     <Button
+                      variant="outline"
                       onClick={() => snapshotMutation.mutate()}
                       disabled={snapshotMutation.isPending}
-                      className="w-full h-7 text-[10px] sm:text-xs"
+                      className="w-full h-7 text-[10px] sm:text-xs mt-auto"
                     >
                       {snapshotMutation.isPending ? (
                         <>
@@ -309,9 +310,9 @@ const Settings = () => {
                   </div>
 
                   {/* Database Initialization */}
-                  <div className="p-2 border rounded-lg">
+                  <div className="p-2 border rounded-lg flex flex-col">
                     <h4 className="font-medium mb-1 text-xs sm:text-sm">{t("settings.databaseInitialization")}</h4>
-                    <p className="text-[10px] sm:text-xs text-muted-foreground mb-2">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mb-2 flex-1 min-h-[2.5rem]">
                       {t("settings.databaseInitializationDescription")}
                     </p>
                     <Button
@@ -322,7 +323,7 @@ const Settings = () => {
                         }
                       }}
                       disabled={initMutation.isPending}
-                      className="w-full h-7 text-[10px] sm:text-xs"
+                      className="w-full h-7 text-[10px] sm:text-xs mt-auto"
                     >
                       {initMutation.isPending ? (
                         <>
@@ -339,9 +340,9 @@ const Settings = () => {
                   </div>
 
                   {/* Seed Master Data */}
-                  <div className="p-2 border rounded-lg">
+                  <div className="p-2 border rounded-lg flex flex-col">
                     <h4 className="font-medium mb-1 text-xs sm:text-sm">Seed Master Data</h4>
-                    <p className="text-[10px] sm:text-xs text-muted-foreground mb-2">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mb-2 flex-1 min-h-[2.5rem]">
                       Clear all data and seed fresh master data (categories, products with barcode/SKU/shelf, prices, customers, suppliers). No invoices created.
                     </p>
                     <Button
@@ -352,7 +353,7 @@ const Settings = () => {
                         }
                       }}
                       disabled={seedMasterDataMutation.isPending}
-                      className="w-full h-7 text-[10px] sm:text-xs"
+                      className="w-full h-7 text-[10px] sm:text-xs mt-auto"
                     >
                       {seedMasterDataMutation.isPending ? (
                         <>
@@ -369,15 +370,14 @@ const Settings = () => {
                   </div>
 
                   {/* Recompute Positions */}
-                  <div className="p-2 border rounded-lg">
+                  <div className="p-2 border rounded-lg flex flex-col">
                     <h4 className="font-medium mb-1 text-xs sm:text-sm">{t("settings.recomputeStockPositions")}</h4>
-                    <p className="text-[10px] sm:text-xs text-muted-foreground mb-2">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mb-2 flex-1 min-h-[2.5rem]">
                       {t("settings.recomputeStockPositionsDescription")}
                     </p>
                     <Button
-                      variant="outline"
                       onClick={() => setRecomputeDialogOpen(true)}
-                      className="w-full h-7 text-[10px] sm:text-xs"
+                      className="w-full h-7 text-[10px] sm:text-xs mt-auto"
                     >
                       <RefreshCw className="w-3 h-3" />
                       {t("settings.recomputePositions") || "Recompute Positions"}
