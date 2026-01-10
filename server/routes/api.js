@@ -880,8 +880,8 @@ router.put('/products/:id', [
 		const normalizedBarcode = barcode !== undefined ? normalizeBarcodeOrSku(barcode) : undefined;
 		const normalizedSku = sku !== undefined ? normalizeBarcodeOrSku(sku) : undefined;
 		
-		// Check for duplicates if barcode or SKU is being updated
-		if (normalizedBarcode !== undefined) {
+		// Check for duplicates if barcode or SKU is being updated (only if value is not null/empty)
+		if (normalizedBarcode !== undefined && normalizedBarcode !== null) {
 			// Performance optimized: Direct comparison uses index, REPLACE handles old data
 			const existingBarcode = await query(
 				'SELECT id FROM products WHERE id != $2 AND (barcode = $1 OR (barcode IS NOT NULL AND REPLACE(barcode, \' \', \'\') = $1)) LIMIT 1',
@@ -892,7 +892,7 @@ router.put('/products/:id', [
 			}
 		}
 		
-		if (normalizedSku !== undefined) {
+		if (normalizedSku !== undefined && normalizedSku !== null) {
 			// Performance optimized: Direct comparison uses index, REPLACE handles old data
 			const existingSku = await query(
 				'SELECT id FROM products WHERE id != $2 AND (sku = $1 OR (sku IS NOT NULL AND REPLACE(sku, \' \', \'\') = $1)) LIMIT 1',

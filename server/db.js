@@ -125,7 +125,7 @@ async function query(text, params = []) {
 	// PostgreSQL uses [value1, value2]
 	let paramValues = params;
 	
-	if (Array.isArray(params) && params.length > 0 && typeof params[0] === 'object') {
+	if (Array.isArray(params) && params.length > 0 && typeof params[0] === 'object' && params[0] !== null) {
 		// Check if it's an array of single-property objects or a single multi-property object
 		if (params.length === 1 && Object.keys(params[0]).length > 1) {
 			// Single object with multiple properties: {email: '...', passwordHash: '...', created_at: '...'}
@@ -133,8 +133,11 @@ async function query(text, params = []) {
 			paramValues = Object.values(params[0]);
 		} else {
 			// Array of single-property objects: [{email: '...'}, {passwordHash: '...'}]
-			// Extract first value from each object
-			paramValues = params.map(p => Object.values(p)[0]);
+			// Extract first value from each object, handling null values
+			paramValues = params.map(p => {
+				if (p === null || typeof p !== 'object') return p;
+				return Object.values(p)[0];
+			});
 		}
 	}
 
