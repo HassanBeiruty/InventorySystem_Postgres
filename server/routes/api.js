@@ -124,6 +124,26 @@ function toLocalDateString(date) {
 	return formatter.format(d);
 }
 
+/**
+ * Normalizes barcode or SKU by removing all spaces and converting to uppercase
+ * This ensures consistent storage and case-insensitive comparison regardless of how values are entered
+ * 
+ * @param {string|null|undefined} value - The barcode or SKU value to normalize
+ * @returns {string|null} - Normalized value (uppercase, no spaces) or null if input is falsy
+ * 
+ * Examples:
+ * - "12 34 56" -> "123456"
+ * - "abc 123" -> "ABC123"
+ * - "  ABC-123  " -> "ABC-123"
+ * - null/undefined/"" -> null
+ */
+function normalizeBarcodeOrSku(value) {
+	if (!value) return null;
+	// Remove all spaces from the string (not just trim) and convert to uppercase for case-insensitive matching
+	const normalized = String(value).replace(/\s+/g, '').toUpperCase();
+	return normalized || null;
+}
+
 // ===== AUTH =====
 const SESSION_KEY = 'local_auth_session';
 
@@ -616,10 +636,16 @@ router.get('/products', async (req, res) => {
 		const queryParams = [];
 		
 		if (search) {
-			// Remove all spaces from search term for comparison
-			const normalizedSearch = search.trim().replace(/\s+/g, '');
-			queryText += ' WHERE p.name ILIKE $1 OR REPLACE(TRIM(COALESCE(p.barcode, \'\')), \' \', \'\') ILIKE $2 OR REPLACE(TRIM(COALESCE(p.sku, \'\')), \' \', \'\') ILIKE $2';
-			queryParams.push(`%${search.trim()}%`, `%${normalizedSearch}%`);
+			// Normalize search term - remove all spaces and convert to uppercase for barcode/SKU matching
+			// Performance: Direct comparison first (uses index), REPLACE for backward compatibility
+			const normalizedSearch = normalizeBarcodeOrSku(search) || '';
+			const searchPattern = `%${search.trim()}%`;
+			const normalizedPattern = `%${normalizedSearch}%`;
+			// Optimized: Try direct match first (indexed), then REPLACE for old data
+			queryText += ` WHERE p.name ILIKE $1 
+				OR (p.barcode IS NOT NULL AND (p.barcode ILIKE $2 OR REPLACE(p.barcode, ' ', '') ILIKE $3))
+				OR (p.sku IS NOT NULL AND (p.sku ILIKE $2 OR REPLACE(p.sku, ' ', '') ILIKE $3))`;
+			queryParams.push(searchPattern, normalizedPattern, normalizedPattern);
 			queryText += ` ORDER BY p.id DESC LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
 			queryParams.push(limit, offset);
 		} else {
@@ -633,8 +659,18 @@ router.get('/products', async (req, res) => {
 		let totalCount = null;
 		if (offset === 0) {
 			if (search) {
-				const normalizedSearch = search.trim().replace(/\s+/g, '');
-				const countResult = await query('SELECT COUNT(*) as count FROM products WHERE name ILIKE $1 OR REPLACE(TRIM(COALESCE(barcode, \'\')), \' \', \'\') ILIKE $2 OR REPLACE(TRIM(COALESCE(sku, \'\')), \' \', \'\') ILIKE $2', [`%${search.trim()}%`, `%${normalizedSearch}%`]);
+				// Normalize search term for barcode/SKU matching (same as main query)
+				// Performance optimized: Direct comparison first, REPLACE for backward compatibility
+				const normalizedSearch = normalizeBarcodeOrSku(search) || '';
+				const searchPattern = `%${search.trim()}%`;
+				const normalizedPattern = `%${normalizedSearch}%`;
+				const countResult = await query(
+					`SELECT COUNT(*) as count FROM products 
+					 WHERE name ILIKE $1 
+					 OR (barcode IS NOT NULL AND (barcode ILIKE $2 OR REPLACE(barcode, ' ', '') ILIKE $3))
+					 OR (sku IS NOT NULL AND (sku ILIKE $2 OR REPLACE(sku, ' ', '') ILIKE $3))`,
+					[searchPattern, normalizedPattern, normalizedPattern]
+				);
 				totalCount = parseInt(countResult.recordset[0].count);
 			} else {
 				const countResult = await query('SELECT COUNT(*) as count FROM products', []);
@@ -671,22 +707,29 @@ router.post('/products/quick-add', [
 ], handleValidationErrors, async (req, res) => {
 	try {
 		const { name, barcode } = req.body;
-		const trimmedBarcode = barcode.trim();
+		// Normalize barcode by removing ALL spaces (left, right, and middle)
+		const normalizedBarcode = normalizeBarcodeOrSku(barcode);
 		
-		// Check if barcode already exists (compare trimmed values)
+		if (!normalizedBarcode) {
+			return res.status(400).json({ error: 'Barcode is required' });
+		}
+		
+		// Check if barcode already exists
+		// Performance optimized: Direct comparison uses index, REPLACE handles old data
+		// PostgreSQL can optimize OR conditions and use appropriate indexes
 		const existingBarcode = await query(
-			'SELECT id FROM products WHERE TRIM(barcode) = $1',
-			[trimmedBarcode]
+			'SELECT id FROM products WHERE barcode = $1 OR (barcode IS NOT NULL AND REPLACE(barcode, \' \', \'\') = $1) LIMIT 1',
+			[normalizedBarcode]
 		);
 		if (existingBarcode.recordset.length > 0) {
-			return res.status(400).json({ error: 'Barcode already exists' });
+			return res.status(400).json({ error: 'Product already exists with this barcode' });
 		}
 		
 		const createdAt = nowIso();
-		// Using plain array params
+		// Using plain array params - save normalized barcode (no spaces)
 		const result = await query(
 			'INSERT INTO products (name, barcode, category_id, description, sku, shelf, created_at) VALUES ($1, $2, NULL, NULL, NULL, NULL, $3) RETURNING id',
-			[name, trimmedBarcode, createdAt]
+			[name, normalizedBarcode, createdAt]
 		);
 		const id = result.recordset[0].id;
 		// Ensure daily stock entry - using plain array params
@@ -716,22 +759,28 @@ router.post('/products/quick-add-sku', [
 ], handleValidationErrors, async (req, res) => {
 	try {
 		const { name, sku } = req.body;
-		const trimmedSku = sku.trim();
+		// Normalize SKU by removing ALL spaces (left, right, and middle)
+		const normalizedSku = normalizeBarcodeOrSku(sku);
 		
-		// Check if SKU already exists (compare trimmed values)
+		if (!normalizedSku) {
+			return res.status(400).json({ error: 'SKU is required' });
+		}
+		
+		// Check if SKU already exists
+		// Performance optimized: Direct comparison uses index, REPLACE handles old data
 		const existingSku = await query(
-			'SELECT id FROM products WHERE TRIM(sku) = $1',
-			[trimmedSku]
+			'SELECT id FROM products WHERE sku = $1 OR (sku IS NOT NULL AND REPLACE(sku, \' \', \'\') = $1) LIMIT 1',
+			[normalizedSku]
 		);
 		if (existingSku.recordset.length > 0) {
-			return res.status(400).json({ error: 'SKU already exists' });
+			return res.status(400).json({ error: 'Product already exists with this SKU' });
 		}
 		
 		const createdAt = nowIso();
-		// Using plain array params
+		// Using plain array params - save normalized SKU (no spaces)
 		const result = await query(
 			'INSERT INTO products (name, barcode, category_id, description, sku, shelf, created_at) VALUES ($1, NULL, NULL, NULL, $2, NULL, $3) RETURNING id',
-			[name, trimmedSku, createdAt]
+			[name, normalizedSku, createdAt]
 		);
 		const id = result.recordset[0].id;
 		// Ensure daily stock entry - using plain array params
@@ -759,13 +808,43 @@ router.post('/products', [
 ], handleValidationErrors, async (req, res) => {
 	try {
 		const { name, barcode, category_id, description, sku, shelf } = req.body;
-		const trimmedBarcode = barcode ? barcode.trim() : null;
-		const trimmedSku = sku ? sku.trim() : null;
+		// Normalize barcode and SKU by removing ALL spaces (left, right, and middle)
+		const normalizedBarcode = normalizeBarcodeOrSku(barcode);
+		const normalizedSku = normalizeBarcodeOrSku(sku);
+		
+		// Check if product already exists (same barcode or same SKU)
+		// Priority: barcode first, then SKU if barcode is null
+		// Multiple products can have the same name, but must have different barcode (or if barcode is null, different SKU)
+		
+		if (normalizedBarcode) {
+			// Check if barcode already exists - Performance optimized
+			const existingBarcode = await query(
+				'SELECT id FROM products WHERE barcode = $1 OR (barcode IS NOT NULL AND REPLACE(barcode, \' \', \'\') = $1) LIMIT 1',
+				[normalizedBarcode]
+			);
+			if (existingBarcode.recordset.length > 0) {
+				return res.status(400).json({ error: 'Product already exists with this barcode' });
+			}
+		}
+		
+		if (normalizedSku) {
+			// Check if SKU already exists - Performance optimized
+			const existingSku = await query(
+				'SELECT id FROM products WHERE sku = $1 OR (sku IS NOT NULL AND REPLACE(sku, \' \', \'\') = $1) LIMIT 1',
+				[normalizedSku]
+			);
+			if (existingSku.recordset.length > 0) {
+				return res.status(400).json({ error: 'Product already exists with this SKU' });
+			}
+		}
+		
+		// If both barcode and SKU are null, allow insertion (only name-based)
+		// If at least one is provided and doesn't exist, proceed with insertion
 		const createdAt = nowIso();
-		// Using plain array params
+		// Using plain array params - save normalized barcode and SKU (no spaces)
 		const result = await query(
 			'INSERT INTO products (name, barcode, category_id, description, sku, shelf, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
-			[name, trimmedBarcode, category_id ? parseInt(category_id) : null, description || null, trimmedSku, shelf || null, createdAt]
+			[name, normalizedBarcode, category_id ? parseInt(category_id) : null, description || null, normalizedSku, shelf || null, createdAt]
 		);
 		const id = result.recordset[0].id;
 		// Ensure daily stock entry - using plain array params
@@ -794,6 +873,34 @@ router.put('/products/:id', [
 	try {
 		const id = parseInt(req.params.id);
 		const { name, barcode, category_id, description, sku, shelf } = req.body;
+		
+		// Normalize barcode and SKU by removing ALL spaces (left, right, and middle)
+		const normalizedBarcode = barcode !== undefined ? normalizeBarcodeOrSku(barcode) : undefined;
+		const normalizedSku = sku !== undefined ? normalizeBarcodeOrSku(sku) : undefined;
+		
+		// Check for duplicates if barcode or SKU is being updated
+		if (normalizedBarcode !== undefined) {
+			// Performance optimized: Direct comparison uses index, REPLACE handles old data
+			const existingBarcode = await query(
+				'SELECT id FROM products WHERE id != $2 AND (barcode = $1 OR (barcode IS NOT NULL AND REPLACE(barcode, \' \', \'\') = $1)) LIMIT 1',
+				[normalizedBarcode, id]
+			);
+			if (existingBarcode.recordset.length > 0) {
+				return res.status(400).json({ error: 'Product already exists with this barcode' });
+			}
+		}
+		
+		if (normalizedSku !== undefined) {
+			// Performance optimized: Direct comparison uses index, REPLACE handles old data
+			const existingSku = await query(
+				'SELECT id FROM products WHERE id != $2 AND (sku = $1 OR (sku IS NOT NULL AND REPLACE(sku, \' \', \'\') = $1)) LIMIT 1',
+				[normalizedSku, id]
+			);
+			if (existingSku.recordset.length > 0) {
+				return res.status(400).json({ error: 'Product already exists with this SKU' });
+			}
+		}
+		
 		const updates = [];
 		const params = [];
 		let paramIndex = 1;
@@ -803,7 +910,7 @@ router.put('/products/:id', [
 		}
 		if (barcode !== undefined) {
 			updates.push(`barcode = $${++paramIndex}`);
-			params.push(barcode ? barcode.trim() : null);
+			params.push(normalizedBarcode);
 		}
 		if (category_id !== undefined) {
 			updates.push(`category_id = $${++paramIndex}`);
@@ -815,7 +922,7 @@ router.put('/products/:id', [
 		}
 		if (sku !== undefined) {
 			updates.push(`sku = $${++paramIndex}`);
-			params.push(sku ? sku.trim() : null);
+			params.push(normalizedSku);
 		}
 		if (shelf !== undefined) {
 			updates.push(`shelf = $${++paramIndex}`);
@@ -2392,9 +2499,11 @@ router.get('/inventory/today', async (req, res) => {
 router.get('/inventory/daily-history', async (req, res) => {
 	try {
 		// Add pagination and date filtering for performance
-		const limit = Math.min(parseInt(req.query.limit) || 200, 1000);
+		// Increase limit when filtering by date to ensure all records are returned
+		const defaultLimit = 1000; // Increased default for date-filtered queries
+		const limit = Math.min(parseInt(req.query.limit) || defaultLimit, 5000);
 		const offset = Math.max(parseInt(req.query.offset) || 0, 0);
-		const { start_date, end_date } = req.query;
+		const { start_date, end_date, search } = req.query;
 		
 		let sql = `SELECT 
 				ds.*,
@@ -2406,15 +2515,49 @@ router.get('/inventory/daily-history', async (req, res) => {
 		const params = [];
 		let paramIndex = 0;
 		
-		if (start_date) {
+		// Optimize date filtering: use equality when start_date === end_date, otherwise use range
+		// Cast to DATE to ensure proper comparison regardless of timezone
+		if (start_date && end_date && start_date === end_date) {
+			// Single date: use equality for better performance and accuracy
 			paramIndex++;
-			sql += ` AND ds.date >= $${paramIndex}`;
+			sql += ` AND ds.date = $${paramIndex}::DATE`;
 			params.push(start_date);
+		} else {
+			// Date range: use >= and <= with proper date casting
+			if (start_date) {
+				paramIndex++;
+				sql += ` AND ds.date >= $${paramIndex}::DATE`;
+				params.push(start_date);
+			}
+			if (end_date) {
+				paramIndex++;
+				sql += ` AND ds.date <= $${paramIndex}::DATE`;
+				params.push(end_date);
+			}
 		}
-		if (end_date) {
+		
+		// Add product search filter (name, barcode, SKU) - Performance optimized
+		if (search && search.trim()) {
+			const searchTerm = search.trim();
+			const normalizedSearch = normalizeBarcodeOrSku(searchTerm) || '';
+			const searchPattern = `%${searchTerm}%`; // For product name search (case-insensitive)
+			const normalizedPattern = `%${normalizedSearch}%`; // For barcode/SKU (normalized, uppercase, no spaces)
+			
+			// Search in product name (case-insensitive) and normalized barcode/SKU
+			// New data is stored normalized (uppercase, no spaces), so we check both direct match and REPLACE for old data
 			paramIndex++;
-			sql += ` AND ds.date <= $${paramIndex}`;
-			params.push(end_date);
+			const nameParam = paramIndex;
+			paramIndex++;
+			const barcodeSkuNormalizedParam = paramIndex; // For normalized barcode/SKU match
+			paramIndex++;
+			const barcodeSkuReplaceParam = paramIndex; // For REPLACE() on old data with spaces
+			
+			sql += ` AND (
+				p.name ILIKE $${nameParam}
+				OR (p.barcode IS NOT NULL AND (REPLACE(p.barcode, ' ', '') ILIKE $${barcodeSkuNormalizedParam} OR p.barcode ILIKE $${barcodeSkuReplaceParam}))
+				OR (p.sku IS NOT NULL AND (REPLACE(p.sku, ' ', '') ILIKE $${barcodeSkuNormalizedParam} OR p.sku ILIKE $${barcodeSkuReplaceParam}))
+			)`;
+			params.push(searchPattern, normalizedPattern, normalizedPattern);
 		}
 		
 		sql += ` ORDER BY ds.date DESC, ds.product_id ASC LIMIT $${paramIndex + 1} OFFSET $${paramIndex + 2}`;
@@ -3526,25 +3669,30 @@ router.post('/products/import-excel',
 
 				try {
 					// Extract values
-					const sku = columnMap.sku ? String(row[columnMap.sku] || '').trim() : '';
-					const name = columnMap.name ? String(row[columnMap.name] || '').trim() : '';
-					const description = columnMap.description ? String(row[columnMap.description] || '').trim() : null;
-					const barcode = columnMap.barcode ? String(row[columnMap.barcode] || '').trim() : null;
+					const skuRaw = columnMap.sku ? String(row[columnMap.sku] || '').trim() : '';
+					const nameRaw = columnMap.name ? String(row[columnMap.name] || '').trim() : '';
+					const descriptionRaw = columnMap.description ? String(row[columnMap.description] || '').trim() : null;
+					const barcodeRaw = columnMap.barcode ? String(row[columnMap.barcode] || '').trim() : null;
 					const categoryName = columnMap.category ? String(row[columnMap.category] || '').trim() : null;
 					const wholesalePrice = columnMap.wholesale_price ? parseFloat(String(row[columnMap.wholesale_price] || '0').replace(/[^0-9.-]/g, '')) || 0 : 0;
 					const retailPrice = columnMap.retail_price ? parseFloat(String(row[columnMap.retail_price] || '0').replace(/[^0-9.-]/g, '')) : null;
 					const shelf = columnMap.shelf ? String(row[columnMap.shelf] || '').trim() : null;
 
+					// Normalize barcode and SKU by removing ALL spaces (left, right, and middle)
+					const normalizedBarcode = normalizeBarcodeOrSku(barcodeRaw);
+					const normalizedSku = normalizeBarcodeOrSku(skuRaw);
+					const name = nameRaw || null;
+					const description = descriptionRaw || null;
+
 					// Skip empty rows
-					if (!name && !sku) {
+					if (!name && !normalizedSku) {
 						results.skipped++;
 						continue;
 					}
 
 					// Use SKU as name if name is missing, or name if SKU is missing
-					const productName = name || sku || 'Imported Product';
-					const productSku = sku || null;
-					const trimmedBarcode = barcode ? barcode.trim() : null;
+					const productName = name || normalizedSku || 'Imported Product';
+					const productSku = normalizedSku;
 
 					// Find category ID, create if doesn't exist
 					let categoryId = null;
@@ -3564,11 +3712,26 @@ router.post('/products/import-excel',
 						}
 					}
 
-					// Check if product with same SKU or barcode already exists (allow duplicate names)
+					// Check if product already exists (same barcode or same SKU)
+					// Priority: barcode first, then SKU if barcode is null or not found
+					// Use REPLACE for backward compatibility with old data that may contain spaces
 					let existingProduct = null;
-					if (productSku) {
+					
+					if (normalizedBarcode) {
+						// Check if barcode already exists - Performance optimized
 						const existingCheck = await client.query(
-							'SELECT id FROM products WHERE TRIM(sku) = $1',
+							'SELECT id FROM products WHERE barcode = $1 OR (barcode IS NOT NULL AND REPLACE(barcode, \' \', \'\') = $1) LIMIT 1',
+							[normalizedBarcode]
+						);
+						if (existingCheck.rows.length > 0) {
+							existingProduct = existingCheck.rows[0];
+						}
+					}
+
+					// If not found by barcode, check by SKU (if provided) - Performance optimized
+					if (!existingProduct && productSku) {
+						const existingCheck = await client.query(
+							'SELECT id FROM products WHERE sku = $1 OR (sku IS NOT NULL AND REPLACE(sku, \' \', \'\') = $1) LIMIT 1',
 							[productSku]
 						);
 						if (existingCheck.rows.length > 0) {
@@ -3576,70 +3739,35 @@ router.post('/products/import-excel',
 						}
 					}
 
-					// If not found by SKU, check by barcode (if provided)
-					if (!existingProduct && trimmedBarcode) {
-						const existingCheck = await client.query(
-							'SELECT id FROM products WHERE TRIM(barcode) = $1',
-							[trimmedBarcode]
-						);
-						if (existingCheck.rows.length > 0) {
-							existingProduct = existingCheck.rows[0];
-						}
-					}
-
-					let productId;
-
 					if (existingProduct) {
-						// Update existing product
-						productId = existingProduct.id;
-						const updates = [];
-						const params = [];
-						let paramIndex = 1;
-
-						if (productSku) {
-							updates.push(`sku = $${++paramIndex}`);
-							params.push(productSku);
-						}
-						if (description) {
-							updates.push(`description = $${++paramIndex}`);
-							params.push(description);
-						}
-						if (trimmedBarcode) {
-							updates.push(`barcode = $${++paramIndex}`);
-							params.push(trimmedBarcode);
-						}
-						if (categoryId) {
-							updates.push(`category_id = $${++paramIndex}`);
-							params.push(categoryId);
-						}
-						if (shelf) {
-							updates.push(`shelf = $${++paramIndex}`);
-							params.push(shelf);
-						}
-
-						if (updates.length > 0) {
-							params.unshift(productId);
-							await client.query(
-								`UPDATE products SET ${updates.join(', ')} WHERE id = $1`,
-								params
-							);
-						}
-					} else {
-						// Insert new product
-						const insertResult = await client.query(
-							'INSERT INTO products (name, barcode, category_id, description, sku, shelf, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
-							[productName, trimmedBarcode, categoryId, description, productSku, shelf, createdAt]
-						);
-						productId = insertResult.rows[0].id;
-
-						// Create daily stock entry
-						await client.query(
-							`INSERT INTO daily_stock (product_id, available_qty, avg_cost, date, created_at, updated_at) 
-							 VALUES ($1, 0, 0, $2, $3, $3)
-							 ON CONFLICT (product_id, date) DO NOTHING`,
-							[productId, today, createdAt]
-						);
+						// Skip existing product - do not update, just mark as skipped
+						results.skipped++;
+						results.products.push({
+							row: rowNum,
+							name: productName,
+							sku: productSku,
+							barcode: normalizedBarcode,
+							action: 'skipped',
+							reason: 'Product already exists'
+						});
+						continue; // Skip to next row
 					}
+
+					// Insert new product (only if it doesn't exist)
+					// Save normalized barcode and SKU (no spaces)
+					const insertResult = await client.query(
+						'INSERT INTO products (name, barcode, category_id, description, sku, shelf, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+						[productName, normalizedBarcode, categoryId, description, productSku, shelf, createdAt]
+					);
+					const productId = insertResult.rows[0].id;
+
+					// Create daily stock entry
+					await client.query(
+						`INSERT INTO daily_stock (product_id, available_qty, avg_cost, date, created_at, updated_at) 
+						 VALUES ($1, 0, 0, $2, $3, $3)
+						 ON CONFLICT (product_id, date) DO NOTHING`,
+						[productId, today, createdAt]
+					);
 
 					// Add price if provided
 					if (wholesalePrice > 0 || (retailPrice !== null && retailPrice > 0)) {
@@ -3671,7 +3799,8 @@ router.post('/products/import-excel',
 						row: rowNum,
 						name: productName,
 						sku: productSku,
-						action: existingProduct ? 'updated' : 'created'
+						barcode: normalizedBarcode,
+						action: 'created'
 					});
 
 				} catch (rowError) {

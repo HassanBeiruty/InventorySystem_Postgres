@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -11,6 +11,7 @@ import { Plus, Trash2, ChevronUp, ChevronDown, Package, AlertTriangle, Search, X
 import { productsRepo, customersRepo, suppliersRepo, invoicesRepo, productPricesRepo, inventoryRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import { normalizeBarcodeOrSku, normalizeBarcodeOrSkuForSearch } from "@/utils/barcodeSkuUtils";
 
 interface InvoiceItem {
   product_id: string;
@@ -388,8 +389,10 @@ const InvoiceForm = () => {
     const trimmed = input.trim();
     if (!trimmed) return;
     
-    // Normalize by removing all spaces for comparison
-    const normalizedInput = trimmed.replace(/\s+/g, '').toLowerCase();
+    // Normalize using utility function - removes all spaces and converts to uppercase
+    // Server stores barcodes/SKUs in uppercase (no spaces), so we match that format
+    const normalizedInput = normalizeBarcodeOrSku(trimmed);
+    if (!normalizedInput) return;
     
     // In edit mode, don't allow adding new items via barcode/SKU
     if (isEditMode) {
@@ -403,12 +406,10 @@ const InvoiceForm = () => {
     }
 
     // Try to find product by barcode first, then by SKU
-    // Remove all spaces from barcode/SKU for comparison to handle cases like "11 22 33" matching "112233"
-    const product = products.find(p => {
-      const normalizedBarcode = p.barcode ? p.barcode.replace(/\s+/g, '').toLowerCase() : '';
-      const normalizedSku = p.sku ? p.sku.replace(/\s+/g, '').toLowerCase() : '';
-      return normalizedBarcode === normalizedInput || normalizedSku === normalizedInput;
-    });
+    // Performance: Use pre-normalized values from memoized data
+    const product = normalizedProducts.find(p => 
+      p._normalizedBarcode === normalizedInput || p._normalizedSku === normalizedInput
+    );
 
     if (!product) {
       toast({
@@ -1056,12 +1057,15 @@ const InvoiceForm = () => {
                                 const filteredProducts = searchQuery
                                   ? products.filter(product => {
                                       const name = (product.name || "").toLowerCase();
-                                      const barcode = (product.barcode || "").toLowerCase();
-                                      const sku = (product.sku || "").toLowerCase();
+                                      // Normalize barcode/SKU for search - removes spaces and converts to uppercase
+                                      const normalizedSearchBarcode = normalizeBarcodeOrSkuForSearch(searchQuery);
+                                      const normalizedSearchSku = normalizeBarcodeOrSkuForSearch(searchQuery);
+                                      const barcode = normalizeBarcodeOrSkuForSearch(product.barcode);
+                                      const sku = normalizeBarcodeOrSkuForSearch(product.sku);
                                       const id = (product.id || "").toString();
                                       return name.includes(searchQuery) || 
-                                             barcode.includes(searchQuery) || 
-                                             sku.includes(searchQuery) || 
+                                             barcode.includes(normalizedSearchBarcode) || 
+                                             sku.includes(normalizedSearchSku) || 
                                              id.includes(searchQuery);
                                     })
                                   : products;

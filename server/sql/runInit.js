@@ -51,6 +51,11 @@ CREATE INDEX IF NOT EXISTS IX_products_category ON products(category_id);
 CREATE INDEX IF NOT EXISTS IX_products_barcode ON products(barcode) WHERE barcode IS NOT NULL;
 CREATE INDEX IF NOT EXISTS IX_products_sku ON products(sku) WHERE sku IS NOT NULL;
 
+-- Functional indexes for normalized barcode/SKU lookups (performance optimization)
+-- These indexes allow fast lookups using REPLACE() function on normalized values
+CREATE INDEX IF NOT EXISTS IX_products_barcode_normalized ON products(REPLACE(COALESCE(barcode, ''), ' ', '')) WHERE barcode IS NOT NULL;
+CREATE INDEX IF NOT EXISTS IX_products_sku_normalized ON products(REPLACE(COALESCE(sku, ''), ' ', '')) WHERE sku IS NOT NULL;
+
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;`
 	},
 	{

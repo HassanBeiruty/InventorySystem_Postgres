@@ -43,20 +43,26 @@ const DailyStocks = () => {
   const fetchDailyStocks = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await inventoryRepo.dailyHistory({ start_date: startDate, end_date: endDate });
+      // Pass search term to server for efficient server-side filtering
+      const data = await inventoryRepo.dailyHistory({ 
+        start_date: startDate, 
+        end_date: endDate,
+        search: searchTerm.trim() || undefined
+      });
       setDailyStocks((data as any[]) || []);
     } catch (error) {
       // Silently handle error
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate]);
+  }, [startDate, endDate, searchTerm]);
 
   useEffect(() => {
     fetchDailyStocks();
   }, [fetchDailyStocks]);
 
   // Memoize grouped stocks to avoid recalculating on every render
+  // Note: Filtering is now done server-side, so we just group the already-filtered results
   const groupedByDate = useMemo(() => {
     return dailyStocks.reduce((acc, item) => {
       const date = formatDateLebanon(item.date);
@@ -66,20 +72,8 @@ const DailyStocks = () => {
     }, {} as Record<string, DailyStockItem[]>);
   }, [dailyStocks]);
 
-  // Memoize filtered groups to avoid recalculating on every render
-  const filteredGroups = useMemo(() => {
-    return Object.entries(groupedByDate).reduce((acc, [date, items]) => {
-      const trimmedSearch = searchTerm.trim().replace(/\s+/g, '').toLowerCase();
-      const filtered = items.filter(item => 
-        item.products?.name.toLowerCase().includes(trimmedSearch) ||
-        (item.products?.barcode && item.products.barcode.replace(/\s+/g, '').toLowerCase().includes(trimmedSearch))
-      );
-      if (filtered.length > 0) {
-        acc[date] = filtered;
-      }
-      return acc;
-    }, {} as Record<string, DailyStockItem[]>);
-  }, [groupedByDate, searchTerm]);
+  // Use groupedByDate directly since filtering is done server-side
+  const filteredGroups = groupedByDate;
 
   // Sort dates descending
   const sortedDates = useMemo(() => {

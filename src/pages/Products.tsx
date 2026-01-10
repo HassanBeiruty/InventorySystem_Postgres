@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import ProductDetailsSidePanel from "@/components/ProductDetailsSidePanel";
+import { normalizeBarcodeOrSkuForSearch } from "@/utils/barcodeSkuUtils";
 
 const Products = () => {
   const { t } = useTranslation();
@@ -77,29 +78,34 @@ const Products = () => {
     loadData();
   }, []);
 
-  const filteredProducts = products.filter(p => {
-    // Search filter - search across all fields
-    if (searchQuery.trim()) {
-      const query = searchQuery.trim().replace(/\s+/g, '').toLowerCase();
+  // Performance optimization: Memoize filtered products to avoid re-filtering on every render
+  const filteredProducts = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return products;
+    }
+    
+    const query = searchQuery.trim().toLowerCase();
+    const normalizedQueryForBarcodeSku = normalizeBarcodeOrSkuForSearch(searchQuery);
+    
+    return products.filter(p => {
       const name = (p.name || "").toLowerCase();
-      const barcode = (p.barcode || "").replace(/\s+/g, '').toLowerCase();
-      const sku = (p.sku || "").replace(/\s+/g, '').toLowerCase();
+      // Performance: Normalize once per product during filter
+      const barcode = normalizeBarcodeOrSkuForSearch(p.barcode);
+      const sku = normalizeBarcodeOrSkuForSearch(p.sku);
       const shelf = (p.shelf || "").toLowerCase();
       const category = (p.category_name || "").toLowerCase();
       const description = (p.description || "").toLowerCase();
       const id = (p.id || "").toString();
       
       return name.includes(query) || 
-             barcode.includes(query) || 
-             sku.includes(query) || 
+             barcode.includes(normalizedQueryForBarcodeSku) || 
+             sku.includes(normalizedQueryForBarcodeSku) || 
              shelf.includes(query) || 
              category.includes(query) || 
              description.includes(query) ||
              id.includes(query);
-    }
-    
-    return true;
-  });
+    });
+  }, [products, searchQuery]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

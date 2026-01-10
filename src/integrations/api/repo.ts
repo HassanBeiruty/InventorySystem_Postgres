@@ -378,10 +378,11 @@ export const inventoryRepo = {
   async today(): Promise<(DailyStockEntity & { products?: ProductEntity })[]> {
     return fetchJson(`/api/inventory/today`);
   },
-  async dailyHistory(filters?: { start_date?: string; end_date?: string }): Promise<(DailyStockEntity & { products?: ProductEntity })[]> {
+  async dailyHistory(filters?: { start_date?: string; end_date?: string; search?: string }): Promise<(DailyStockEntity & { products?: ProductEntity })[]> {
     const params = new URLSearchParams();
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
+    if (filters?.search) params.append('search', filters.search);
     const queryString = params.toString();
     return fetchJson(`/api/inventory/daily-history${queryString ? `?${queryString}` : ''}`);
   },

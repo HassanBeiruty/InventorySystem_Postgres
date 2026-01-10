@@ -9,6 +9,7 @@ import { Scan, Package, CheckCircle2, ArrowRight, Hash } from "lucide-react";
 import { productsRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import { normalizeBarcodeOrSku } from "@/utils/barcodeSkuUtils";
 
 const QuickAddProducts = () => {
   const { t } = useTranslation();
@@ -110,13 +111,35 @@ const QuickAddProducts = () => {
     setLoading(true);
     try {
       if (mode === 'barcode') {
+        // Normalize barcode before sending to API (removes all spaces, converts to uppercase)
+        const normalizedBarcode = normalizeBarcodeOrSku(barcode);
+        if (!normalizedBarcode) {
+          toast({
+            title: "Error",
+            description: "Barcode is required",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
         await productsRepo.quickAdd({
-          barcode: barcode.trim(),
+          barcode: normalizedBarcode,
           name: name.trim(),
         });
       } else {
+        // Normalize SKU before sending to API (removes all spaces, converts to uppercase)
+        const normalizedSku = normalizeBarcodeOrSku(sku);
+        if (!normalizedSku) {
+          toast({
+            title: "Error",
+            description: "SKU is required",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
         await productsRepo.quickAddSku({
-          sku: sku.trim(),
+          sku: normalizedSku,
           name: name.trim(),
         });
       }
