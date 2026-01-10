@@ -68,6 +68,20 @@ const InvoiceForm = () => {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [availableStock, setAvailableStock] = useState<Map<string, number>>(new Map());
   
+  // Performance optimization: Pre-normalize product barcodes/SKUs to avoid repeated normalization
+  const normalizedProducts = useMemo(() => {
+    return products.map(p => {
+      // Ensure barcode and SKU are treated as strings for normalization
+      const barcodeStr = p.barcode != null ? String(p.barcode) : null;
+      const skuStr = p.sku != null ? String(p.sku) : null;
+      return {
+        ...p,
+        _normalizedBarcode: normalizeBarcodeOrSkuForSearch(barcodeStr),
+        _normalizedSku: normalizeBarcodeOrSkuForSearch(skuStr),
+      };
+    });
+  }, [products]);
+  
   const [selectedEntity, setSelectedEntity] = useState("");
   const [dueDate, setDueDate] = useState<string>("");
   const [paidDirectly, setPaidDirectly] = useState<boolean>(true);
@@ -392,7 +406,15 @@ const InvoiceForm = () => {
     // Normalize using utility function - removes all spaces and converts to uppercase
     // Server stores barcodes/SKUs in uppercase (no spaces), so we match that format
     const normalizedInput = normalizeBarcodeOrSku(trimmed);
-    if (!normalizedInput) return;
+    if (!normalizedInput) {
+      toast({
+        title: "Invalid Input",
+        description: "Please enter a valid barcode or SKU",
+        variant: "destructive",
+      });
+      setBarcodeInput("");
+      return;
+    }
     
     // In edit mode, don't allow adding new items via barcode/SKU
     if (isEditMode) {
@@ -407,9 +429,11 @@ const InvoiceForm = () => {
 
     // Try to find product by barcode first, then by SKU
     // Performance: Use pre-normalized values from memoized data
-    const product = normalizedProducts.find(p => 
-      p._normalizedBarcode === normalizedInput || p._normalizedSku === normalizedInput
-    );
+    const product = normalizedProducts.find(p => {
+      // Check normalized barcode/SKU (handles spaces and case)
+      // _normalizedBarcode and _normalizedSku are pre-computed in useMemo
+      return p._normalizedBarcode === normalizedInput || p._normalizedSku === normalizedInput;
+    });
 
     if (!product) {
       toast({
@@ -1053,22 +1077,37 @@ const InvoiceForm = () => {
                             </div>
                             <div className="max-h-[300px] overflow-y-auto">
                               {(() => {
-                                const searchQuery = (productSearchQuery[index] || "").toLowerCase().trim();
-                                const filteredProducts = searchQuery
-                                  ? products.filter(product => {
-                                      const name = (product.name || "").toLowerCase();
-                                      // Normalize barcode/SKU for search - removes spaces and converts to uppercase
-                                      const normalizedSearchBarcode = normalizeBarcodeOrSkuForSearch(searchQuery);
-                                      const normalizedSearchSku = normalizeBarcodeOrSkuForSearch(searchQuery);
-                                      const barcode = normalizeBarcodeOrSkuForSearch(product.barcode);
-                                      const sku = normalizeBarcodeOrSkuForSearch(product.sku);
-                                      const id = (product.id || "").toString();
-                                      return name.includes(searchQuery) || 
-                                             barcode.includes(normalizedSearchBarcode) || 
-                                             sku.includes(normalizedSearchSku) || 
-                                             id.includes(searchQuery);
-                                    })
-                                  : products;
+                                const searchQueryRaw = (productSearchQuery[index] || "").trim();
+                                
+                                // Filter products if search query exists
+                                const filteredProducts = searchQueryRaw
+                                  ? (() => {
+                                      const searchQuery = searchQueryRaw.toLowerCase();
+                                      // Normalize search query for barcode/SKU matching (removes spaces, converts to uppercase)
+                                      const normalizedSearchForBarcodeSku = normalizeBarcodeOrSkuForSearch(searchQueryRaw);
+                                      
+                                      return products.filter(product => {
+                                        const name = (product.name || "").toLowerCase();
+                                        // Normalize product barcode/SKU for comparison
+                                        const barcode = normalizeBarcodeOrSkuForSearch(product.barcode);
+                                        const sku = normalizeBarcodeOrSkuForSearch(product.sku);
+                                        const id = (product.id || "").toString();
+                                        
+                                        // Search in name (case-insensitive partial match)
+                                        if (name.includes(searchQuery)) return true;
+                                        
+                                        // Search in barcode/SKU (normalized, exact or partial match)
+                                        if (normalizedSearchForBarcodeSku && (barcode.includes(normalizedSearchForBarcodeSku) || sku.includes(normalizedSearchForBarcodeSku))) {
+                                          return true;
+                                        }
+                                        
+                                        // Search in ID
+                                        if (id.includes(searchQuery)) return true;
+                                        
+                                        return false;
+                                      });
+                                    })()
+                                  : products; // Return all products if no search query
                                 
                                 if (filteredProducts.length === 0) {
                                   return (
@@ -1078,6 +1117,7 @@ const InvoiceForm = () => {
                                   );
                                 }
                                 
+                                // Always return JSX (SelectItem components), never raw product objects
                                 return filteredProducts.map((product) => {
                                   const identifier = product.barcode || product.sku || null;
                                   return (
