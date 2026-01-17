@@ -3987,16 +3987,16 @@ router.post('/products/import-excel',
 						// Only update if this row is in the updateRows set
 						if (!updateRows.has(rowNum)) {
 							// Skip this product - don't update, don't create
-							results.skipped++;
-							results.products.push({
-								row: rowNum,
-								name: productName,
-								sku: productSku,
-								barcode: normalizedBarcode,
-								action: 'skipped',
+						results.skipped++;
+						results.products.push({
+							row: rowNum,
+							name: productName,
+							sku: productSku,
+							barcode: normalizedBarcode,
+							action: 'skipped',
 								reason: 'Not selected for update'
-							});
-							continue; // Skip to next row
+						});
+						continue; // Skip to next row
 						}
 
 						// Fetch full existing product to check for changes
@@ -4214,6 +4214,7 @@ router.post('/invoices/import-excel-preview',
 		const columnMappings = {
 			invoice_type: ['invoice_type', 'type', 'invoice type'],
 			invoice_date: ['invoice_date', 'invoice date', 'date'],
+			entity_name: ['entity_name', 'entity name', 'entity'],
 			customer_name: ['customer_name', 'customer name', 'customer'],
 			supplier_name: ['supplier_name', 'supplier name', 'supplier'],
 			due_date: ['due_date', 'due date'],
@@ -4222,9 +4223,6 @@ router.post('/invoices/import-excel-preview',
 			product_sku: ['product_sku', 'product sku', 'sku', 'oem', 'oem_no', 'oem no'],
 			quantity: ['quantity', 'qty', 'qty.', 'amount'],
 			unit_price: ['unit_price', 'unit price', 'price', 'unitprice'],
-			price_type: ['price_type', 'price type', 'pricing'],
-			is_private_price: ['is_private_price', 'is private price', 'private_price', 'private price'],
-			private_price_amount: ['private_price_amount', 'private price amount'],
 			private_price_note: ['private_price_note', 'private price note', 'private_note', 'private note']
 		};
 
@@ -4304,6 +4302,22 @@ router.post('/invoices/import-excel-preview',
 			suppliers.set(supplier.name.toLowerCase().trim(), supplier);
 		});
 
+		// Get latest product prices for sell invoices (to lookup retail/wholesale prices)
+		const pricesResult = await query(
+			`SELECT DISTINCT ON (pp.product_id)
+				pp.product_id, pp.wholesale_price, pp.retail_price, pp.effective_date
+			 FROM product_prices pp
+			 ORDER BY pp.product_id, pp.effective_date DESC, pp.created_at DESC`,
+			[]
+		);
+		const productPrices = new Map();
+		pricesResult.recordset.forEach(price => {
+			productPrices.set(price.product_id, {
+				wholesale_price: parseFloat(price.wholesale_price) || 0,
+				retail_price: parseFloat(price.retail_price) || 0
+			});
+		});
+
 		// Group rows by invoice (invoice_date + invoice_type + entity)
 		const invoiceGroups = new Map();
 		const errors = [];
@@ -4336,12 +4350,18 @@ router.post('/invoices/import-excel-preview',
 					continue;
 				}
 
-				const entityName = invoiceType === 'sell' 
-					? String(row[columnMap.customer_name] || '').trim()
-					: String(row[columnMap.supplier_name] || '').trim();
+				// Support single entity_name column or separate customer_name/supplier_name
+				let entityName = '';
+				if (columnMap.entity_name) {
+					entityName = String(row[columnMap.entity_name] || '').trim();
+				} else {
+					entityName = invoiceType === 'sell' 
+						? String(row[columnMap.customer_name] || '').trim()
+						: String(row[columnMap.supplier_name] || '').trim();
+				}
 
 				if (!entityName) {
-					errors.push({ row: rowNum, error: `Missing ${invoiceType === 'sell' ? 'customer_name' : 'supplier_name'}` });
+					errors.push({ row: rowNum, error: `Missing ${columnMap.entity_name ? 'entity_name' : (invoiceType === 'sell' ? 'customer_name' : 'supplier_name')}` });
 					continue;
 				}
 
@@ -4391,18 +4411,44 @@ router.post('/invoices/import-excel-preview',
 					continue;
 				}
 
+				// Lookup product: check both barcode and SKU columns for the value
+				// If barcode provided: check barcode column first, then SKU column (same value)
+				// If SKU provided: check SKU column first, then barcode column (same value)
 				let product = null;
+				
+				// If barcode is provided, check barcode column first, then SKU column
 				if (barcode) {
 					const normalizedBarcode = normalizeBarcodeOrSku(barcode);
-					product = products.get(`barcode:${normalizedBarcode}`);
+					if (normalizedBarcode) {
+						// Try barcode column first
+						product = products.get(`barcode:${normalizedBarcode}`);
+						// If not found, try SKU column with the same value
+						if (!product) {
+							product = products.get(`sku:${normalizedBarcode}`);
+						}
+					}
 				}
+				
+				// If still not found and SKU is provided, check SKU column first, then barcode column
 				if (!product && sku) {
 					const normalizedSku = normalizeBarcodeOrSku(sku);
-					product = products.get(`sku:${normalizedSku}`);
+					if (normalizedSku) {
+						// Try SKU column first
+						product = products.get(`sku:${normalizedSku}`);
+						// If not found, try barcode column with the same value
+						if (!product) {
+							product = products.get(`barcode:${normalizedSku}`);
+						}
+					}
 				}
 
 				if (!product) {
-					errors.push({ row: rowNum, error: `Product not found: ${barcode || sku}` });
+					// If both barcode and sku are provided but product not found, show what was searched
+					if (barcode && sku) {
+						errors.push({ row: rowNum, error: `Product not found: barcode="${barcode}" or sku="${sku}"` });
+					} else {
+						errors.push({ row: rowNum, error: `Product not found: ${barcode || sku}` });
+					}
 					continue;
 				}
 
@@ -4412,18 +4458,67 @@ router.post('/invoices/import-excel-preview',
 					continue;
 				}
 
-				const unitPrice = parseFloat(String(row[columnMap.unit_price] || '0'));
-				if (isNaN(unitPrice) || unitPrice < 0) {
-					errors.push({ row: rowNum, error: `Invalid unit_price: ${row[columnMap.unit_price]}` });
-					continue;
+				// For SELL invoices: 
+				// - If unit_price is a number → private price
+				// - If unit_price is "retail" or "wholesale" → use product_prices
+				// - If unit_price is empty → error
+				// For BUY invoices: unit_price is always the cost (must be a number)
+				let unitPrice = 0;
+				let isPrivatePrice = false;
+				let privatePriceAmount = 0;
+				const privatePriceNote = String(row[columnMap.private_price_note] || '').trim();
+
+				if (invoiceType === 'sell') {
+					const unitPriceStr = String(row[columnMap.unit_price] || '').trim().toLowerCase();
+					
+					if (!unitPriceStr) {
+						// Empty unit_price → error
+						errors.push({ row: rowNum, error: 'unit_price is required for sell invoices. Provide a number (private price) or "retail"/"wholesale" to use product_prices' });
+						continue;
+					}
+					
+					// Try to parse as number first
+					const parsedUnitPrice = parseFloat(unitPriceStr);
+					
+					if (!isNaN(parsedUnitPrice) && parsedUnitPrice > 0) {
+						// Number provided = private price
+						isPrivatePrice = true;
+						privatePriceAmount = parsedUnitPrice;
+						unitPrice = 0; // Not used for private prices, but keep for reference
+					} else if (unitPriceStr === 'retail' || unitPriceStr === 'wholesale') {
+						// String "retail" or "wholesale" = use product_prices
+						const prices = productPrices.get(product.id);
+						if (prices) {
+							unitPrice = unitPriceStr === 'wholesale' ? prices.wholesale_price : prices.retail_price;
+							isPrivatePrice = false;
+						} else {
+							errors.push({ row: rowNum, error: `Product has no ${unitPriceStr} price defined in product_prices` });
+							continue;
+						}
+					} else {
+						// Invalid value
+						errors.push({ row: rowNum, error: `Invalid unit_price: "${unitPriceStr}". Must be a number (private price) or "retail"/"wholesale"` });
+						continue;
+					}
+				} else {
+					// BUY invoice: unit_price is always the cost (must be a number)
+					const unitPriceStr = String(row[columnMap.unit_price] || '').trim();
+					const parsedUnitPrice = unitPriceStr ? parseFloat(unitPriceStr) : NaN;
+					if (isNaN(parsedUnitPrice) || parsedUnitPrice < 0) {
+						errors.push({ row: rowNum, error: `Invalid unit_price (cost): ${row[columnMap.unit_price]}` });
+						continue;
+					}
+					unitPrice = parsedUnitPrice;
 				}
 
-				const priceType = String(row[columnMap.price_type] || 'retail').trim().toLowerCase();
-				const validPriceType = (priceType === 'wholesale' || priceType === 'retail') ? priceType : 'retail';
-
-				const isPrivatePrice = String(row[columnMap.is_private_price] || 'false').trim().toLowerCase() === 'true';
-				const privatePriceAmount = isPrivatePrice ? parseFloat(String(row[columnMap.private_price_amount] || '0')) : 0;
-				const privatePriceNote = String(row[columnMap.private_price_note] || '').trim();
+				// Determine price_type: if using product_prices, use the type from unit_price; otherwise default to retail
+				let priceType = 'retail';
+				if (invoiceType === 'sell' && !isPrivatePrice) {
+					const unitPriceStr = String(row[columnMap.unit_price] || '').trim().toLowerCase();
+					if (unitPriceStr === 'wholesale' || unitPriceStr === 'retail') {
+						priceType = unitPriceStr;
+					}
+				}
 
 				const effectivePrice = isPrivatePrice ? privatePriceAmount : unitPrice;
 				const totalPrice = effectivePrice * quantity;
@@ -4434,7 +4529,7 @@ router.post('/invoices/import-excel-preview',
 					product_name: product.name,
 					quantity: quantity,
 					unit_price: unitPrice,
-					price_type: validPriceType,
+					price_type: priceType,
 					total_price: totalPrice,
 					is_private_price: isPrivatePrice,
 					private_price_amount: isPrivatePrice ? privatePriceAmount : null,
@@ -4515,6 +4610,7 @@ router.post('/invoices/import-excel',
 		const columnMappings = {
 			invoice_type: ['invoice_type', 'type', 'invoice type'],
 			invoice_date: ['invoice_date', 'invoice date', 'date'],
+			entity_name: ['entity_name', 'entity name', 'entity'],
 			customer_name: ['customer_name', 'customer name', 'customer'],
 			supplier_name: ['supplier_name', 'supplier name', 'supplier'],
 			due_date: ['due_date', 'due date'],
@@ -4523,9 +4619,6 @@ router.post('/invoices/import-excel',
 			product_sku: ['product_sku', 'product sku', 'sku', 'oem', 'oem_no', 'oem no'],
 			quantity: ['quantity', 'qty', 'qty.', 'amount'],
 			unit_price: ['unit_price', 'unit price', 'price', 'unitprice'],
-			price_type: ['price_type', 'price type', 'pricing'],
-			is_private_price: ['is_private_price', 'is private price', 'private_price', 'private price'],
-			private_price_amount: ['private_price_amount', 'private price amount'],
 			private_price_note: ['private_price_note', 'private price note', 'private_note', 'private note']
 		};
 
@@ -4576,6 +4669,22 @@ router.post('/invoices/import-excel',
 			suppliers.set(supplier.name.toLowerCase().trim(), supplier);
 		});
 
+		// Get latest product prices for sell invoices (to lookup retail/wholesale prices)
+		const pricesResult = await client.query(
+			`SELECT DISTINCT ON (pp.product_id)
+				pp.product_id, pp.wholesale_price, pp.retail_price, pp.effective_date
+			 FROM product_prices pp
+			 ORDER BY pp.product_id, pp.effective_date DESC, pp.created_at DESC`,
+			[]
+		);
+		const productPrices = new Map();
+		pricesResult.rows.forEach(price => {
+			productPrices.set(price.product_id, {
+				wholesale_price: parseFloat(price.wholesale_price) || 0,
+				retail_price: parseFloat(price.retail_price) || 0
+			});
+		});
+
 		// Group rows by invoice
 		const invoiceGroups = new Map();
 		const today = getTodayLocal();
@@ -4596,9 +4705,15 @@ router.post('/invoices/import-excel',
 				continue;
 			}
 
-			const entityName = invoiceType === 'sell' 
-				? String(row[columnMap.customer_name] || '').trim()
-				: String(row[columnMap.supplier_name] || '').trim();
+			// Support single entity_name column or separate customer_name/supplier_name
+			let entityName = '';
+			if (columnMap.entity_name) {
+				entityName = String(row[columnMap.entity_name] || '').trim();
+			} else {
+				entityName = invoiceType === 'sell' 
+					? String(row[columnMap.customer_name] || '').trim()
+					: String(row[columnMap.supplier_name] || '').trim();
+			}
 
 			if (!entityName) continue;
 
@@ -4643,14 +4758,35 @@ router.post('/invoices/import-excel',
 			
 			if (!barcode && !sku) continue;
 
+			// Lookup product: check both barcode and SKU columns for the value
+			// If barcode provided: check barcode column first, then SKU column (same value)
+			// If SKU provided: check SKU column first, then barcode column (same value)
 			let product = null;
+			
+			// If barcode is provided, check barcode column first, then SKU column
 			if (barcode) {
 				const normalizedBarcode = normalizeBarcodeOrSku(barcode);
-				product = products.get(`barcode:${normalizedBarcode}`);
+				if (normalizedBarcode) {
+					// Try barcode column first
+					product = products.get(`barcode:${normalizedBarcode}`);
+					// If not found, try SKU column with the same value
+					if (!product) {
+						product = products.get(`sku:${normalizedBarcode}`);
+					}
+				}
 			}
+			
+			// If still not found and SKU is provided, check SKU column first, then barcode column
 			if (!product && sku) {
 				const normalizedSku = normalizeBarcodeOrSku(sku);
-				product = products.get(`sku:${normalizedSku}`);
+				if (normalizedSku) {
+					// Try SKU column first
+					product = products.get(`sku:${normalizedSku}`);
+					// If not found, try barcode column with the same value
+					if (!product) {
+						product = products.get(`barcode:${normalizedSku}`);
+					}
+				}
 			}
 
 			if (!product) continue;
@@ -4658,25 +4794,71 @@ router.post('/invoices/import-excel',
 			const quantity = parseFloat(String(row[columnMap.quantity] || '0'));
 			if (isNaN(quantity) || quantity <= 0) continue;
 
-			const unitPrice = parseFloat(String(row[columnMap.unit_price] || '0'));
-			if (isNaN(unitPrice) || unitPrice < 0) continue;
-
-			const priceType = String(row[columnMap.price_type] || 'retail').trim().toLowerCase();
-			const validPriceType = (priceType === 'wholesale' || priceType === 'retail') ? priceType : 'retail';
-
-			const isPrivatePrice = String(row[columnMap.is_private_price] || 'false').trim().toLowerCase() === 'true';
-			const privatePriceAmount = isPrivatePrice ? parseFloat(String(row[columnMap.private_price_amount] || '0')) : 0;
+			// For SELL invoices: 
+			// - If unit_price is a number → private price
+			// - If unit_price is "retail" or "wholesale" → use product_prices
+			// - If unit_price is empty → skip (error)
+			// For BUY invoices: unit_price is always the cost (must be a number)
+			let unitPrice = 0;
+			let isPrivatePrice = false;
+			let privatePriceAmount = 0;
 			const privatePriceNote = String(row[columnMap.private_price_note] || '').trim();
+
+			if (invoiceType === 'sell') {
+				const unitPriceStr = String(row[columnMap.unit_price] || '').trim().toLowerCase();
+				
+				if (!unitPriceStr) {
+					// Empty unit_price → skip (error)
+					continue;
+				}
+				
+				// Try to parse as number first
+				const parsedUnitPrice = parseFloat(unitPriceStr);
+				
+				if (!isNaN(parsedUnitPrice) && parsedUnitPrice > 0) {
+					// Number provided = private price
+					isPrivatePrice = true;
+					privatePriceAmount = parsedUnitPrice;
+					unitPrice = 0; // Not used for private prices, but keep for reference
+				} else if (unitPriceStr === 'retail' || unitPriceStr === 'wholesale') {
+					// String "retail" or "wholesale" = use product_prices
+					const prices = productPrices.get(product.id);
+					if (prices) {
+						unitPrice = unitPriceStr === 'wholesale' ? prices.wholesale_price : prices.retail_price;
+						isPrivatePrice = false;
+					} else {
+						continue; // Skip items without price
+					}
+				} else {
+					// Invalid value → skip
+					continue;
+				}
+			} else {
+				// BUY invoice: unit_price is always the cost (must be a number)
+				const unitPriceStr = String(row[columnMap.unit_price] || '').trim();
+				const parsedUnitPrice = unitPriceStr ? parseFloat(unitPriceStr) : NaN;
+				if (isNaN(parsedUnitPrice) || parsedUnitPrice < 0) continue;
+				unitPrice = parsedUnitPrice;
+			}
 
 			const effectivePrice = isPrivatePrice ? privatePriceAmount : unitPrice;
 			const totalPrice = effectivePrice * quantity;
+
+			// Determine price_type for sell invoices (retail or wholesale)
+			let priceType = 'retail';
+			if (invoiceType === 'sell' && !isPrivatePrice) {
+				const unitPriceStr = String(row[columnMap.unit_price] || '').trim().toLowerCase();
+				if (unitPriceStr === 'wholesale' || unitPriceStr === 'retail') {
+					priceType = unitPriceStr;
+				}
+			}
 
 			const invoice = invoiceGroups.get(invoiceKey);
 			invoice.items.push({
 				product_id: product.id,
 				quantity: quantity,
 				unit_price: unitPrice,
-				price_type: validPriceType,
+				price_type: priceType,
 				total_price: totalPrice,
 				is_private_price: isPrivatePrice,
 				private_price_amount: isPrivatePrice ? privatePriceAmount : null,

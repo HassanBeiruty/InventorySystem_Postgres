@@ -1,0 +1,7 @@
+invoice_type,invoice_date,entity_name,due_date,paid_directly,product_barcode,product_sku,quantity,unit_price,private_price_note
+sell,2025-01-15,John Smith,2025-02-15,true,BAR001,,5,28.50,Special discount
+sell,2025-01-15,John Smith,2025-02-15,true,,SKU123,3,retail,
+sell,2025-01-16,Mary Johnson,2025-02-16,false,BAR002,,10,wholesale,
+sell,2025-01-17,John Smith,2025-02-17,true,BAR003,,2,45.00,Custom price for VIP customer
+buy,2025-01-10,ABC Suppliers,2025-02-10,true,BAR001,,20,15.00,
+buy,2025-01-10,ABC Suppliers,2025-02-10,true,,SKU123,15,30.00,
