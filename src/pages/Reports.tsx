@@ -243,12 +243,106 @@ const Reports = () => {
       const totalSales = sales.reduce((sum: number, inv: any) => sum + Number(inv.total_amount), 0) || 0;
       const totalPurchases = purchases.reduce((sum: number, inv: any) => sum + Number(inv.total_amount), 0) || 0;
 
+      // Calculate actual profit: For each sell invoice item, calculate quantity * (unit_price - cost_at_invoice_date)
+      // Fetch daily_stock history up to end_date to get cost at invoice date (need historical costs even if purchases were before startDate)
+      let actualProfit = 0;
+      try {
+        // Only use end_date filter, not start_date, to get all historical costs up to invoice dates
+        // This ensures we have cost data for products purchased before the selected date range
+        // Request high limit (5000) to ensure we get all historical cost data for profit calculation
+        // Note: Backend has max limit of 5000, which should be sufficient for most use cases
+        const dailyStockHistory = await inventoryRepo.dailyHistory({
+          end_date: endDate || undefined,
+          limit: 5000 // Request max limit to get all historical cost data
+        });
+
+        // Build a map of (product_id, date) -> avg_cost
+        // For each date, we'll use the latest snapshot on or before that date
+        const costMap = new Map<string, number>(); // key: "product_id:date" -> avg_cost
+        
+        // Group by product and date, keeping latest for each date
+        const productDateMap = new Map<string, { date: string; avg_cost: number }>();
+        // Pre-build product cost arrays for faster lookup (optimization)
+        const productCostArrays = new Map<string, Array<{ date: string; avg_cost: number }>>();
+        
+        (dailyStockHistory || []).forEach((snapshot: any) => {
+          const productId = String(snapshot.product_id);
+          const date = snapshot.date ? formatDateForComparison(snapshot.date) : '';
+          const key = `${productId}:${date}`;
+          if (date && snapshot.avg_cost !== undefined) {
+            const existing = productDateMap.get(key);
+            if (!existing || new Date(snapshot.updated_at || snapshot.created_at) > new Date(existing.date)) {
+              productDateMap.set(key, { date, avg_cost: parseFloat(snapshot.avg_cost) || 0 });
+              
+              // Build sorted cost arrays for each product (optimization)
+              if (!productCostArrays.has(productId)) {
+                productCostArrays.set(productId, []);
+              }
+              const costs = productCostArrays.get(productId)!;
+              const existingCost = costs.find(c => c.date === date);
+              if (!existingCost) {
+                costs.push({ date, avg_cost: parseFloat(snapshot.avg_cost) || 0 });
+              }
+            }
+          }
+        });
+        
+        // Sort each product's cost array by date descending for efficient lookup
+        productCostArrays.forEach((costs) => {
+          costs.sort((a, b) => b.date.localeCompare(a.date));
+        });
+
+        // For each sell invoice, calculate profit per item
+        sales.forEach((invoice: any) => {
+          const invoiceDate = formatDateForComparison(invoice.invoice_date);
+          (invoice.invoice_items || []).forEach((item: any) => {
+            const productId = String(item.product_id);
+            const quantity = parseFloat(item.quantity) || 0;
+            // Use effective price (private_price_amount if private, else unit_price)
+            const sellPrice = item.is_private_price && item.private_price_amount 
+              ? parseFloat(item.private_price_amount) 
+              : parseFloat(item.unit_price) || 0;
+
+            // Find cost at invoice date - look for exact date or latest before (optimized lookup)
+            let cost = 0;
+            const exactKey = `${productId}:${invoiceDate}`;
+            if (productDateMap.has(exactKey)) {
+              cost = productDateMap.get(exactKey)!.avg_cost;
+            } else {
+              // Use pre-built sorted cost array for efficient lookup (O(log n) instead of O(n))
+              const productCosts = productCostArrays.get(productId);
+              if (productCosts && productCosts.length > 0) {
+                // Array is already sorted by date descending, find first cost on or before invoice date
+                const foundCost = productCosts.find(c => c.date <= invoiceDate);
+                if (foundCost) {
+                  cost = foundCost.avg_cost;
+                } else {
+                  // Fallback to current avg_cost if no historical data
+                  cost = costsMap.get(productId) || 0;
+                }
+              } else {
+                // Fallback to current avg_cost if no historical data
+                cost = costsMap.get(productId) || 0;
+              }
+            }
+
+            // Profit = quantity * (sell_price - cost)
+            const itemProfit = quantity * (sellPrice - cost);
+            actualProfit += itemProfit;
+          });
+        });
+      } catch (e) {
+        console.error('Failed to calculate actual profit:', e);
+        // Fallback to simple calculation if daily_stock fetch fails
+        actualProfit = totalSales - totalPurchases;
+      }
+
       setSummary({
         totalSales,
         totalPurchases,
-        netProfit: totalSales - totalPurchases,
-        actualProfit: 0,
-        averageMargin: totalSales > 0 ? ((totalSales - totalPurchases) / totalSales) * 100 : 0,
+        netProfit: totalSales - totalPurchases, // Simple calculation: Sales - Purchases (for reference)
+        actualProfit, // Correct profit calculation: Sum of (quantity × (price - cost)) per item
+        averageMargin: totalSales > 0 ? (actualProfit / totalSales) * 100 : 0,
         totalProducts: (products || []).length,
         totalCustomers: (customers || []).length,
         totalSuppliers: (suppliers || []).length,
@@ -331,7 +425,7 @@ const Reports = () => {
           ['Total Sales', `$${summary.totalSales.toFixed(2)}`],
           ['Total Purchases', `$${summary.totalPurchases.toFixed(2)}`],
           ['Net Profit', `$${summary.netProfit.toFixed(2)}`],
-          ['Profit Margin', `${summary.averageMargin.toFixed(1)}%`],
+          ['Profit', `$${summary.actualProfit.toFixed(2)}`],
           ['Total Products', summary.totalProducts.toString()],
           ['Total Customers', summary.totalCustomers.toString()],
           ['Total Suppliers', summary.totalSuppliers.toString()],
@@ -522,12 +616,12 @@ const Reports = () => {
 
               <Card className="bg-gradient-to-br from-accent/10 to-accent/5 border-accent/20 border-2">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-2 px-2.5">
-                  <CardTitle className="text-xs sm:text-sm font-medium">Profit Margin</CardTitle>
-                  <Package className="h-4 w-4 text-accent" />
+                  <CardTitle className="text-xs sm:text-sm font-medium">Profit</CardTitle>
+                  <DollarSign className="h-4 w-4 text-accent" />
                 </CardHeader>
                 <CardContent className="px-2.5 pb-2">
-                  <div className="text-base sm:text-lg font-bold text-accent">{summary.averageMargin.toFixed(1)}%</div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground">Average margin percentage</p>
+                  <div className="text-base sm:text-lg font-bold text-accent">${summary.actualProfit.toFixed(2)}</div>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Sum of (quantity × (price - cost)) per item</p>
                 </CardContent>
               </Card>
             </div>

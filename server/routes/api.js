@@ -4177,6 +4177,632 @@ router.post('/products/import-excel',
 	}
 });
 
+// ===== INVOICE EXCEL IMPORT =====
+// Invoice import preview endpoint - analyzes file and returns what would be created
+router.post('/invoices/import-excel-preview',
+	authenticateToken, 
+	requireAdmin, 
+	fileUploadLimiter, 
+	upload.single('file'),
+	validateFileUpload,
+	sanitizeInput,
+	async (req, res) => {
+	try {
+		if (!req.file) {
+			return res.status(400).json({ error: 'No file uploaded' });
+		}
+
+		// Parse Excel file
+		const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+		const sheetName = workbook.SheetNames[0];
+		const worksheet = workbook.Sheets[sheetName];
+		
+		const data = XLSX.utils.sheet_to_json(worksheet, { 
+			raw: false,
+			defval: ''
+		});
+
+		if (!data || data.length === 0) {
+			return res.status(400).json({ error: 'Excel file is empty or has no data' });
+		}
+
+		const normalizeKey = (key) => {
+			if (!key) return '';
+			return String(key).trim().toLowerCase().replace(/\s+/g, '_');
+		};
+
+		const columnMappings = {
+			invoice_type: ['invoice_type', 'type', 'invoice type'],
+			invoice_date: ['invoice_date', 'invoice date', 'date'],
+			customer_name: ['customer_name', 'customer name', 'customer'],
+			supplier_name: ['supplier_name', 'supplier name', 'supplier'],
+			due_date: ['due_date', 'due date'],
+			paid_directly: ['paid_directly', 'paid directly', 'paid'],
+			product_barcode: ['product_barcode', 'product barcode', 'barcode', 'bar_code'],
+			product_sku: ['product_sku', 'product sku', 'sku', 'oem', 'oem_no', 'oem no'],
+			quantity: ['quantity', 'qty', 'qty.', 'amount'],
+			unit_price: ['unit_price', 'unit price', 'price', 'unitprice'],
+			price_type: ['price_type', 'price type', 'pricing'],
+			is_private_price: ['is_private_price', 'is private price', 'private_price', 'private price'],
+			private_price_amount: ['private_price_amount', 'private price amount'],
+			private_price_note: ['private_price_note', 'private price note', 'private_note', 'private note']
+		};
+
+		const findColumn = (row, mappings) => {
+			for (const key in row) {
+				const normalized = normalizeKey(key);
+				for (const mapping of mappings) {
+					if (normalized === normalizeKey(mapping)) {
+						return key;
+					}
+				}
+			}
+			return null;
+		};
+
+		const firstRow = data[0];
+		const columnMap = {};
+		for (const [dbField, excelColumns] of Object.entries(columnMappings)) {
+			const found = findColumn(firstRow, excelColumns);
+			if (found) {
+				columnMap[dbField] = found;
+			}
+		}
+
+		if (!columnMap.invoice_type) {
+			return res.status(400).json({ 
+				error: 'Excel file must contain invoice_type column',
+				availableColumns: Object.keys(firstRow),
+				detectedColumns: columnMap
+			});
+		}
+		if (!columnMap.invoice_date) {
+			return res.status(400).json({ 
+				error: 'Excel file must contain invoice_date column',
+				availableColumns: Object.keys(firstRow),
+				detectedColumns: columnMap
+			});
+		}
+		if (!columnMap.product_barcode && !columnMap.product_sku) {
+			return res.status(400).json({ 
+				error: 'Excel file must contain product_barcode or product_sku column',
+				availableColumns: Object.keys(firstRow),
+				detectedColumns: columnMap
+			});
+		}
+		if (!columnMap.quantity || !columnMap.unit_price) {
+			return res.status(400).json({ 
+				error: 'Excel file must contain quantity and unit_price columns',
+				availableColumns: Object.keys(firstRow),
+				detectedColumns: columnMap
+			});
+		}
+
+		// Get existing products, customers, and suppliers
+		const productsResult = await query('SELECT id, name, barcode, sku FROM products', []);
+		const products = new Map();
+		productsResult.recordset.forEach(product => {
+			const normalizedBarcode = normalizeBarcodeOrSku(product.barcode);
+			const normalizedSku = normalizeBarcodeOrSku(product.sku);
+			if (normalizedBarcode) {
+				products.set(`barcode:${normalizedBarcode}`, product);
+			}
+			if (normalizedSku) {
+				products.set(`sku:${normalizedSku}`, product);
+			}
+		});
+
+		const customersResult = await query('SELECT id, name FROM customers', []);
+		const customers = new Map();
+		customersResult.recordset.forEach(customer => {
+			customers.set(customer.name.toLowerCase().trim(), customer);
+		});
+
+		const suppliersResult = await query('SELECT id, name FROM suppliers', []);
+		const suppliers = new Map();
+		suppliersResult.recordset.forEach(supplier => {
+			suppliers.set(supplier.name.toLowerCase().trim(), supplier);
+		});
+
+		// Group rows by invoice (invoice_date + invoice_type + entity)
+		const invoiceGroups = new Map();
+		const errors = [];
+
+		for (let i = 0; i < data.length; i++) {
+			const row = data[i];
+			const rowNum = i + 2;
+
+			try {
+				const invoiceType = String(row[columnMap.invoice_type] || '').trim().toLowerCase();
+				if (invoiceType !== 'buy' && invoiceType !== 'sell') {
+					errors.push({ row: rowNum, error: `Invalid invoice_type: ${invoiceType}. Must be 'buy' or 'sell'` });
+					continue;
+				}
+
+				const invoiceDate = String(row[columnMap.invoice_date] || '').trim();
+				if (!invoiceDate) {
+					errors.push({ row: rowNum, error: 'Missing invoice_date' });
+					continue;
+				}
+
+				let parsedDate;
+				try {
+					parsedDate = new Date(invoiceDate);
+					if (isNaN(parsedDate.getTime())) {
+						throw new Error('Invalid date');
+					}
+				} catch (e) {
+					errors.push({ row: rowNum, error: `Invalid invoice_date format: ${invoiceDate}` });
+					continue;
+				}
+
+				const entityName = invoiceType === 'sell' 
+					? String(row[columnMap.customer_name] || '').trim()
+					: String(row[columnMap.supplier_name] || '').trim();
+
+				if (!entityName) {
+					errors.push({ row: rowNum, error: `Missing ${invoiceType === 'sell' ? 'customer_name' : 'supplier_name'}` });
+					continue;
+				}
+
+				const entityMap = invoiceType === 'sell' ? customers : suppliers;
+				const entity = entityMap.get(entityName.toLowerCase());
+				if (!entity) {
+					errors.push({ row: rowNum, error: `${invoiceType === 'sell' ? 'Customer' : 'Supplier'} not found: ${entityName}` });
+					continue;
+				}
+
+				const invoiceKey = `${invoiceDate}_${invoiceType}_${entity.id}`;
+
+				if (!invoiceGroups.has(invoiceKey)) {
+					const dueDateStr = String(row[columnMap.due_date] || '').trim();
+					let dueDate = null;
+					if (dueDateStr) {
+						try {
+							dueDate = new Date(dueDateStr);
+							if (isNaN(dueDate.getTime())) {
+								dueDate = null;
+							}
+						} catch (e) {
+							dueDate = null;
+						}
+					}
+
+					const paidDirectly = String(row[columnMap.paid_directly] || 'false').trim().toLowerCase();
+					const isPaidDirectly = paidDirectly === 'true' || paidDirectly === '1' || paidDirectly === 'yes';
+
+					invoiceGroups.set(invoiceKey, {
+						invoice_type: invoiceType,
+						invoice_date: parsedDate.toISOString(),
+						due_date: dueDate ? dueDate.toISOString() : null,
+						paid_directly: isPaidDirectly,
+						customer_id: invoiceType === 'sell' ? entity.id : null,
+						supplier_id: invoiceType === 'buy' ? entity.id : null,
+						entity_name: entityName,
+						items: []
+					});
+				}
+
+				const barcode = String(row[columnMap.product_barcode] || '').trim();
+				const sku = String(row[columnMap.product_sku] || '').trim();
+				
+				if (!barcode && !sku) {
+					errors.push({ row: rowNum, error: 'Missing product_barcode and product_sku' });
+					continue;
+				}
+
+				let product = null;
+				if (barcode) {
+					const normalizedBarcode = normalizeBarcodeOrSku(barcode);
+					product = products.get(`barcode:${normalizedBarcode}`);
+				}
+				if (!product && sku) {
+					const normalizedSku = normalizeBarcodeOrSku(sku);
+					product = products.get(`sku:${normalizedSku}`);
+				}
+
+				if (!product) {
+					errors.push({ row: rowNum, error: `Product not found: ${barcode || sku}` });
+					continue;
+				}
+
+				const quantity = parseFloat(String(row[columnMap.quantity] || '0'));
+				if (isNaN(quantity) || quantity <= 0) {
+					errors.push({ row: rowNum, error: `Invalid quantity: ${row[columnMap.quantity]}` });
+					continue;
+				}
+
+				const unitPrice = parseFloat(String(row[columnMap.unit_price] || '0'));
+				if (isNaN(unitPrice) || unitPrice < 0) {
+					errors.push({ row: rowNum, error: `Invalid unit_price: ${row[columnMap.unit_price]}` });
+					continue;
+				}
+
+				const priceType = String(row[columnMap.price_type] || 'retail').trim().toLowerCase();
+				const validPriceType = (priceType === 'wholesale' || priceType === 'retail') ? priceType : 'retail';
+
+				const isPrivatePrice = String(row[columnMap.is_private_price] || 'false').trim().toLowerCase() === 'true';
+				const privatePriceAmount = isPrivatePrice ? parseFloat(String(row[columnMap.private_price_amount] || '0')) : 0;
+				const privatePriceNote = String(row[columnMap.private_price_note] || '').trim();
+
+				const effectivePrice = isPrivatePrice ? privatePriceAmount : unitPrice;
+				const totalPrice = effectivePrice * quantity;
+
+				const invoice = invoiceGroups.get(invoiceKey);
+				invoice.items.push({
+					product_id: product.id,
+					product_name: product.name,
+					quantity: quantity,
+					unit_price: unitPrice,
+					price_type: validPriceType,
+					total_price: totalPrice,
+					is_private_price: isPrivatePrice,
+					private_price_amount: isPrivatePrice ? privatePriceAmount : null,
+					private_price_note: isPrivatePrice && privatePriceNote ? privatePriceNote : null,
+					row: rowNum
+				});
+
+			} catch (err) {
+				errors.push({ row: rowNum, error: err.message || 'Unknown error processing row' });
+			}
+		}
+
+		const invoices = Array.from(invoiceGroups.values()).map(invoice => {
+			const totalAmount = invoice.items.reduce((sum, item) => sum + item.total_price, 0);
+			return {
+				...invoice,
+				total_amount: totalAmount
+			};
+		});
+
+		res.json({
+			invoices: invoices,
+			errors: errors,
+			summary: {
+				total_invoices: invoices.length,
+				total_items: invoices.reduce((sum, inv) => sum + inv.items.length, 0),
+				total_errors: errors.length
+			}
+		});
+
+	} catch (err) {
+		console.error('Invoice import preview error:', err);
+		res.status(500).json({ 
+			error: err.message || 'Failed to preview invoice import',
+			details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+		});
+	}
+});
+
+// Invoice import endpoint - creates invoices and items
+router.post('/invoices/import-excel',
+	authenticateToken,
+	requireAdmin,
+	fileUploadLimiter,
+	upload.single('file'),
+	validateFileUpload,
+	sanitizeInput,
+	async (req, res) => {
+	const pool = getPool();
+	const client = await pool.connect();
+
+	try {
+		await client.query('BEGIN');
+
+		if (!req.file) {
+			throw new Error('No file uploaded');
+		}
+
+		// Re-parse Excel file (same logic as preview)
+		const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+		const sheetName = workbook.SheetNames[0];
+		const worksheet = workbook.Sheets[sheetName];
+		
+		const data = XLSX.utils.sheet_to_json(worksheet, { 
+			raw: false,
+			defval: ''
+		});
+
+		if (!data || data.length === 0) {
+			throw new Error('Excel file is empty or has no data');
+		}
+
+		const normalizeKey = (key) => {
+			if (!key) return '';
+			return String(key).trim().toLowerCase().replace(/\s+/g, '_');
+		};
+
+		const columnMappings = {
+			invoice_type: ['invoice_type', 'type', 'invoice type'],
+			invoice_date: ['invoice_date', 'invoice date', 'date'],
+			customer_name: ['customer_name', 'customer name', 'customer'],
+			supplier_name: ['supplier_name', 'supplier name', 'supplier'],
+			due_date: ['due_date', 'due date'],
+			paid_directly: ['paid_directly', 'paid directly', 'paid'],
+			product_barcode: ['product_barcode', 'product barcode', 'barcode', 'bar_code'],
+			product_sku: ['product_sku', 'product sku', 'sku', 'oem', 'oem_no', 'oem no'],
+			quantity: ['quantity', 'qty', 'qty.', 'amount'],
+			unit_price: ['unit_price', 'unit price', 'price', 'unitprice'],
+			price_type: ['price_type', 'price type', 'pricing'],
+			is_private_price: ['is_private_price', 'is private price', 'private_price', 'private price'],
+			private_price_amount: ['private_price_amount', 'private price amount'],
+			private_price_note: ['private_price_note', 'private price note', 'private_note', 'private note']
+		};
+
+		const findColumn = (row, mappings) => {
+			for (const key in row) {
+				const normalized = normalizeKey(key);
+				for (const mapping of mappings) {
+					if (normalized === normalizeKey(mapping)) {
+						return key;
+					}
+				}
+			}
+			return null;
+		};
+
+		const firstRow = data[0];
+		const columnMap = {};
+		for (const [dbField, excelColumns] of Object.entries(columnMappings)) {
+			const found = findColumn(firstRow, excelColumns);
+			if (found) {
+				columnMap[dbField] = found;
+			}
+		}
+
+		// Get existing data
+		const productsResult = await client.query('SELECT id, name, barcode, sku FROM products', []);
+		const products = new Map();
+		productsResult.rows.forEach(product => {
+			const normalizedBarcode = normalizeBarcodeOrSku(product.barcode);
+			const normalizedSku = normalizeBarcodeOrSku(product.sku);
+			if (normalizedBarcode) {
+				products.set(`barcode:${normalizedBarcode}`, product);
+			}
+			if (normalizedSku) {
+				products.set(`sku:${normalizedSku}`, product);
+			}
+		});
+
+		const customersResult = await client.query('SELECT id, name FROM customers', []);
+		const customers = new Map();
+		customersResult.rows.forEach(customer => {
+			customers.set(customer.name.toLowerCase().trim(), customer);
+		});
+
+		const suppliersResult = await client.query('SELECT id, name FROM suppliers', []);
+		const suppliers = new Map();
+		suppliersResult.rows.forEach(supplier => {
+			suppliers.set(supplier.name.toLowerCase().trim(), supplier);
+		});
+
+		// Group rows by invoice
+		const invoiceGroups = new Map();
+		const today = getTodayLocal();
+
+		for (let i = 0; i < data.length; i++) {
+			const row = data[i];
+			const invoiceType = String(row[columnMap.invoice_type] || '').trim().toLowerCase();
+			if (invoiceType !== 'buy' && invoiceType !== 'sell') continue;
+
+			const invoiceDate = String(row[columnMap.invoice_date] || '').trim();
+			if (!invoiceDate) continue;
+
+			let parsedDate;
+			try {
+				parsedDate = new Date(invoiceDate);
+				if (isNaN(parsedDate.getTime())) continue;
+			} catch (e) {
+				continue;
+			}
+
+			const entityName = invoiceType === 'sell' 
+				? String(row[columnMap.customer_name] || '').trim()
+				: String(row[columnMap.supplier_name] || '').trim();
+
+			if (!entityName) continue;
+
+			const entityMap = invoiceType === 'sell' ? customers : suppliers;
+			const entity = entityMap.get(entityName.toLowerCase());
+			if (!entity) continue;
+
+			const invoiceKey = `${invoiceDate}_${invoiceType}_${entity.id}`;
+
+			if (!invoiceGroups.has(invoiceKey)) {
+				const dueDateStr = String(row[columnMap.due_date] || '').trim();
+				let dueDate = null;
+				if (dueDateStr) {
+					try {
+						dueDate = new Date(dueDateStr);
+						if (isNaN(dueDate.getTime())) {
+							dueDate = null;
+						} else {
+							dueDate = dueDate.toISOString();
+						}
+					} catch (e) {
+						dueDate = null;
+					}
+				}
+
+				const paidDirectly = String(row[columnMap.paid_directly] || 'false').trim().toLowerCase();
+				const isPaidDirectly = paidDirectly === 'true' || paidDirectly === '1' || paidDirectly === 'yes';
+
+				invoiceGroups.set(invoiceKey, {
+					invoice_type: invoiceType,
+					invoice_date: parsedDate.toISOString(),
+					due_date: dueDate,
+					paid_directly: isPaidDirectly,
+					customer_id: invoiceType === 'sell' ? entity.id : null,
+					supplier_id: invoiceType === 'buy' ? entity.id : null,
+					items: []
+				});
+			}
+
+			const barcode = String(row[columnMap.product_barcode] || '').trim();
+			const sku = String(row[columnMap.product_sku] || '').trim();
+			
+			if (!barcode && !sku) continue;
+
+			let product = null;
+			if (barcode) {
+				const normalizedBarcode = normalizeBarcodeOrSku(barcode);
+				product = products.get(`barcode:${normalizedBarcode}`);
+			}
+			if (!product && sku) {
+				const normalizedSku = normalizeBarcodeOrSku(sku);
+				product = products.get(`sku:${normalizedSku}`);
+			}
+
+			if (!product) continue;
+
+			const quantity = parseFloat(String(row[columnMap.quantity] || '0'));
+			if (isNaN(quantity) || quantity <= 0) continue;
+
+			const unitPrice = parseFloat(String(row[columnMap.unit_price] || '0'));
+			if (isNaN(unitPrice) || unitPrice < 0) continue;
+
+			const priceType = String(row[columnMap.price_type] || 'retail').trim().toLowerCase();
+			const validPriceType = (priceType === 'wholesale' || priceType === 'retail') ? priceType : 'retail';
+
+			const isPrivatePrice = String(row[columnMap.is_private_price] || 'false').trim().toLowerCase() === 'true';
+			const privatePriceAmount = isPrivatePrice ? parseFloat(String(row[columnMap.private_price_amount] || '0')) : 0;
+			const privatePriceNote = String(row[columnMap.private_price_note] || '').trim();
+
+			const effectivePrice = isPrivatePrice ? privatePriceAmount : unitPrice;
+			const totalPrice = effectivePrice * quantity;
+
+			const invoice = invoiceGroups.get(invoiceKey);
+			invoice.items.push({
+				product_id: product.id,
+				quantity: quantity,
+				unit_price: unitPrice,
+				price_type: validPriceType,
+				total_price: totalPrice,
+				is_private_price: isPrivatePrice,
+				private_price_amount: isPrivatePrice ? privatePriceAmount : null,
+				private_price_note: isPrivatePrice && privatePriceNote ? privatePriceNote : null
+			});
+		}
+
+		// Parse invoiceIndices from form data (list of indices to import)
+		let invoiceIndices = null;
+		if (req.body && req.body.invoiceIndices) {
+			try {
+				const parsedIndices = JSON.parse(req.body.invoiceIndices);
+				if (Array.isArray(parsedIndices)) {
+					invoiceIndices = new Set(parsedIndices.map(i => parseInt(i)));
+				}
+			} catch (e) {
+				console.warn('Failed to parse invoiceIndices:', e);
+			}
+		}
+
+		// Convert invoiceGroups Map to Array to maintain order (same as preview)
+		const invoiceGroupsArray = Array.from(invoiceGroups.values());
+
+		// Create invoices - only process checked invoices if invoiceIndices is provided
+		const created = { invoices: 0, items: 0 };
+
+		for (let idx = 0; idx < invoiceGroupsArray.length; idx++) {
+			// Skip if invoiceIndices is provided and this index is not checked
+			if (invoiceIndices !== null && !invoiceIndices.has(idx)) {
+				continue;
+			}
+
+			const invoiceData = invoiceGroupsArray[idx];
+			const totalAmount = invoiceData.items.reduce((sum, item) => sum + item.total_price, 0);
+			const invoiceTimestamp = invoiceData.invoice_date ? new Date(invoiceData.invoice_date).toISOString() : nowIso();
+
+			// Create invoice
+			const invoiceResult = await client.query(
+				`INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, invoice_date, due_date, created_at) 
+				 VALUES ($1, $2, $3, $4, $5::timestamp, $6, $7::timestamp) RETURNING id, invoice_date`,
+				[invoiceData.invoice_type, invoiceData.customer_id, invoiceData.supplier_id, 
+				 totalAmount, invoiceTimestamp, invoiceData.due_date || null, nowIso()]
+			);
+			const invoiceId = invoiceResult.rows[0].id;
+
+			// Fetch stock data for products
+			const productIds = invoiceData.items.map(item => parseInt(item.product_id));
+			const stockDataResult = await client.query(
+				`SELECT product_id, available_qty, avg_cost 
+				 FROM daily_stock 
+				 WHERE product_id = ANY($1) AND date <= $2 
+				 ORDER BY product_id, date DESC, updated_at DESC`,
+				[productIds, today]
+			);
+
+			const stockMap = new Map();
+			stockDataResult.rows.forEach(row => {
+				if (!stockMap.has(row.product_id)) {
+					stockMap.set(row.product_id, {
+						available_qty: row.available_qty || 0,
+						avg_cost: row.avg_cost || 0
+					});
+				}
+			});
+
+			// Insert invoice items
+			const itemValues = [];
+			const itemParams = [];
+			let paramIndex = 1;
+
+			for (const item of invoiceData.items) {
+				itemValues.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8})`);
+				itemParams.push(
+					invoiceId, parseInt(item.product_id), item.quantity, item.unit_price, item.total_price,
+					item.price_type, item.is_private_price ? 1 : 0,
+					item.is_private_price ? item.private_price_amount : null,
+					item.is_private_price ? item.private_price_note : null
+				);
+				paramIndex += 9;
+			}
+
+			if (itemValues.length > 0) {
+				await client.query(
+					`INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) 
+					 VALUES ${itemValues.join(', ')}`,
+					itemParams
+				);
+				created.items += itemValues.length;
+			}
+
+			// Recalculate stock for each product
+			for (const item of invoiceData.items) {
+				const productId = parseInt(item.product_id);
+				const currentStock = stockMap.get(productId) || { available_qty: 0, avg_cost: 0 };
+				const newQty = invoiceData.invoice_type === 'buy' 
+					? currentStock.available_qty + item.quantity
+					: currentStock.available_qty - item.quantity;
+
+				await client.query(
+					'SELECT recalculate_stock_after_invoice($1, $2, $3, $4, $5)',
+					[invoiceId, productId, invoiceData.invoice_type.toUpperCase(), item.quantity, item.unit_price]
+				);
+			}
+
+			created.invoices++;
+		}
+
+		await client.query('COMMIT');
+
+		res.json({
+			success: true,
+			created: created
+		});
+
+	} catch (err) {
+		await client.query('ROLLBACK');
+		console.error('Invoice import error:', err);
+		res.status(500).json({ 
+			error: err.message || 'Failed to import invoices',
+			details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+		});
+	} finally {
+		client.release();
+	}
+});
+
 module.exports = router;
 
 

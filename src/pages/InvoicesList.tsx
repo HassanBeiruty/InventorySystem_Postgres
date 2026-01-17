@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -10,11 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, TrendingUp, TrendingDown, DollarSign, Plus, Eye, Pencil, Trash2, Calendar, Search, X } from "lucide-react";
+import { FileText, TrendingUp, TrendingDown, DollarSign, Plus, Eye, Pencil, Trash2, Calendar, Search, X, FileSpreadsheet } from "lucide-react";
 import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { invoicesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const InvoicesList = () => {
   const { t } = useTranslation();
@@ -36,6 +37,14 @@ const InvoicesList = () => {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>("");
+  
+  // Import state
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<any>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [checkedInvoices, setCheckedInvoices] = useState<Set<number>>(new Set());
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -105,6 +114,124 @@ const InvoicesList = () => {
   const handlePaymentRecorded = useCallback(() => {
     fetchData(); // Refresh the invoice list
   }, [fetchData]);
+
+  const handleImportExcel = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setPendingFile(file);
+    setImportLoading(true);
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+      const previewUrl = API_BASE_URL ? `${API_BASE_URL}/api/invoices/import-excel-preview` : '/api/invoices/import-excel-preview';
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(previewUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to preview file' }));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+
+      const previewResult = await response.json();
+      setPreviewData(previewResult);
+      // Initialize all invoices as checked by default
+      if (previewResult.invoices && previewResult.invoices.length > 0) {
+        const allChecked = new Set<number>(previewResult.invoices.map((_: any, idx: number) => idx));
+        setCheckedInvoices(allChecked);
+      } else {
+        setCheckedInvoices(new Set<number>());
+      }
+      setPreviewOpen(true);
+    } catch (error: any) {
+      toast({
+        title: t('invoices.importFailed') || "Import Failed",
+        description: error.message || 'Failed to preview file',
+        variant: "destructive",
+      });
+    } finally {
+      setImportLoading(false);
+    }
+  }, [toast, t]);
+
+  const handleConfirmImport = useCallback(async () => {
+    if (!pendingFile || !previewData) return;
+
+    // Filter to only checked invoices
+    const invoiceIndices = Array.from(checkedInvoices);
+    if (invoiceIndices.length === 0) {
+      toast({
+        title: t('invoices.importFailed') || "Import Failed",
+        description: "Please select at least one invoice to import",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setImportLoading(true);
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+      const importUrl = API_BASE_URL ? `${API_BASE_URL}/api/invoices/import-excel` : '/api/invoices/import-excel';
+
+      const formData = new FormData();
+      formData.append('file', pendingFile);
+      formData.append('invoiceIndices', JSON.stringify(invoiceIndices));
+
+      const response = await fetch(importUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to import file' }));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      toast({
+        title: t('invoices.importSuccess') || "Success",
+        description: `Created ${result.created?.invoices || 0} invoice(s) with ${result.created?.items || 0} item(s)`,
+      });
+
+      // Close preview and reset state
+      setPreviewOpen(false);
+      setPendingFile(null);
+      setPreviewData(null);
+      setCheckedInvoices(new Set());
+
+      // Refresh invoices list
+      await queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      fetchData();
+    } catch (error: any) {
+      toast({
+        title: t('invoices.importFailed') || "Import Failed",
+        description: error.message || 'Failed to import file',
+        variant: "destructive",
+      });
+    } finally {
+      setImportLoading(false);
+    }
+  }, [pendingFile, previewData, checkedInvoices, toast, t, queryClient, fetchData]);
+
+  const triggerFileInput = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
 
   const handleDeleteInvoice = useCallback(async (invoiceId: string) => {
     if (!confirm(t('invoices.confirmDelete') || 'Are you sure you want to delete this invoice? This action cannot be undone.')) {
@@ -238,6 +365,23 @@ const InvoicesList = () => {
               <span className="hidden sm:inline">{t('invoices.newSellInvoice')}</span>
               <span className="sm:hidden">Sell</span>
             </Button>
+            <Button
+              variant="outline"
+              onClick={triggerFileInput}
+              disabled={importLoading}
+              className="gap-1 hover:scale-105 transition-all duration-300 text-[10px] sm:text-xs h-7 flex-1 sm:flex-initial"
+            >
+              <FileSpreadsheet className="w-3 h-3" />
+              <span className="hidden sm:inline">{importLoading ? (t('invoices.importing') || 'Importing...') : (t('invoices.importExcel') || 'Import Excel')}</span>
+              <span className="sm:hidden">{importLoading ? '...' : 'Import'}</span>
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              onChange={handleImportExcel}
+              className="hidden"
+            />
           </div>
         </div>
 
@@ -580,6 +724,179 @@ const InvoicesList = () => {
             invoiceId={selectedInvoiceId}
           />
         </div>
+
+        {/* Import Preview Dialog */}
+        <Dialog open={previewOpen} onOpenChange={(open) => {
+          setPreviewOpen(open);
+          if (!open) {
+            // Reset state when dialog closes
+            setPendingFile(null);
+            setPreviewData(null);
+            setCheckedInvoices(new Set<number>());
+          }
+        }}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-xl">Invoice Import Preview</DialogTitle>
+              <DialogDescription>Review the invoices and items that will be imported</DialogDescription>
+            </DialogHeader>
+
+            {previewData && (
+              <div className="space-y-4 py-4">
+                {/* Summary Stats */}
+                {previewData.summary && (
+                  <div className="grid grid-cols-3 gap-2 border rounded-lg p-3 bg-muted/30">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-primary">{previewData.summary.total_invoices || 0}</div>
+                      <div className="text-xs text-muted-foreground">Invoices</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-primary">{previewData.summary.total_items || 0}</div>
+                      <div className="text-xs text-muted-foreground">Items</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-destructive">{previewData.summary.total_errors || 0}</div>
+                      <div className="text-xs text-muted-foreground">Errors</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* No Invoices Message */}
+                {previewData && 
+                 (!previewData.invoices || previewData.invoices.length === 0) &&
+                 (!previewData.errors || previewData.errors.length === 0) && (
+                  <div className="border rounded-lg p-4 bg-muted/50 text-center">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      No invoices detected in the import file.
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Please check your file format and try again.
+                    </p>
+                  </div>
+                )}
+
+                {/* Invoices List */}
+                {previewData.invoices && previewData.invoices.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                        Invoices to Create ({checkedInvoices.size} of {previewData.invoices.length} selected)
+                      </h3>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          if (checkedInvoices.size === previewData.invoices.length) {
+                            setCheckedInvoices(new Set());
+                          } else {
+                            setCheckedInvoices(new Set(previewData.invoices.map((_: any, idx: number) => idx)));
+                          }
+                        }}
+                        className="text-xs h-6"
+                      >
+                        {checkedInvoices.size === previewData.invoices.length ? 'Deselect All' : 'Select All'}
+                      </Button>
+                    </div>
+                    <div className="border rounded max-h-[400px] overflow-y-auto">
+                      {previewData.invoices.map((invoice: any, idx: number) => (
+                        <div key={idx} className={`border-b p-2 space-y-1 last:border-b-0 ${checkedInvoices.has(idx) ? 'bg-blue-50 dark:bg-blue-950/20' : 'bg-muted/20'}`}>
+                          <div className="flex items-start gap-2">
+                            <input
+                              type="checkbox"
+                              checked={checkedInvoices.has(idx)}
+                              onChange={(e) => {
+                                const newChecked = new Set(checkedInvoices);
+                                if (e.target.checked) {
+                                  newChecked.add(idx);
+                                } else {
+                                  newChecked.delete(idx);
+                                }
+                                setCheckedInvoices(newChecked);
+                              }}
+                              className="h-4 w-4 rounded border-input cursor-pointer mt-1 flex-shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Badge variant={invoice.invoice_type === 'sell' ? 'default' : 'success'} className="text-xs">
+                                  {invoice.invoice_type}
+                                </Badge>
+                                <span className="text-sm font-medium">{invoice.entity_name}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(invoice.invoice_date).toLocaleDateString()}
+                                </span>
+                                <span className="text-xs font-bold text-primary ml-auto">
+                                  ${Number(invoice.total_amount || 0).toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="text-xs text-muted-foreground pl-1 mt-0.5">
+                                {invoice.items.length} item(s)
+                              </div>
+                              <div className="space-y-0.5 max-h-[150px] overflow-y-auto mt-1">
+                                {invoice.items.map((item: any, itemIdx: number) => (
+                                  <div key={itemIdx} className="text-[10px] bg-muted/30 rounded px-1.5 py-0.5 ml-2">
+                                    <div className="font-medium">{item.product_name}</div>
+                                    <div className="text-muted-foreground">
+                                      Qty: {item.quantity} × ${Number(item.unit_price || 0).toFixed(2)} = ${Number(item.total_price || 0).toFixed(2)}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Errors List */}
+                {previewData.errors && previewData.errors.length > 0 && (
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-semibold text-red-600 dark:text-red-400">
+                      Import Errors ({previewData.errors.length})
+                    </h3>
+                    <div className="border border-red-200 dark:border-red-800 rounded p-2 bg-red-50 dark:bg-red-950/30 max-h-[200px] overflow-y-auto">
+                      {previewData.errors.slice(0, 20).map((error: any, idx: number) => (
+                        <div key={idx} className="text-xs text-red-700 dark:text-red-300 mb-1">
+                          Row {error.row}: {error.error}
+                        </div>
+                      ))}
+                      {previewData.errors.length > 20 && (
+                        <div className="text-[10px] text-red-600 dark:text-red-400 mt-1">
+                          ... and {previewData.errors.length - 20} more errors
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setPreviewOpen(false);
+                  setPendingFile(null);
+                  setPreviewData(null);
+                  setCheckedInvoices(new Set());
+                }}
+                disabled={importLoading}
+              >
+                {t('common.cancel') || 'Cancel'}
+              </Button>
+              <Button 
+                onClick={handleConfirmImport}
+                disabled={importLoading || !previewData || !previewData.invoices || previewData.invoices.length === 0 || checkedInvoices.size === 0}
+                className="bg-primary hover:bg-primary/90"
+              >
+                {importLoading 
+                  ? (t('common.loading') || 'Loading...')
+                  : `${t('invoices.confirmImport') || 'Confirm & Import'} (${checkedInvoices.size})`}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
