@@ -4222,8 +4222,7 @@ router.post('/invoices/import-excel-preview',
 			product_barcode: ['product_barcode', 'product barcode', 'barcode', 'bar_code'],
 			product_sku: ['product_sku', 'product sku', 'sku', 'oem', 'oem_no', 'oem no'],
 			quantity: ['quantity', 'qty', 'qty.', 'amount'],
-			unit_price: ['unit_price', 'unit price', 'price', 'unitprice'],
-			private_price_note: ['private_price_note', 'private price note', 'private_note', 'private note']
+			unit_price: ['unit_price', 'unit price', 'price', 'unitprice']
 		};
 
 		const findColumn = (row, mappings) => {
@@ -4466,7 +4465,6 @@ router.post('/invoices/import-excel-preview',
 				let unitPrice = 0;
 				let isPrivatePrice = false;
 				let privatePriceAmount = 0;
-				const privatePriceNote = String(row[columnMap.private_price_note] || '').trim();
 
 				if (invoiceType === 'sell') {
 					const unitPriceStr = String(row[columnMap.unit_price] || '').trim().toLowerCase();
@@ -4485,14 +4483,15 @@ router.post('/invoices/import-excel-preview',
 						isPrivatePrice = true;
 						privatePriceAmount = parsedUnitPrice;
 						unitPrice = 0; // Not used for private prices, but keep for reference
-					} else if (unitPriceStr === 'retail' || unitPriceStr === 'wholesale') {
-						// String "retail" or "wholesale" = use product_prices
+					} else if (unitPriceStr === 'retail' || unitPriceStr === 'wholesale' || unitPriceStr === 'wholsesale') {
+						// String "retail" or "wholesale" (handle common typo "wholsesale") = use product_prices
+						const priceType = (unitPriceStr === 'wholesale' || unitPriceStr === 'wholsesale') ? 'wholesale' : 'retail';
 						const prices = productPrices.get(product.id);
 						if (prices) {
-							unitPrice = unitPriceStr === 'wholesale' ? prices.wholesale_price : prices.retail_price;
+							unitPrice = priceType === 'wholesale' ? prices.wholesale_price : prices.retail_price;
 							isPrivatePrice = false;
 						} else {
-							errors.push({ row: rowNum, error: `Product has no ${unitPriceStr} price defined in product_prices` });
+							errors.push({ row: rowNum, error: `Product has no ${priceType} price defined in product_prices` });
 							continue;
 						}
 					} else {
@@ -4533,7 +4532,6 @@ router.post('/invoices/import-excel-preview',
 					total_price: totalPrice,
 					is_private_price: isPrivatePrice,
 					private_price_amount: isPrivatePrice ? privatePriceAmount : null,
-					private_price_note: isPrivatePrice && privatePriceNote ? privatePriceNote : null,
 					row: rowNum
 				});
 
@@ -4618,8 +4616,7 @@ router.post('/invoices/import-excel',
 			product_barcode: ['product_barcode', 'product barcode', 'barcode', 'bar_code'],
 			product_sku: ['product_sku', 'product sku', 'sku', 'oem', 'oem_no', 'oem no'],
 			quantity: ['quantity', 'qty', 'qty.', 'amount'],
-			unit_price: ['unit_price', 'unit price', 'price', 'unitprice'],
-			private_price_note: ['private_price_note', 'private price note', 'private_note', 'private note']
+			unit_price: ['unit_price', 'unit price', 'price', 'unitprice']
 		};
 
 		const findColumn = (row, mappings) => {
@@ -4802,7 +4799,6 @@ router.post('/invoices/import-excel',
 			let unitPrice = 0;
 			let isPrivatePrice = false;
 			let privatePriceAmount = 0;
-			const privatePriceNote = String(row[columnMap.private_price_note] || '').trim();
 
 			if (invoiceType === 'sell') {
 				const unitPriceStr = String(row[columnMap.unit_price] || '').trim().toLowerCase();
@@ -4861,8 +4857,7 @@ router.post('/invoices/import-excel',
 				price_type: priceType,
 				total_price: totalPrice,
 				is_private_price: isPrivatePrice,
-				private_price_amount: isPrivatePrice ? privatePriceAmount : null,
-				private_price_note: isPrivatePrice && privatePriceNote ? privatePriceNote : null
+				private_price_amount: isPrivatePrice ? privatePriceAmount : null
 			});
 		}
 
