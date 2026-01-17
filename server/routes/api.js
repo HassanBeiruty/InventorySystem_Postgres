@@ -3574,7 +3574,217 @@ const upload = multer({
 	}
 });
 
-// Excel import endpoint with enhanced security
+// Excel import preview endpoint - analyzes file and returns what would be created/updated
+router.post('/products/import-excel-preview',
+	authenticateToken, 
+	requireAdmin, 
+	fileUploadLimiter, 
+	upload.single('file'),
+	validateFileUpload,
+	sanitizeInput,
+	async (req, res) => {
+	try {
+		if (!req.file) {
+			return res.status(400).json({ error: 'No file uploaded' });
+		}
+
+		// Parse Excel file
+		const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+		const sheetName = workbook.SheetNames[0]; // Use first sheet
+		const worksheet = workbook.Sheets[sheetName];
+		
+		// Convert to JSON array
+		const data = XLSX.utils.sheet_to_json(worksheet, { 
+			raw: false, // Convert all values to strings for consistency
+			defval: '' // Default value for empty cells
+		});
+
+		if (!data || data.length === 0) {
+			return res.status(400).json({ error: 'Excel file is empty or has no data' });
+		}
+
+		// Normalize column names (case-insensitive, trim whitespace)
+		const normalizeKey = (key) => {
+			if (!key) return '';
+			return String(key).trim().toLowerCase().replace(/\s+/g, '_');
+		};
+
+		// Map Excel columns to database fields
+		const columnMappings = {
+			sku: ['oem', 'oem_no', 'oem no', 'oem no.', 'item', 'sku', 'product_code', 'code'],
+			name: ['english name', 'english_name', 'name', 'product name', 'product_name', 'description', 'desc'],
+			description: ['desc', 'description', 'chinese name', 'chinese_name'],
+			barcode: ['barcode', 'barcode_no', 'barcode no'],
+			category: ['category', 'category_name'],
+			wholesale_price: ['wholesale_price', 'wholesale price', 'wholesale retail price', 'wholesaleretailprice', 'wholesaleprice', 'wholesale', 'unit price', 'unit_price', 'unitprice', 'price', 'price (rmb)', 'price(rmb)'],
+			retail_price: ['retail_price', 'retail price', 'retail'],
+			shelf: ['shelf', 'shelf_location', 'location']
+		};
+
+		// Find column indices
+		const findColumn = (row, mappings) => {
+			for (const key in row) {
+				const normalized = normalizeKey(key);
+				for (const mapping of mappings) {
+					if (normalized === normalizeKey(mapping)) {
+						return key; // Return original key to access the value
+					}
+				}
+			}
+			return null;
+		};
+
+		const firstRow = data[0];
+		const columnMap = {};
+		for (const [dbField, excelColumns] of Object.entries(columnMappings)) {
+			const found = findColumn(firstRow, excelColumns);
+			if (found) {
+				columnMap[dbField] = found;
+			}
+		}
+
+		// Validate required columns
+		if (!columnMap.name && !columnMap.sku) {
+			return res.status(400).json({ 
+				error: 'Excel file must contain at least one of: Name/English Name or SKU/OEM/OEM NO./ITEM column',
+				availableColumns: Object.keys(firstRow),
+				detectedColumns: columnMap
+			});
+		}
+
+		// Get existing products to check for matches (with category names)
+		const existingProductsResult = await query(
+			'SELECT p.id, p.name, p.barcode, p.sku, p.category_id, p.description, p.shelf, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id',
+			[]
+		);
+		const existingProducts = new Map();
+		existingProductsResult.recordset.forEach(product => {
+			const normalizedBarcode = normalizeBarcodeOrSku(product.barcode);
+			const normalizedSku = normalizeBarcodeOrSku(product.sku);
+			// Store by barcode if available (priority match)
+			if (normalizedBarcode) {
+				existingProducts.set(`barcode:${normalizedBarcode}`, product);
+			}
+			// Store by SKU if available (for cases where barcode is null in import)
+			if (normalizedSku) {
+				existingProducts.set(`sku:${normalizedSku}`, product);
+			}
+		});
+
+		const newProducts = [];
+		const existingProductsToUpdate = [];
+		const errors = [];
+
+		// Process each row
+		for (let i = 0; i < data.length; i++) {
+			const row = data[i];
+			const rowNum = i + 2; // +2 because Excel rows start at 1 and we have header
+
+			try {
+				// Extract values
+				const skuRaw = columnMap.sku ? String(row[columnMap.sku] || '').trim() : '';
+				const nameRaw = columnMap.name ? String(row[columnMap.name] || '').trim() : '';
+				const descriptionRaw = columnMap.description ? String(row[columnMap.description] || '').trim() : null;
+				const barcodeRaw = columnMap.barcode ? String(row[columnMap.barcode] || '').trim() : null;
+				const categoryName = columnMap.category ? String(row[columnMap.category] || '').trim() : null;
+				const wholesalePrice = columnMap.wholesale_price ? parseFloat(String(row[columnMap.wholesale_price] || '0').replace(/[^0-9.-]/g, '')) || 0 : 0;
+				const retailPrice = columnMap.retail_price ? parseFloat(String(row[columnMap.retail_price] || '0').replace(/[^0-9.-]/g, '')) : null;
+				const shelf = columnMap.shelf ? String(row[columnMap.shelf] || '').trim() : null;
+
+				// Normalize barcode and SKU
+				const normalizedBarcode = normalizeBarcodeOrSku(barcodeRaw);
+				const normalizedSku = normalizeBarcodeOrSku(skuRaw);
+				const name = nameRaw || null;
+
+				// Skip empty rows
+				if (!name && !normalizedSku) {
+					continue;
+				}
+
+				const productName = name || normalizedSku || 'Imported Product';
+				const productSku = normalizedSku;
+
+				// Check if product already exists
+				let existingProduct = null;
+				if (normalizedBarcode) {
+					existingProduct = existingProducts.get(`barcode:${normalizedBarcode}`);
+				}
+				if (!existingProduct && productSku) {
+					existingProduct = existingProducts.get(`sku:${productSku}`);
+				}
+
+				const productData = {
+					row: rowNum,
+					name: productName,
+					sku: productSku,
+					barcode: normalizedBarcode,
+					description: descriptionRaw || null,
+					category: categoryName || null,
+					wholesale_price: wholesalePrice || 0,
+					retail_price: retailPrice || null,
+					shelf: shelf || null,
+				};
+
+				if (existingProduct) {
+					// Check if there are any changes
+					const hasChanges = 
+						productName !== existingProduct.name ||
+						productSku !== existingProduct.sku ||
+						normalizedBarcode !== existingProduct.barcode ||
+						categoryName !== existingProduct.category_name ||
+						(descriptionRaw || null) !== existingProduct.description ||
+						(shelf || null) !== existingProduct.shelf;
+					
+					// Only add to update list if there are changes
+					if (hasChanges) {
+						existingProductsToUpdate.push({
+							...productData,
+							existing_id: existingProduct.id,
+							existing_name: existingProduct.name,
+							existing_sku: existingProduct.sku,
+							existing_barcode: existingProduct.barcode,
+							existing_category_id: existingProduct.category_id,
+							existing_category_name: existingProduct.category_name,
+							existing_description: existingProduct.description,
+							existing_shelf: existingProduct.shelf,
+						});
+					}
+					// If no changes, skip this product (don't add to new or existing lists)
+				} else {
+					// New product - will be created
+					newProducts.push(productData);
+				}
+
+			} catch (rowError) {
+				errors.push({
+					row: rowNum,
+					error: rowError.message || 'Unknown error',
+				});
+			}
+		}
+
+		res.json({
+			success: true,
+			newProducts,
+			existingProducts: existingProductsToUpdate,
+			errors,
+			summary: {
+				new: newProducts.length,
+				existing: existingProductsToUpdate.length,
+				errors: errors.length
+			}
+		});
+
+	} catch (err) {
+		console.error('Excel import preview error:', err);
+		res.status(500).json({ 
+			error: err.message || 'Failed to preview Excel file',
+			details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+		});
+	}
+});
+
+// Excel import endpoint with enhanced security - now updates existing products
 router.post('/products/import-excel', 
 	authenticateToken, 
 	requireAdmin, 
@@ -3601,6 +3811,19 @@ router.post('/products/import-excel',
 
 		if (!data || data.length === 0) {
 			return res.status(400).json({ error: 'Excel file is empty or has no data' });
+		}
+
+		// Parse updateRows from form data (list of row numbers to update)
+		let updateRows = new Set();
+		if (req.body && req.body.updateRows) {
+			try {
+				const parsedRows = JSON.parse(req.body.updateRows);
+				if (Array.isArray(parsedRows)) {
+					updateRows = new Set(parsedRows.map(r => parseInt(r)));
+				}
+			} catch (e) {
+				console.warn('Failed to parse updateRows:', e);
+			}
 		}
 
 		// Normalize column names (case-insensitive, trim whitespace)
@@ -3673,6 +3896,8 @@ router.post('/products/import-excel',
 
 			const results = {
 				success: 0,
+				created: 0,
+				updated: 0,
 				skipped: 0,
 				errors: [],
 				products: []
@@ -3759,17 +3984,105 @@ router.post('/products/import-excel',
 					}
 
 					if (existingProduct) {
-						// Skip existing product - do not update, just mark as skipped
-						results.skipped++;
+						// Only update if this row is in the updateRows set
+						if (!updateRows.has(rowNum)) {
+							// Skip this product - don't update, don't create
+							results.skipped++;
+							results.products.push({
+								row: rowNum,
+								name: productName,
+								sku: productSku,
+								barcode: normalizedBarcode,
+								action: 'skipped',
+								reason: 'Not selected for update'
+							});
+							continue; // Skip to next row
+						}
+
+						// Fetch full existing product to check for changes
+						const fullProductResult = await client.query(
+							'SELECT p.id, p.name, p.barcode, p.sku, p.category_id, p.description, p.shelf, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.id = $1',
+							[existingProduct.id]
+						);
+						
+						if (fullProductResult.rows.length === 0) {
+							results.errors.push({
+								row: rowNum,
+								error: 'Product not found',
+								data: row
+							});
+							continue;
+						}
+						
+						const fullExistingProduct = fullProductResult.rows[0];
+						
+						// Check if there are any changes - skip if no changes
+						const hasChanges = 
+							productName !== fullExistingProduct.name ||
+							productSku !== fullExistingProduct.sku ||
+							normalizedBarcode !== fullExistingProduct.barcode ||
+							categoryName !== fullExistingProduct.category_name ||
+							(description || null) !== fullExistingProduct.description ||
+							(shelf || null) !== fullExistingProduct.shelf;
+						
+						if (!hasChanges) {
+							// No changes - skip this product
+							results.skipped++;
+							results.products.push({
+								row: rowNum,
+								name: productName,
+								sku: productSku,
+								barcode: normalizedBarcode,
+								action: 'skipped',
+								reason: 'No changes detected'
+							});
+							continue; // Skip to next row
+						}
+
+						// Update existing product with new data
+						const productId = existingProduct.id;
+						
+						// Update product
+						await client.query(
+							'UPDATE products SET name = $1, category_id = $2, description = $3, sku = $4, shelf = $5 WHERE id = $6',
+							[productName, categoryId, description, productSku, shelf, productId]
+						);
+
+						// Update or add price if provided
+						if (wholesalePrice > 0 || (retailPrice !== null && retailPrice > 0)) {
+							const finalRetailPrice = retailPrice !== null && retailPrice > 0 ? retailPrice : wholesalePrice * 1.2; // Default 20% markup if retail not provided
+							
+							// Check if price already exists for today
+							const existingPrice = await client.query(
+								'SELECT id FROM product_prices WHERE product_id = $1 AND effective_date = $2',
+								[productId, today]
+							);
+
+							if (existingPrice.rows.length === 0) {
+								await client.query(
+									`INSERT INTO product_prices (product_id, wholesale_price, retail_price, effective_date, created_at)
+									 VALUES ($1, $2, $3, $4, $5)`,
+									[productId, wholesalePrice, finalRetailPrice, today, createdAt]
+								);
+							} else {
+								// Update existing price
+								await client.query(
+									`UPDATE product_prices SET wholesale_price = $1, retail_price = $2, created_at = $3 WHERE id = $4`,
+									[wholesalePrice, finalRetailPrice, createdAt, existingPrice.rows[0].id]
+								);
+							}
+						}
+
+						results.success++;
+						results.updated++;
 						results.products.push({
 							row: rowNum,
 							name: productName,
 							sku: productSku,
 							barcode: normalizedBarcode,
-							action: 'skipped',
-							reason: 'Product already exists'
+							action: 'updated'
 						});
-						continue; // Skip to next row
+						continue; // Continue to next row
 					}
 
 					// Insert new product (only if it doesn't exist)
@@ -3814,6 +4127,7 @@ router.post('/products/import-excel',
 					}
 
 					results.success++;
+					results.created++;
 					results.products.push({
 						row: rowNum,
 						name: productName,
@@ -3836,9 +4150,11 @@ router.post('/products/import-excel',
 
 			res.json({
 				success: true,
-				message: `Import completed: ${results.success} products processed, ${results.skipped} skipped, ${results.errors.length} errors`,
+				message: `Import completed: ${results.created} created, ${results.updated} updated, ${results.skipped} skipped, ${results.errors.length} errors`,
 				summary: {
 					success: results.success,
+					created: results.created,
+					updated: results.updated,
 					skipped: results.skipped,
 					errors: results.errors.length
 				},

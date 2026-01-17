@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Plus, Package, Pencil, Download, Trash2, Scan, Search, X, Upload, FileSpreadsheet, ChevronDown } from "lucide-react";
@@ -38,6 +38,10 @@ const Products = () => {
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<any>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [checkedExistingProducts, setCheckedExistingProducts] = useState<Set<number>>(new Set());
   const { toast } = useToast();
 
   const fetchProducts = async () => {
@@ -312,14 +316,65 @@ const Products = () => {
       return;
     }
 
+    // Store file for later import
+    setPendingFile(file);
     setImportLoading(true);
-    const formData = new FormData();
-    formData.append('file', file);
+
+    try {
+      // First, call preview endpoint
+      const token = localStorage.getItem('auth_token');
+      const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+      const previewUrl = API_BASE_URL ? `${API_BASE_URL}/api/products/import-excel-preview` : '/api/products/import-excel-preview';
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(previewUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to preview file' }));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+
+      const previewResult = await response.json();
+      
+      // Show preview dialog
+      setPreviewData(previewResult);
+      // Initialize all existing products as unchecked by default
+      setCheckedExistingProducts(new Set());
+      setPreviewOpen(true);
+    } catch (error: any) {
+      toast({
+        title: t('products.importFailed'),
+        description: error.message || 'Failed to preview file',
+        variant: "destructive",
+      });
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    if (!pendingFile) return;
+
+    setPreviewOpen(false);
+    setImportLoading(true);
 
     try {
       const token = localStorage.getItem('auth_token');
       const API_BASE_URL = import.meta.env.VITE_API_URL || '';
       const url = API_BASE_URL ? `${API_BASE_URL}/api/products/import-excel` : '/api/products/import-excel';
+
+      const formData = new FormData();
+      formData.append('file', pendingFile);
+      // Send list of row numbers for existing products that should be updated
+      formData.append('updateRows', JSON.stringify(Array.from(checkedExistingProducts)));
 
       const response = await fetch(url, {
         method: 'POST',
@@ -354,7 +409,10 @@ const Products = () => {
         });
       }
 
-      // Reset file input
+      // Reset state
+      setPendingFile(null);
+      setPreviewData(null);
+      setCheckedExistingProducts(new Set());
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -855,6 +913,230 @@ const Products = () => {
                 </div>
               </form>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Import Preview Dialog */}
+        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader className="pb-2">
+              <DialogTitle className="text-xl">
+                {t('products.importPreview') === 'products.importPreview' ? 'Import Preview' : t('products.importPreview')}
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                {t('products.reviewBeforeImport') === 'products.reviewBeforeImport' 
+                  ? 'Review the products that will be created or updated before importing'
+                  : t('products.reviewBeforeImport')}
+              </DialogDescription>
+            </DialogHeader>
+            
+            {previewData && (
+              <div className="space-y-3 py-2">
+                {/* Summary */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-blue-50 dark:bg-blue-950/30 p-2 rounded border border-blue-200 dark:border-blue-800">
+                    <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                      {previewData.summary?.new || 0}
+                    </div>
+                    <div className="text-xs text-blue-700 dark:text-blue-300 mt-0.5 font-medium">
+                      {t('products.productsToCreate') === 'products.productsToCreate' ? 'Products to Create' : t('products.productsToCreate')}
+                    </div>
+                  </div>
+                  <div className="bg-yellow-50 dark:bg-yellow-950/30 p-2 rounded border border-yellow-200 dark:border-yellow-800">
+                    <div className="text-xl font-bold text-yellow-600 dark:text-yellow-400">
+                      {previewData.summary?.existing || 0}
+                    </div>
+                    <div className="text-xs text-yellow-700 dark:text-yellow-300 mt-0.5 font-medium">
+                      {t('products.productsToUpdate') === 'products.productsToUpdate' ? 'Products to Update' : t('products.productsToUpdate')}
+                    </div>
+                  </div>
+                  <div className="bg-red-50 dark:bg-red-950/30 p-2 rounded border border-red-200 dark:border-red-800">
+                    <div className="text-xl font-bold text-red-600 dark:text-red-400">
+                      {previewData.summary?.errors || 0}
+                    </div>
+                    <div className="text-xs text-red-700 dark:text-red-300 mt-0.5 font-medium">
+                      {t('products.importErrors') === 'products.importErrors' ? 'Import Errors' : t('products.importErrors')}
+                    </div>
+                  </div>
+                </div>
+
+                {/* No Changes Message */}
+                {previewData && 
+                 (!previewData.newProducts || previewData.newProducts.length === 0) &&
+                 (!previewData.existingProducts || previewData.existingProducts.length === 0) &&
+                 (!previewData.errors || previewData.errors.length === 0) && (
+                  <div className="border rounded-lg p-4 bg-muted/50 text-center">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      No changes detected in the import file.
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      All products in the file already exist with the same data.
+                    </p>
+                  </div>
+                )}
+
+                {/* New Products List */}
+                {previewData.newProducts && previewData.newProducts.length > 0 && (
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                      {(t('products.productsToCreate') === 'products.productsToCreate' ? 'Products to Create' : t('products.productsToCreate'))} ({previewData.newProducts.length})
+                    </h3>
+                    <div className="border rounded max-h-[200px] overflow-y-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="h-7">
+                            <TableHead className="text-xs p-1.5">Row</TableHead>
+                            <TableHead className="text-xs p-1.5">Name</TableHead>
+                            <TableHead className="text-xs p-1.5">SKU</TableHead>
+                            <TableHead className="text-xs p-1.5">Barcode</TableHead>
+                            <TableHead className="text-xs p-1.5">Category</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {previewData.newProducts.slice(0, 20).map((product: any) => (
+                            <TableRow key={product.row} className="h-6">
+                              <TableCell className="text-xs p-1.5">{product.row}</TableCell>
+                              <TableCell className="text-xs p-1.5 font-medium">{product.name}</TableCell>
+                              <TableCell className="text-xs p-1.5 font-mono">{product.sku || '-'}</TableCell>
+                              <TableCell className="text-xs p-1.5 font-mono">{product.barcode || '-'}</TableCell>
+                              <TableCell className="text-xs p-1.5">{product.category || '-'}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                      {previewData.newProducts.length > 20 && (
+                        <div className="p-1.5 text-xs text-muted-foreground text-center">
+                          ... and {previewData.newProducts.length - 20} more
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Existing Products List */}
+                {previewData.existingProducts && previewData.existingProducts.length > 0 && (
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">
+                      {(t('products.productsToUpdate') === 'products.productsToUpdate' ? 'Products to Update' : t('products.productsToUpdate'))} ({previewData.existingProducts.length})
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      {t('products.checkToUpdate') === 'products.checkToUpdate' 
+                        ? 'Select which products to update. Only changed fields will be shown.'
+                        : t('products.checkToUpdate')}
+                    </p>
+                    <div className="border rounded max-h-[300px] overflow-y-auto space-y-1.5 p-1.5">
+                      {previewData.existingProducts.map((product: any) => {
+                        // Calculate which fields have changed
+                        const changes: any = {};
+                        if (product.name !== product.existing_name) changes.name = { before: product.existing_name, after: product.name };
+                        if ((product.sku || '') !== (product.existing_sku || '')) changes.sku = { before: product.existing_sku || '-', after: product.sku || '-' };
+                        if ((product.barcode || '') !== (product.existing_barcode || '')) changes.barcode = { before: product.existing_barcode || '-', after: product.barcode || '-' };
+                        if ((product.category || '') !== (product.existing_category_name || '')) changes.category = { before: product.existing_category_name || '-', after: product.category || '-' };
+                        if ((product.description || '') !== (product.existing_description || '')) changes.description = { before: product.existing_description || '-', after: product.description || '-' };
+                        if ((product.shelf || '') !== (product.existing_shelf || '')) changes.shelf = { before: product.existing_shelf || '-', after: product.shelf || '-' };
+                        
+                        const hasChanges = Object.keys(changes).length > 0;
+                        
+                        return (
+                          <div key={product.row} className="border rounded p-1.5 bg-yellow-50 dark:bg-yellow-950/20">
+                            <div className="flex items-start gap-1.5 mb-1">
+                              <input
+                                type="checkbox"
+                                checked={checkedExistingProducts.has(product.row)}
+                                onChange={(e) => {
+                                  const newChecked = new Set(checkedExistingProducts);
+                                  if (e.target.checked) {
+                                    newChecked.add(product.row);
+                                  } else {
+                                    newChecked.delete(product.row);
+                                  }
+                                  setCheckedExistingProducts(newChecked);
+                                }}
+                                className="h-3.5 w-3.5 rounded border-input cursor-pointer mt-0.5"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 mb-0.5">
+                                  <span className="text-[10px] font-semibold">Row {product.row}</span>
+                                  <span className="text-[10px] font-medium text-yellow-700 dark:text-yellow-300 truncate">
+                                    {product.existing_name}
+                                  </span>
+                                </div>
+                                {hasChanges ? (
+                                  <div className="space-y-0.5 mt-1">
+                                    {Object.entries(changes).map(([field, change]: [string, any]) => (
+                                      <div key={field} className="text-[10px] flex items-start gap-1 bg-white dark:bg-gray-900 rounded p-1">
+                                        <span className="font-medium text-gray-600 dark:text-gray-400 capitalize min-w-[60px]">{field}:</span>
+                                        <div className="flex-1 min-w-0">
+                                          <div className="text-red-600 dark:text-red-400 line-through truncate">
+                                            {change.before}
+                                          </div>
+                                          <div className="text-green-600 dark:text-green-400 font-medium truncate">
+                                            → {change.after}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="text-[10px] text-muted-foreground italic mt-0.5">
+                                    No changes detected
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Errors List */}
+                {previewData.errors && previewData.errors.length > 0 && (
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-semibold text-red-600 dark:text-red-400">
+                      {(t('products.importErrors') === 'products.importErrors' ? 'Import Errors' : t('products.importErrors'))} ({previewData.errors.length})
+                    </h3>
+                    <div className="border border-red-200 dark:border-red-800 rounded p-2 bg-red-50 dark:bg-red-950/30">
+                      {previewData.errors.slice(0, 10).map((error: any, idx: number) => (
+                        <div key={idx} className="text-xs text-red-700 dark:text-red-300 mb-1">
+                          Row {error.row}: {error.error}
+                        </div>
+                      ))}
+                      {previewData.errors.length > 10 && (
+                        <div className="text-[10px] text-red-600 dark:text-red-400 mt-1">
+                          ... and {previewData.errors.length - 10} more errors
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setPreviewOpen(false);
+                  setPendingFile(null);
+                  setPreviewData(null);
+                  setCheckedExistingProducts(new Set());
+                }}
+                disabled={importLoading}
+              >
+                {t('common.cancel')}
+              </Button>
+              <Button 
+                onClick={handleConfirmImport}
+                disabled={importLoading}
+                className="bg-primary hover:bg-primary/90"
+              >
+                {importLoading 
+                  ? (t('common.loading') === 'common.loading' ? 'Loading...' : t('common.loading'))
+                  : (t('products.confirmImport') === 'products.confirmImport' ? 'Confirm & Import' : t('products.confirmImport'))}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

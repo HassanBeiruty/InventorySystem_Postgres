@@ -2,10 +2,13 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { invoicesRepo, productsRepo, productCostsRepo, customersRepo, suppliersRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, TrendingUp, TrendingDown, Package, Download, BarChart3, DollarSign, AlertCircle } from "lucide-react";
-import { formatDateTimeLebanon } from "@/utils/dateUtils";
+import { FileText, TrendingUp, TrendingDown, Package, Download, BarChart3, DollarSign, AlertCircle, Calendar, X } from "lucide-react";
+import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useTranslation } from "react-i18next";
@@ -62,6 +65,9 @@ const Reports = () => {
   const { t } = useTranslation();
   const { isAdmin, isLoading: isAdminLoading } = useAdmin();
   const [loading, setLoading] = useState(true);
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [chartPeriod, setChartPeriod] = useState<string>("month");
   const [summary, setSummary] = useState({
     totalSales: 0,
     totalPurchases: 0,
@@ -81,6 +87,130 @@ const Reports = () => {
   // Memoize chart colors to avoid recalculating on every render
   const chartColors = useMemo(() => getChartColors(), []);
 
+  // Helper function to format date for comparison (YYYY-MM-DD)
+  const formatDateForComparison = useCallback((date: Date | string): string => {
+    if (typeof date === 'string') {
+      // Extract date part from datetime string (e.g., "2025-11-22 23:35:00" -> "2025-11-22")
+      return date.split(' ')[0].split('T')[0];
+    }
+    const d = new Date(date);
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Beirut',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    return formatter.format(d);
+  }, []);
+
+  // Helper function to filter invoices by date range
+  // Includes invoices on startDate and endDate (inclusive boundaries)
+  const filterByDateRange = useCallback((invoices: any[]) => {
+    if ((!startDate || startDate === "") && (!endDate || endDate === "")) return invoices;
+    return invoices.filter((inv: any) => {
+      const invDate = formatDateForComparison(inv.invoice_date);
+      // Exclude invoices before startDate (invoices on startDate are included)
+      if (startDate && startDate !== "" && invDate < startDate) return false;
+      // Exclude invoices after endDate (invoices on endDate are included)
+      if (endDate && endDate !== "" && invDate > endDate) return false;
+      // Include invoice (it's within the date range or on boundary dates)
+      return true;
+    });
+  }, [startDate, endDate, formatDateForComparison]);
+
+  // Helper function to generate chart data based on period
+  // Note: Charts use period-based filtering (today, week, month, etc.), not date range
+  const generateChartData = useCallback((period: string, invoices: any[]) => {
+    const today = new Date();
+    
+    let periodStart: Date;
+    let groupBy: 'hour' | 'day' | 'week' | 'month';
+    
+    switch (period) {
+      case 'today':
+        periodStart = new Date(today);
+        periodStart.setHours(0, 0, 0, 0);
+        groupBy = 'hour';
+        break;
+      case 'week':
+        periodStart = new Date(today);
+        periodStart.setDate(periodStart.getDate() - 7);
+        groupBy = 'day';
+        break;
+      case 'month':
+        periodStart = new Date(today);
+        periodStart.setDate(periodStart.getDate() - 30);
+        groupBy = 'day';
+        break;
+      case 'quarter':
+        periodStart = new Date(today);
+        periodStart.setMonth(periodStart.getMonth() - 3);
+        groupBy = 'week';
+        break;
+      case 'year':
+        periodStart = new Date(today);
+        periodStart.setMonth(periodStart.getMonth() - 12);
+        groupBy = 'month';
+        break;
+      default: // 'all'
+        groupBy = 'month';
+        periodStart = new Date(0);
+    }
+
+    const dataMap = new Map<string, { sales: number; purchases: number; profit: number; label: string }>();
+    
+    invoices.forEach((inv: any) => {
+      const invDate = new Date(inv.invoice_date);
+      
+      // Skip if invoice is before period start
+      if (period !== 'all' && invDate < periodStart) return;
+      
+      let key: string;
+      let label: string;
+      
+      switch (groupBy) {
+        case 'hour':
+          key = `${invDate.getFullYear()}-${String(invDate.getMonth() + 1).padStart(2, '0')}-${String(invDate.getDate()).padStart(2, '0')}-${String(invDate.getHours()).padStart(2, '0')}`;
+          label = formatDateTimeLebanon(inv.invoice_date, "HH:mm");
+          break;
+        case 'day':
+          key = `${invDate.getFullYear()}-${String(invDate.getMonth() + 1).padStart(2, '0')}-${String(invDate.getDate()).padStart(2, '0')}`;
+          label = formatDateTimeLebanon(inv.invoice_date, "MMM dd");
+          break;
+        case 'week':
+          // Calculate week start (Sunday = 0)
+          const weekStart = new Date(invDate);
+          weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+          weekStart.setHours(0, 0, 0, 0);
+          // Use year-month-week format for unique key
+          const firstDayOfMonth = new Date(weekStart.getFullYear(), weekStart.getMonth(), 1);
+          const weekNumber = Math.ceil((weekStart.getDate() + firstDayOfMonth.getDay()) / 7);
+          key = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-W${String(weekNumber).padStart(2, '0')}`;
+          label = formatDateTimeLebanon(weekStart, "MMM dd");
+          break;
+        case 'month':
+        default:
+          key = `${invDate.getFullYear()}-${String(invDate.getMonth() + 1).padStart(2, '0')}`;
+          label = formatDateTimeLebanon(inv.invoice_date, "MMM yyyy");
+          break;
+      }
+      
+      if (!dataMap.has(key)) {
+        dataMap.set(key, { sales: 0, purchases: 0, profit: 0, label });
+      }
+      
+      const data = dataMap.get(key)!;
+      if (inv.invoice_type === 'sell') {
+        data.sales += Number(inv.total_amount) || 0;
+      } else {
+        data.purchases += Number(inv.total_amount) || 0;
+      }
+      data.profit = data.sales - data.purchases;
+    });
+    
+    return Array.from(dataMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, []);
+
   const fetchReports = useCallback(async () => {
     setLoading(true);
     try {
@@ -92,8 +222,11 @@ const Reports = () => {
       ]);
       const products = Array.isArray(productsResponse) ? productsResponse : productsResponse.data;
       
-      const sales = (all || []).filter((i: any) => i.invoice_type === "sell");
-      const purchases = (all || []).filter((i: any) => i.invoice_type === "buy");
+      // Filter invoices by date range
+      const filteredAll = filterByDateRange(all || []);
+      
+      const sales = filteredAll.filter((i: any) => i.invoice_type === "sell");
+      const purchases = filteredAll.filter((i: any) => i.invoice_type === "buy");
       
       // Fetch all average costs in ONE API call instead of one per product
       const costsMap = new Map<string, number>();
@@ -121,22 +254,14 @@ const Reports = () => {
         totalSuppliers: (suppliers || []).length,
       });
       
-      // Monthly analytics
-      const monthlyMap = new Map<string, { sales: number; purchases: number; profit: number; month: string }>();
-      all?.forEach((inv: any) => {
-        const date = new Date(inv.invoice_date);
-        // Get month name in Lebanon timezone
-        const monthName = formatDateTimeLebanon(inv.invoice_date, "MMM yyyy");
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        if (!monthlyMap.has(monthKey)) {
-          monthlyMap.set(monthKey, { sales: 0, purchases: 0, profit: 0, month: monthName });
-        }
-        const data = monthlyMap.get(monthKey)!;
-        if (inv.invoice_type === 'sell') data.sales += Number(inv.total_amount) || 0;
-        else data.purchases += Number(inv.total_amount) || 0;
-        data.profit = data.sales - data.purchases;
-      });
-      setMonthlyData(Array.from(monthlyMap.values()).sort((a, b) => a.month.localeCompare(b.month)).slice(-12));
+      // Generate chart data based on selected period
+      const chartData = generateChartData(chartPeriod, all || []);
+      // Ensure chart data uses 'month' key for compatibility with existing chart components
+      const formattedChartData = chartData.map(item => ({
+        ...item,
+        month: item.label
+      }));
+      setMonthlyData(formattedChartData);
       
       // Top products
       const productSales = new Map<string, { name: string; revenue: number }>();
@@ -165,7 +290,7 @@ const Reports = () => {
       
       // Payment status
       const statusCounts = { paid: 0, partial: 0, pending: 0 };
-      all?.forEach((inv: any) => {
+      filteredAll.forEach((inv: any) => {
         const status = inv.payment_status || 'pending';
         if (status === 'paid') statusCounts.paid++;
         else if (status === 'partial') statusCounts.partial++;
@@ -181,7 +306,7 @@ const Reports = () => {
     } finally {
       setLoading(false);
     }
-  }, [toast, t]); // chartColors is memoized and stable, no need to include
+  }, [toast, t, startDate, endDate, chartPeriod, filterByDateRange, generateChartData]);
 
   useEffect(() => {
     if (!isAdmin || isAdminLoading) return;
@@ -276,6 +401,73 @@ const Reports = () => {
           )}
         </div>
 
+        {/* Date Range Filter for Summary Data */}
+        {isAdmin && (
+          <Card className="border-2 p-2 sm:p-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-primary" />
+                <span className="text-xs sm:text-sm font-medium">Filter Summary Data:</span>
+              </div>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="start-date-report" className="text-[10px] sm:text-xs whitespace-nowrap">
+                    From:
+                  </Label>
+                  <Input
+                    id="start-date-report"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      const newStartDate = e.target.value;
+                      setStartDate(newStartDate);
+                      // If end date is before new start date, update end date
+                      if (endDate && newStartDate > endDate) {
+                        setEndDate(newStartDate);
+                      }
+                    }}
+                    max={endDate || getTodayLebanon()}
+                    className="h-7 text-xs w-32"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="end-date-report" className="text-[10px] sm:text-xs whitespace-nowrap">
+                    To:
+                  </Label>
+                  <Input
+                    id="end-date-report"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => {
+                      const newEndDate = e.target.value;
+                      if (!startDate || newEndDate >= startDate) {
+                        setEndDate(newEndDate);
+                      }
+                    }}
+                    min={startDate}
+                    max={getTodayLebanon()}
+                    className="h-7 text-xs w-32"
+                  />
+                </div>
+                {(startDate || endDate) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setStartDate("");
+                      setEndDate("");
+                    }}
+                    className="h-7 text-xs"
+                  >
+                    <X className="w-3 h-3 mr-1" />
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </div>
+          </Card>
+        )}
+
         {!isAdmin ? (
           <Card className="border-2">
             <CardContent className="p-3 sm:p-4 text-center">
@@ -340,19 +532,42 @@ const Reports = () => {
               </Card>
             </div>
 
+            {/* Chart Period Selector */}
+            <Card className="border-2 p-2 sm:p-3">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-primary" />
+                  <span className="text-xs sm:text-sm font-medium">Chart Period:</span>
+                </div>
+                <Select value={chartPeriod} onValueChange={setChartPeriod}>
+                  <SelectTrigger className="w-[180px] h-7 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="today">Today</SelectItem>
+                    <SelectItem value="week">This Week</SelectItem>
+                    <SelectItem value="month">This Month</SelectItem>
+                    <SelectItem value="quarter">This Quarter</SelectItem>
+                    <SelectItem value="year">This Year</SelectItem>
+                    <SelectItem value="all">All Time</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </Card>
+
             <div className="grid gap-2 sm:gap-3 md:grid-cols-2">
               <Card className="border-2">
                 <CardHeader className="p-2 sm:p-3 border-b">
                   <CardTitle className="flex items-center gap-1.5 text-xs sm:text-sm">
                     <BarChart3 className="w-4 h-4" />
-                    Monthly Sales & Purchases
+                    Sales & Purchases Trend
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-2 sm:p-3">
                   <ResponsiveContainer width="100%" height={250}>
                     <LineChart data={monthlyData}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
+                      <XAxis dataKey="label" />
                       <YAxis />
                       <Tooltip />
                       <Legend />
@@ -388,13 +603,13 @@ const Reports = () => {
 
             <Card className="border-2">
               <CardHeader className="p-2 sm:p-3 border-b">
-                <CardTitle className="text-xs sm:text-sm">Monthly Sales Trend (Last 12 Months)</CardTitle>
+                <CardTitle className="text-xs sm:text-sm">Sales & Purchases Chart</CardTitle>
               </CardHeader>
               <CardContent className="p-2 sm:p-3">
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={monthlyData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
+                    <XAxis dataKey="label" />
                     <YAxis />
                     <Tooltip />
                     <Legend />
