@@ -279,7 +279,6 @@ router.post('/auth/signup', requestSizeLimiter('10mb'), authLimiter, sanitizeInp
 		const isAdmin = user.is_admin === true || user.is_admin === 1;
 		
 		if (willBeAdmin && process.env.NODE_ENV !== 'production') {
-			console.log(`✓ New user created as admin (no admins existed): ${email}`);
 		}
 		
 		// Generate JWT token
@@ -3016,32 +3015,182 @@ router.get('/export/products', authenticateToken, async (req, res) => {
 	}
 });
 
-// Export invoices
-router.get('/export/invoices', async (req, res) => {
+// Export invoices (supports filtering by date range) - Excel format matching import template
+router.get('/export/invoices', authenticateToken, async (req, res) => {
 	try {
-		const invoices = await query('SELECT * FROM invoices ORDER BY invoice_date DESC', []);
-		const customers = await query('SELECT * FROM customers', []);
-		const suppliers = await query('SELECT * FROM suppliers', []);
-		const idToCustomer = new Map(customers.recordset.map((c) => [c.id, c]));
-		const idToSupplier = new Map(suppliers.recordset.map((s) => [s.id, s]));
+		const { startDate, endDate, invoice_type } = req.query;
 		
-		const data = invoices.recordset.map((inv) => ({
-			id: inv.id,
-			invoice_type: inv.invoice_type,
-			customer_name: inv.customer_id ? idToCustomer.get(inv.customer_id)?.name || '' : '',
-			supplier_name: inv.supplier_id ? idToSupplier.get(inv.supplier_id)?.name || '' : '',
-			total_amount: inv.total_amount,
-			amount_paid: inv.amount_paid || 0,
-			remaining_balance: (inv.total_amount || 0) - (inv.amount_paid || 0),
-			payment_status: inv.payment_status || 'pending',
-			invoice_date: inv.invoice_date,
-			created_at: inv.created_at
-		}));
+		// Build the WHERE clause based on filters
+		let whereClauses = [];
+		let params = [];
+		let paramIndex = 1;
 		
-		const csv = toCSV(data, ['id', 'invoice_type', 'customer_name', 'supplier_name', 'total_amount', 'amount_paid', 'remaining_balance', 'payment_status', 'invoice_date', 'created_at']);
-		res.setHeader('Content-Type', 'text/csv');
-		res.setHeader('Content-Disposition', 'attachment; filename="invoices.csv"');
-		res.send(csv);
+		if (startDate) {
+			whereClauses.push(`CAST(i.invoice_date AS DATE) >= $${paramIndex}`);
+			params.push(startDate);
+			paramIndex++;
+		}
+		
+		if (endDate) {
+			whereClauses.push(`CAST(i.invoice_date AS DATE) <= $${paramIndex}`);
+			params.push(endDate);
+			paramIndex++;
+		}
+		
+		if (invoice_type) {
+			whereClauses.push(`i.invoice_type = $${paramIndex}`);
+			params.push(invoice_type);
+			paramIndex++;
+		}
+		
+		const whereClause = whereClauses.length > 0 
+			? `WHERE ${whereClauses.join(' AND ')}`
+			: '';
+		
+		// Fetch invoices with items, customers, suppliers, and products
+		const invoicesQuery = `
+			SELECT 
+				i.id as invoice_id,
+				i.invoice_type,
+				i.invoice_date,
+				i.due_date,
+				i.payment_status,
+				i.customer_id,
+				i.supplier_id,
+				ii.id as item_id,
+				ii.product_id,
+				ii.quantity,
+				ii.unit_price,
+				ii.is_private_price,
+				ii.private_price_amount,
+				ii.price_type,
+				c.name as customer_name,
+				s.name as supplier_name,
+				p.barcode as product_barcode,
+				p.sku as product_sku
+			FROM invoices i
+			INNER JOIN invoice_items ii ON ii.invoice_id = i.id
+			LEFT JOIN customers c ON c.id = i.customer_id
+			LEFT JOIN suppliers s ON s.id = i.supplier_id
+			LEFT JOIN products p ON p.id = ii.product_id
+			${whereClause}
+			ORDER BY i.invoice_date DESC, i.id DESC
+		`;
+		
+		const itemsResult = await query(invoicesQuery, params);
+		
+		// Get latest product prices for sell invoices to determine retail/wholesale
+		const pricesResult = await query(
+			`SELECT DISTINCT ON (pp.product_id)
+				pp.product_id, pp.wholesale_price, pp.retail_price
+			 FROM product_prices pp
+			 ORDER BY pp.product_id, pp.effective_date DESC, pp.created_at DESC`,
+			[]
+		);
+		const productPrices = new Map();
+		pricesResult.recordset.forEach(price => {
+			productPrices.set(price.product_id, {
+				wholesale_price: parseFloat(price.wholesale_price) || 0,
+				retail_price: parseFloat(price.retail_price) || 0
+			});
+		});
+		
+		// Build export data - one row per invoice item
+		const exportRows = [];
+		
+		for (const row of itemsResult.recordset) {
+			const invoiceType = row.invoice_type;
+			const entityName = invoiceType === 'sell' 
+				? (row.customer_name || '')
+				: (row.supplier_name || '');
+			
+			// Determine unit_price for export
+			let unitPriceExport;
+			if (row.is_private_price) {
+				// Private price: export the amount as number
+				unitPriceExport = row.private_price_amount || 0;
+			} else if (invoiceType === 'sell') {
+				// For sell invoices: check if unit_price matches retail/wholesale from product_prices
+				const prices = productPrices.get(row.product_id);
+				if (prices) {
+					const unitPrice = parseFloat(row.unit_price) || 0;
+					const wholesalePrice = prices.wholesale_price;
+					const retailPrice = prices.retail_price;
+					
+					// Match with tolerance for floating point comparison
+					if (Math.abs(unitPrice - wholesalePrice) < 0.01) {
+						unitPriceExport = 'wholesale';
+					} else if (Math.abs(unitPrice - retailPrice) < 0.01) {
+						unitPriceExport = 'retail';
+					} else {
+						// Doesn't match retail or wholesale, export as number
+						unitPriceExport = unitPrice;
+					}
+				} else {
+					// No prices found, export as number
+					unitPriceExport = parseFloat(row.unit_price) || 0;
+				}
+			} else {
+				// Buy invoice: unit_price is cost, export as number
+				unitPriceExport = parseFloat(row.unit_price) || 0;
+			}
+			
+			// Determine paid_directly: true if payment_status is 'paid' and amount_paid equals total
+			// We'll need to check this, but for now we'll check payment_status
+			const paidDirectly = row.payment_status === 'paid';
+			
+			// Format invoice_date as YYYY-MM-DD
+			let invoiceDateStr = '';
+			if (row.invoice_date) {
+				const date = new Date(row.invoice_date);
+				invoiceDateStr = date.toISOString().split('T')[0];
+			}
+			
+			// Format due_date as YYYY-MM-DD (if exists)
+			let dueDateStr = '';
+			if (row.due_date) {
+				const date = new Date(row.due_date);
+				dueDateStr = date.toISOString().split('T')[0];
+			}
+			
+			exportRows.push({
+				invoice_type: invoiceType,
+				invoice_date: invoiceDateStr,
+				entity_name: entityName,
+				due_date: dueDateStr || '',
+				paid_directly: paidDirectly ? 'true' : 'false',
+				product_barcode: (row.product_barcode != null && row.product_barcode !== '') ? String(row.product_barcode) : '',
+				product_sku: (row.product_sku != null && row.product_sku !== '') ? String(row.product_sku) : '',
+				quantity: row.quantity || 0,
+				unit_price: unitPriceExport
+			});
+		}
+		
+		// Generate Excel file with exact column order matching import template
+		// Column order: invoice_type, invoice_date, entity_name, due_date, paid_directly, product_barcode, product_sku, quantity, unit_price
+		const worksheet = XLSX.utils.json_to_sheet(exportRows, {
+			header: ['invoice_type', 'invoice_date', 'entity_name', 'due_date', 'paid_directly', 'product_barcode', 'product_sku', 'quantity', 'unit_price']
+		});
+		const workbook = XLSX.utils.book_new();
+		XLSX.utils.book_append_sheet(workbook, worksheet, 'Invoices');
+		
+		// Generate buffer
+		const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+		
+		// Generate filename with date range if applicable
+		let filename = 'invoices_export.xlsx';
+		if (startDate || endDate) {
+			const dateStr = startDate && endDate 
+				? `${startDate}_to_${endDate}`
+				: startDate 
+				? `from_${startDate}`
+				: `until_${endDate}`;
+			filename = `invoices_export_${dateStr}.xlsx`;
+		}
+		
+		res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+		res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+		res.send(excelBuffer);
 	} catch (err) {
 		console.error('Export invoices error:', err);
 		res.status(500).json({ error: err.message });
@@ -3169,6 +3318,53 @@ router.get('/admin/health', authenticateToken, requireAdmin, async (req, res) =>
 			error: error.message,
 			timestamp: new Date().toISOString()
 		});
+	}
+});
+
+// Reports: Get net profit using stored procedure
+router.get('/reports/net-profit', async (req, res) => {
+	try {
+		const { start_date, end_date } = req.query;
+		
+		if (!start_date || !end_date) {
+			return res.status(400).json({ error: 'start_date and end_date are required' });
+		}
+		
+		// Validate dates
+		const startDate = new Date(start_date);
+		const endDate = new Date(end_date);
+		
+		if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+			return res.status(400).json({ error: 'Invalid date format' });
+		}
+		
+		// Call stored procedure
+		const result = await query(
+			'SELECT * FROM get_net_profit($1, $2)',
+			[start_date, end_date]
+		);
+		
+		if (result.recordset.length === 0) {
+			return res.json({
+				net_profit: 0,
+				total_revenue: 0,
+				total_cost: 0
+			});
+		}
+		
+		const data = result.recordset[0];
+		const netProfit = parseFloat(data.net_profit);
+		const totalRevenue = parseFloat(data.total_revenue);
+		const totalCost = parseFloat(data.total_cost);
+		
+		res.json({
+			net_profit: isNaN(netProfit) ? 0 : netProfit,
+			total_revenue: isNaN(totalRevenue) ? 0 : totalRevenue,
+			total_cost: isNaN(totalCost) ? 0 : totalCost
+		});
+	} catch (err) {
+		console.error('Get net profit error:', err);
+		res.status(500).json({ error: err.message });
 	}
 });
 
@@ -4526,6 +4722,8 @@ router.post('/invoices/import-excel-preview',
 				invoice.items.push({
 					product_id: product.id,
 					product_name: product.name,
+					product_barcode: product.barcode,
+					product_sku: product.sku,
 					quantity: quantity,
 					unit_price: unitPrice,
 					price_type: priceType,
@@ -4585,6 +4783,8 @@ router.post('/invoices/import-excel',
 		if (!req.file) {
 			throw new Error('No file uploaded');
 		}
+
+		const today = getTodayLocal(); // Used for stock queries
 
 		// Re-parse Excel file (same logic as preview)
 		const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
@@ -4684,7 +4884,7 @@ router.post('/invoices/import-excel',
 
 		// Group rows by invoice
 		const invoiceGroups = new Map();
-		const today = getTodayLocal();
+		// today is already defined above
 
 		for (let i = 0; i < data.length; i++) {
 			const row = data[i];
@@ -4736,8 +4936,14 @@ router.post('/invoices/import-excel',
 					}
 				}
 
-				const paidDirectly = String(row[columnMap.paid_directly] || 'false').trim().toLowerCase();
-				const isPaidDirectly = paidDirectly === 'true' || paidDirectly === '1' || paidDirectly === 'yes';
+				// Parse paid_directly: accept true, 1, yes, or any case variation
+				const paidDirectlyRaw = row[columnMap.paid_directly];
+				let isPaidDirectly = false;
+				if (paidDirectlyRaw !== undefined && paidDirectlyRaw !== null && paidDirectlyRaw !== '') {
+					const paidDirectly = String(paidDirectlyRaw).trim().toLowerCase();
+					isPaidDirectly = paidDirectly === 'true' || paidDirectly === '1' || paidDirectly === 'yes' || paidDirectly === 'y';
+				}
+				console.log(`  Row ${i + 2}: paid_directly="${paidDirectlyRaw}" → parsed as ${isPaidDirectly}`);
 
 				invoiceGroups.set(invoiceKey, {
 					invoice_type: invoiceType,
@@ -4863,105 +5069,264 @@ router.post('/invoices/import-excel',
 
 		// Parse invoiceIndices from form data (list of indices to import)
 		let invoiceIndices = null;
-		if (req.body && req.body.invoiceIndices) {
+		console.log('Request body keys:', Object.keys(req.body || {}));
+		console.log('Request body:', req.body);
+		console.log('invoiceIndices raw value:', req.body?.invoiceIndices);
+		console.log('invoiceIndices type:', typeof req.body?.invoiceIndices);
+		
+		// Try to get invoiceIndices from req.body (multer puts non-file fields here)
+		const rawIndices = req.body?.invoiceIndices;
+		if (rawIndices !== undefined && rawIndices !== null) {
 			try {
-				const parsedIndices = JSON.parse(req.body.invoiceIndices);
-				if (Array.isArray(parsedIndices)) {
-					invoiceIndices = new Set(parsedIndices.map(i => parseInt(i)));
+				let parsedIndices;
+				if (typeof rawIndices === 'string') {
+					// Try to parse as JSON first
+					try {
+						parsedIndices = JSON.parse(rawIndices);
+					} catch (e) {
+						// If not JSON, try to parse as comma-separated string
+						parsedIndices = rawIndices.split(',').map(s => s.trim()).filter(s => s);
+					}
+				} else if (Array.isArray(rawIndices)) {
+					parsedIndices = rawIndices;
+				} else {
+					parsedIndices = [rawIndices];
+				}
+				
+				if (Array.isArray(parsedIndices) && parsedIndices.length > 0) {
+					invoiceIndices = new Set(parsedIndices.map(i => parseInt(i)).filter(i => !isNaN(i)));
+					console.log(`✓ Importing invoices with indices:`, Array.from(invoiceIndices));
+				} else {
+					console.warn('invoiceIndices is empty or invalid:', parsedIndices);
 				}
 			} catch (e) {
-				console.warn('Failed to parse invoiceIndices:', e);
+				console.error('✗ Failed to parse invoiceIndices:', e.message);
+				console.error('Stack:', e.stack);
+				console.error('Raw value:', rawIndices);
 			}
+		} else {
+			console.log('⚠ No invoiceIndices provided, importing all invoices');
 		}
 
 		// Convert invoiceGroups Map to Array to maintain order (same as preview)
 		const invoiceGroupsArray = Array.from(invoiceGroups.values());
+		console.log(`Total invoice groups found: ${invoiceGroupsArray.length}`);
 
 		// Create invoices - only process checked invoices if invoiceIndices is provided
 		const created = { invoices: 0, items: 0 };
 
+		if (invoiceGroupsArray.length === 0) {
+			throw new Error('No invoices found in file to import');
+		}
+
 		for (let idx = 0; idx < invoiceGroupsArray.length; idx++) {
 			// Skip if invoiceIndices is provided and this index is not checked
 			if (invoiceIndices !== null && !invoiceIndices.has(idx)) {
+				console.log(`⏭ Skipping invoice at index ${idx} (not in checked list)`);
 				continue;
 			}
 
 			const invoiceData = invoiceGroupsArray[idx];
+			
+			// Skip invoices with no items
+			if (!invoiceData.items || invoiceData.items.length === 0) {
+				console.warn(`⏭ Skipping invoice at index ${idx}: no items`);
+				continue;
+			}
+			
+			console.log(`📝 Processing invoice ${idx}: type=${invoiceData.invoice_type}, entity=${invoiceData.customer_id || invoiceData.supplier_id}, items=${invoiceData.items.length}`);
 			const totalAmount = invoiceData.items.reduce((sum, item) => sum + item.total_price, 0);
 			const invoiceTimestamp = invoiceData.invoice_date ? new Date(invoiceData.invoice_date).toISOString() : nowIso();
 
 			// Create invoice
-			const invoiceResult = await client.query(
-				`INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, invoice_date, due_date, created_at) 
-				 VALUES ($1, $2, $3, $4, $5::timestamp, $6, $7::timestamp) RETURNING id, invoice_date`,
-				[invoiceData.invoice_type, invoiceData.customer_id, invoiceData.supplier_id, 
-				 totalAmount, invoiceTimestamp, invoiceData.due_date || null, nowIso()]
-			);
-			const invoiceId = invoiceResult.rows[0].id;
+			// Use the already-parsed paid_directly boolean value from invoiceData
+			// It was parsed earlier when grouping rows (line 4748), so it's already a boolean
+			const isPaidDirectly = invoiceData.paid_directly === true || invoiceData.paid_directly === 'true' || invoiceData.paid_directly === 1 || invoiceData.paid_directly === '1' || invoiceData.paid_directly === 'yes' || invoiceData.paid_directly === 'y';
+			console.log(`  → Creating invoice: type=${invoiceData.invoice_type}, customer_id=${invoiceData.customer_id}, supplier_id=${invoiceData.supplier_id}, total=${totalAmount}, paid_directly=${invoiceData.paid_directly} (type: ${typeof invoiceData.paid_directly}, parsed: ${isPaidDirectly})`);
+			
+			try {
+				// Set amount_paid and payment_status during INSERT if paid_directly is true
+				const amountPaidValue = isPaidDirectly ? totalAmount : 0;
+				const paymentStatusValue = isPaidDirectly ? 'paid' : 'pending';
+				
+				const invoiceResult = await client.query(
+					`INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, invoice_date, due_date, amount_paid, payment_status, created_at) 
+					 VALUES ($1, $2, $3, $4, $5::timestamp, $6, $7, $8, $9::timestamp) RETURNING id, invoice_date`,
+					[invoiceData.invoice_type, invoiceData.customer_id, invoiceData.supplier_id, 
+					 totalAmount, invoiceTimestamp, invoiceData.due_date || null, amountPaidValue, paymentStatusValue, nowIso()]
+				);
+				const invoiceId = invoiceResult.rows[0].id;
+				console.log(`  ✓ Invoice created with ID: ${invoiceId}, payment_status: ${paymentStatusValue}, amount_paid: ${amountPaidValue}`);
 
-			// Fetch stock data for products
-			const productIds = invoiceData.items.map(item => parseInt(item.product_id));
-			const stockDataResult = await client.query(
-				`SELECT product_id, available_qty, avg_cost 
-				 FROM daily_stock 
-				 WHERE product_id = ANY($1) AND date <= $2 
-				 ORDER BY product_id, date DESC, updated_at DESC`,
-				[productIds, today]
-			);
-
-			const stockMap = new Map();
-			stockDataResult.rows.forEach(row => {
-				if (!stockMap.has(row.product_id)) {
-					stockMap.set(row.product_id, {
-						available_qty: row.available_qty || 0,
-						avg_cost: row.avg_cost || 0
-					});
+				// If paid_directly is true, create a payment record and update invoice status IMMEDIATELY
+				if (isPaidDirectly) {
+					const totalAmountNum = parseFloat(String(totalAmount));
+					if (totalAmountNum > 0) {
+						console.log(`  → Creating payment record for paid_directly invoice`);
+						// Create payment record with full amount in USD
+						await client.query(
+							`INSERT INTO invoice_payments (invoice_id, paid_amount, currency_code, exchange_rate_on_payment, usd_equivalent_amount, payment_date, payment_method, notes, created_at) 
+							 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+							[
+								invoiceId,
+								totalAmountNum, // paid_amount in USD
+								'USD', // currency_code
+								1.0, // exchange_rate_on_payment (1 USD = 1 USD)
+								totalAmountNum, // usd_equivalent_amount
+								invoiceTimestamp, // payment_date (same as invoice creation)
+								'direct', // payment_method
+								'Paid directly on invoice import', // notes
+								invoiceTimestamp // created_at
+							]
+						);
+						
+						// Update invoice payment status to 'paid'
+						await client.query(
+							'UPDATE invoices SET amount_paid = $1, payment_status = $2 WHERE id = $3',
+							[totalAmountNum, 'paid', invoiceId]
+						);
+						console.log(`  ✓ Payment record created and invoice marked as paid`);
+					}
 				}
-			});
 
-			// Insert invoice items
-			const itemValues = [];
-			const itemParams = [];
-			let paramIndex = 1;
-
-			for (const item of invoiceData.items) {
-				itemValues.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8})`);
-				itemParams.push(
-					invoiceId, parseInt(item.product_id), item.quantity, item.unit_price, item.total_price,
-					item.price_type, item.is_private_price ? 1 : 0,
-					item.is_private_price ? item.private_price_amount : null,
-					item.is_private_price ? item.private_price_note : null
+				// Batch fetch stock data for all products at once (same as manual invoice creation)
+				const productIds = invoiceData.items.map(item => parseInt(item.product_id));
+				const stockDataResult = await client.query(
+					`SELECT product_id, available_qty, avg_cost 
+					 FROM daily_stock 
+					 WHERE product_id = ANY($1) AND date <= $2 
+					 ORDER BY product_id, date DESC, updated_at DESC`,
+					[productIds, today]
 				);
-				paramIndex += 9;
+
+				// Create a map of product_id -> latest stock data
+				const stockMap = new Map();
+				stockDataResult.rows.forEach(row => {
+					if (!stockMap.has(row.product_id)) {
+						stockMap.set(row.product_id, {
+							available_qty: row.available_qty || 0,
+							avg_cost: row.avg_cost || 0
+						});
+					}
+				});
+
+				// Prepare batch insert data for invoice items
+				const itemValues = [];
+				const itemParams = [];
+				
+				// Prepare batch insert data for stock movements
+				const movementValues = [];
+				const movementParams = [];
+				
+				// Prepare batch upsert data for daily_stock
+				const stockValues = [];
+				const stockParams = [];
+				
+				const stockTimestamp = nowIso();
+				let itemParamIndex = 1;
+				let movementParamIndex = 1;
+				let stockParamIndex = 1;
+
+				for (const item of invoiceData.items) {
+					const productId = parseInt(item.product_id);
+					const stockData = stockMap.get(productId) || { available_qty: 0, avg_cost: 0 };
+					let qtyBefore = stockData.available_qty;
+					let prevAvgCost = stockData.avg_cost;
+					
+					const change = invoiceData.invoice_type === 'sell' ? -item.quantity : item.quantity;
+					const qtyAfter = qtyBefore + change;
+					
+					// Determine new avg cost for BUY; keep previous for SELL (same as manual invoice creation)
+					let newAvgCost = prevAvgCost || 0;
+					if (invoiceData.invoice_type === 'buy') {
+						const buyQty = item.quantity;
+						const buyCost = item.unit_price;
+						const denominator = (qtyBefore || 0) + buyQty;
+						newAvgCost = denominator > 0 ? (((prevAvgCost || 0) * (qtyBefore || 0)) + (buyCost * buyQty)) / denominator : buyCost;
+					}
+					
+					const unitCost = parseFloat(item.unit_price);
+
+					// Build invoice items batch insert
+					itemValues.push(`($${itemParamIndex}, $${itemParamIndex + 1}, $${itemParamIndex + 2}, $${itemParamIndex + 3}, $${itemParamIndex + 4}, $${itemParamIndex + 5}, $${itemParamIndex + 6}, $${itemParamIndex + 7}, $${itemParamIndex + 8})`);
+					itemParams.push(
+						invoiceId, productId, item.quantity, item.unit_price, item.total_price,
+						item.price_type, item.is_private_price ? 1 : 0,
+						item.is_private_price ? item.private_price_amount : null,
+						null // private_price_note (removed from import)
+					);
+					itemParamIndex += 9;
+					
+					// Build stock movements batch insert (using invoice_date subquery - same as manual invoice creation)
+					movementValues.push(`($${movementParamIndex}, $${movementParamIndex + 1}, (SELECT invoice_date FROM invoices WHERE id = $${movementParamIndex + 1}), $${movementParamIndex + 2}, $${movementParamIndex + 3}, $${movementParamIndex + 4}, $${movementParamIndex + 5}, $${movementParamIndex + 6}, $${movementParamIndex + 7}::timestamp)`);
+					movementParams.push(productId, invoiceId, qtyBefore, change, qtyAfter, unitCost, newAvgCost, invoiceTimestamp);
+					movementParamIndex += 8;
+					
+					// Build daily_stock batch upsert (same as manual invoice creation)
+					stockValues.push(`($${stockParamIndex}, $${stockParamIndex + 1}, $${stockParamIndex + 2}, $${stockParamIndex + 3}, $${stockParamIndex + 4}, $${stockParamIndex + 4})`);
+					stockParams.push(productId, qtyAfter, newAvgCost, today, stockTimestamp);
+					stockParamIndex += 5;
+				}
+
+				// Batch insert invoice items
+				if (itemValues.length > 0) {
+					console.log(`  → Inserting ${itemValues.length} invoice items`);
+					await client.query(
+						`INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) 
+						 VALUES ${itemValues.join(', ')}`,
+						itemParams
+					);
+					created.items += itemValues.length;
+					console.log(`  ✓ Invoice items inserted`);
+				} else {
+					console.warn(`  ⚠ No items to insert for invoice ${invoiceId}`);
+				}
+
+				// Batch insert stock movements (same as manual invoice creation)
+				if (movementValues.length > 0) {
+					console.log(`  → Inserting ${movementValues.length} stock movements`);
+					await client.query(
+						`INSERT INTO stock_movements (product_id, invoice_id, invoice_date, quantity_before, quantity_change, quantity_after, unit_cost, avg_cost_after, created_at) 
+						 VALUES ${movementValues.join(', ')}`,
+						movementParams
+					);
+					console.log(`  ✓ Stock movements inserted`);
+				}
+
+				// Batch upsert daily_stock (same as manual invoice creation)
+				if (stockValues.length > 0) {
+					console.log(`  → Upserting ${stockValues.length} daily stock records`);
+					await client.query(
+						`INSERT INTO daily_stock (product_id, available_qty, avg_cost, date, created_at, updated_at) 
+						 VALUES ${stockValues.join(', ')}
+						 ON CONFLICT (product_id, date) 
+						 DO UPDATE SET available_qty = EXCLUDED.available_qty, avg_cost = EXCLUDED.avg_cost, updated_at = EXCLUDED.updated_at`,
+						stockParams
+					);
+					console.log(`  ✓ Daily stock updated`);
+				}
+
+				created.invoices++;
+				console.log(`✓ Invoice ${idx} completed (ID: ${invoiceId})`);
+			} catch (invoiceError) {
+				console.error(`✗ Failed to create invoice ${idx}:`, invoiceError.message);
+				console.error('Stack:', invoiceError.stack);
+				// Continue with next invoice instead of failing entire import
+				// The transaction will rollback if there's a critical error, but individual invoice errors won't stop the import
+				throw invoiceError; // Re-throw to rollback transaction on any error
 			}
+		}
 
-			if (itemValues.length > 0) {
-				await client.query(
-					`INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) 
-					 VALUES ${itemValues.join(', ')}`,
-					itemParams
-				);
-				created.items += itemValues.length;
-			}
-
-			// Recalculate stock for each product
-			for (const item of invoiceData.items) {
-				const productId = parseInt(item.product_id);
-				const currentStock = stockMap.get(productId) || { available_qty: 0, avg_cost: 0 };
-				const newQty = invoiceData.invoice_type === 'buy' 
-					? currentStock.available_qty + item.quantity
-					: currentStock.available_qty - item.quantity;
-
-				await client.query(
-					'SELECT recalculate_stock_after_invoice($1, $2, $3, $4, $5)',
-					[invoiceId, productId, invoiceData.invoice_type.toUpperCase(), item.quantity, item.unit_price]
-				);
-			}
-
-			created.invoices++;
+		console.log(`\n📊 Import Summary: ${created.invoices} invoices, ${created.items} items`);
+		
+		// Validate that at least one invoice was created
+		if (created.invoices === 0) {
+			const checkedCount = invoiceIndices ? invoiceIndices.size : invoiceGroupsArray.length;
+			throw new Error(`No invoices were created. ${checkedCount} invoice(s) were selected, but none could be processed. Check server logs for details.`);
 		}
 
 		await client.query('COMMIT');
+		console.log(`✓ Transaction committed successfully`);
 
 		res.json({
 			success: true,
@@ -4969,14 +5334,105 @@ router.post('/invoices/import-excel',
 		});
 
 	} catch (err) {
-		await client.query('ROLLBACK');
-		console.error('Invoice import error:', err);
+		await client.query('ROLLBACK').catch(rollbackErr => {
+			console.error('Failed to rollback transaction:', rollbackErr);
+		});
+		console.error('✗ Invoice import error:', err.message);
+		console.error('Stack:', err.stack);
 		res.status(500).json({ 
 			error: err.message || 'Failed to import invoices',
 			details: process.env.NODE_ENV === 'development' ? err.stack : undefined
 		});
 	} finally {
 		client.release();
+	}
+});
+
+// Download import templates
+const fs = require('fs');
+const path = require('path');
+
+// Download product import template
+router.get('/templates/products', authenticateToken, (req, res) => {
+	try {
+		// Try multiple possible paths for production compatibility
+		const possiblePaths = [
+			path.join(__dirname, '../../products_Import_template.xlsx'), // From server/routes/ to root
+			path.resolve(process.cwd(), 'products_Import_template.xlsx'), // From current working directory
+			path.resolve(__dirname, '../../../products_Import_template.xlsx'), // Alternative relative path
+		];
+		
+		let templatePath = null;
+		for (const possiblePath of possiblePaths) {
+			if (fs.existsSync(possiblePath)) {
+				templatePath = possiblePath;
+				break;
+			}
+		}
+		
+		if (!templatePath) {
+			console.error('Product template not found. Tried paths:', possiblePaths);
+			return res.status(404).json({ error: 'Product import template not found' });
+		}
+		
+		res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+		res.setHeader('Content-Disposition', 'attachment; filename="products_import_template.xlsx"');
+		
+		const fileStream = fs.createReadStream(templatePath);
+		fileStream.on('error', (err) => {
+			console.error('Error streaming product template:', err);
+			if (!res.headersSent) {
+				res.status(500).json({ error: 'Failed to stream template file' });
+			}
+		});
+		fileStream.pipe(res);
+	} catch (err) {
+		console.error('Error serving product template:', err);
+		if (!res.headersSent) {
+			res.status(500).json({ error: 'Failed to download template' });
+		}
+	}
+});
+
+// Download invoice import template
+router.get('/templates/invoices', authenticateToken, (req, res) => {
+	try {
+		// Try multiple possible paths for production compatibility
+		const possiblePaths = [
+			path.join(__dirname, '../../Invoice_Import_Template.xlsx'), // From server/routes/ to root
+			path.resolve(process.cwd(), 'Invoice_Import_Template.xlsx'), // From current working directory
+			path.resolve(__dirname, '../../../Invoice_Import_Template.xlsx'), // Alternative relative path
+		];
+		
+		let templatePath = null;
+		for (const possiblePath of possiblePaths) {
+			if (fs.existsSync(possiblePath)) {
+				templatePath = possiblePath;
+				break;
+			}
+		}
+		
+		if (!templatePath) {
+			console.error('Invoice template not found. Tried paths:', possiblePaths);
+			return res.status(404).json({ error: 'Invoice import template not found' });
+		}
+		
+		res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+		res.setHeader('Content-Disposition', 'attachment; filename="invoice_import_template.xlsx"');
+		
+		const fileStream = fs.createReadStream(templatePath);
+		fileStream.on('error', (err) => {
+			console.error('Error streaming invoice template:', err);
+			if (!res.headersSent) {
+				res.status(500).json({ error: 'Failed to stream template file' });
+			}
+		});
+		fileStream.pipe(res);
+	} catch (err) {
+		console.error('Error serving invoice template:', err);
+		if (!res.headersSent) {
+			res.status(500).json({ error: 'Failed to download template' });
+		}
 	}
 });
 

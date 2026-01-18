@@ -488,7 +488,7 @@ const Products = () => {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={triggerFileInput} disabled={importLoading}>
-                  <Download className="w-4 h-4 mr-2" />
+                  <Upload className="w-4 h-4 mr-2" />
                   {importLoading ? t('products.importing') : t('products.importExcel')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={async () => {

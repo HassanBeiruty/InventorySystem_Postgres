@@ -547,6 +547,22 @@ export interface AdminActionResponse {
   details?: any;
 }
 
+export interface NetProfitResult {
+  net_profit: number;
+  total_revenue: number;
+  total_cost: number;
+}
+
+export const reportsRepo = {
+  async getNetProfit(start_date: string, end_date: string): Promise<NetProfitResult> {
+    const params = new URLSearchParams();
+    params.append('start_date', start_date);
+    params.append('end_date', end_date);
+    const queryString = params.toString();
+    return fetchJson<NetProfitResult>(`/api/reports/net-profit?${queryString}`);
+  },
+};
+
 export interface UserEntity {
   id: number;
   email: string;

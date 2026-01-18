@@ -254,15 +254,21 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
               </tr>
             </thead>
             <tbody>
-              ${invoice.invoice_items.map((item: InvoiceItem) => `
+              ${invoice.invoice_items.map((item: InvoiceItem) => {
+                // Use private_price_amount if it's a private price, otherwise use unit_price
+                const displayUnitPrice = item.is_private_price && item.private_price_amount 
+                  ? item.private_price_amount 
+                  : item.unit_price || 0;
+                return `
                 <tr>
                   <td>#${item.product_id} ${item.product_name || 'Product'}</td>
                   <td>${item.quantity}</td>
-                  <td>$${Number(item.unit_price || 0).toFixed(2)}</td>
+                  <td>$${Number(displayUnitPrice).toFixed(2)}</td>
                   <td>${item.price_type}</td>
                   <td style="text-align: right;">$${Number(item.total_price || 0).toFixed(2)}</td>
                 </tr>
-              `).join('')}
+              `;
+              }).join('')}
             </tbody>
           </table>
 
@@ -340,13 +346,19 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
     doc.text(`Address: ${entityAddress}`, 14, 86);
     
     // Table data
-    const tableData = invoice.invoice_items.map((item: InvoiceItem) => [
-      `#${item.product_id} ${item.product_name || 'Product'}`,
-      item.quantity.toString(),
-      `$${Number(item.unit_price || 0).toFixed(2)}`,
-      item.price_type,
-      `$${Number(item.total_price || 0).toFixed(2)}`
-    ]);
+    const tableData = invoice.invoice_items.map((item: InvoiceItem) => {
+      // Use private_price_amount if it's a private price, otherwise use unit_price
+      const displayUnitPrice = item.is_private_price && item.private_price_amount 
+        ? item.private_price_amount 
+        : item.unit_price || 0;
+      return [
+        `#${item.product_id} ${item.product_name || 'Product'}`,
+        item.quantity.toString(),
+        `$${Number(displayUnitPrice).toFixed(2)}`,
+        item.price_type,
+        `$${Number(item.total_price || 0).toFixed(2)}`
+      ];
+    });
     
     // Add table
     autoTable(doc, {
@@ -606,7 +618,13 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                                   )}
                                 </TableCell>
                                 <TableCell>{item.quantity}</TableCell>
-                                <TableCell>${Number(item.unit_price || 0).toFixed(2)}</TableCell>
+                                <TableCell>${(() => {
+                                  // Use private_price_amount if it's a private price, otherwise use unit_price
+                                  const displayUnitPrice = item.is_private_price && item.private_price_amount 
+                                    ? item.private_price_amount 
+                                    : item.unit_price || 0;
+                                  return Number(displayUnitPrice).toFixed(2);
+                                })()}</TableCell>
                                 <TableCell>
                                   <Badge variant="outline" className="capitalize">
                                     {item.price_type}

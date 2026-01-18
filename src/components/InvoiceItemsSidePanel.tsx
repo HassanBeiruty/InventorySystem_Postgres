@@ -247,15 +247,21 @@ export default function InvoiceItemsSidePanel({ open, onOpenChange, invoiceId }:
               </tr>
             </thead>
             <tbody>
-              ${invoice.invoice_items.map((item: InvoiceItem) => `
+              ${invoice.invoice_items.map((item: InvoiceItem) => {
+                // Use private_price_amount if it's a private price, otherwise use unit_price
+                const displayUnitPrice = item.is_private_price && item.private_price_amount 
+                  ? item.private_price_amount 
+                  : item.unit_price || 0;
+                return `
                 <tr>
                   <td>#${item.product_id} ${item.product_name || 'Product'}</td>
                   <td>${item.product_sku || item.product_barcode || 'N/A'}</td>
                   <td>${item.quantity}</td>
-                  <td>$${Number(item.unit_price || 0).toFixed(2)}</td>
+                  <td>$${Number(displayUnitPrice).toFixed(2)}</td>
                   <td style="text-align: right;">$${Number(item.total_price || 0).toFixed(2)}</td>
                 </tr>
-              `).join('')}
+              `;
+              }).join('')}
             </tbody>
           </table>
 
@@ -333,13 +339,19 @@ export default function InvoiceItemsSidePanel({ open, onOpenChange, invoiceId }:
       doc.text(`Address: ${entityAddress}`, 14, 86);
       
       // Table data
-      const tableData = invoice.invoice_items.map((item: InvoiceItem) => [
-        `#${item.product_id} ${item.product_name || 'Product'}`,
-        item.product_sku || item.product_barcode || 'N/A',
-        item.quantity.toString(),
-        `$${Number(item.unit_price || 0).toFixed(2)}`,
-        `$${Number(item.total_price || 0).toFixed(2)}`
-      ]);
+      const tableData = invoice.invoice_items.map((item: InvoiceItem) => {
+        // Use private_price_amount if it's a private price, otherwise use unit_price
+        const displayUnitPrice = item.is_private_price && item.private_price_amount 
+          ? item.private_price_amount 
+          : item.unit_price || 0;
+        return [
+          `#${item.product_id} ${item.product_name || 'Product'}`,
+          item.product_sku || item.product_barcode || 'N/A',
+          item.quantity.toString(),
+          `$${Number(displayUnitPrice).toFixed(2)}`,
+          `$${Number(item.total_price || 0).toFixed(2)}`
+        ];
+      });
       
       // Add table
       autoTable(doc, {
@@ -572,7 +584,13 @@ export default function InvoiceItemsSidePanel({ open, onOpenChange, invoiceId }:
                             </div>
                             <div className="text-right flex-shrink-0">
                               <div className="text-xs text-muted-foreground mb-1">
-                                {item.quantity} × ${Number(item.unit_price || 0).toFixed(2)}
+                                {(() => {
+                                  // Use private_price_amount if it's a private price, otherwise use unit_price
+                                  const displayUnitPrice = item.is_private_price && item.private_price_amount 
+                                    ? item.private_price_amount 
+                                    : item.unit_price || 0;
+                                  return `${item.quantity} × $${Number(displayUnitPrice).toFixed(2)}`;
+                                })()}
                               </div>
                               <div className="font-bold text-xs text-primary">
                                 ${Number(item.total_price || 0).toFixed(2)}

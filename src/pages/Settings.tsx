@@ -21,8 +21,12 @@ import {
   Users,
   Shield,
   ShieldOff,
-  Trash2
+  Trash2,
+  Download,
+  FileSpreadsheet,
+  ChevronDown
 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { RecomputePositionsDialog } from "@/components/RecomputePositionsDialog";
 import { useAdmin } from "@/hooks/useAdmin";
 import { adminRepo, type HealthCheckResponse, type UserEntity } from "@/integrations/api/repo";
@@ -384,6 +388,110 @@ const Settings = () => {
                     </Button>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Templates Card */}
+            <Card className="border-2">
+              <CardHeader className="p-2 sm:p-3 border-b">
+                  <CardTitle className="flex items-center gap-1.5 text-xs sm:text-sm">
+                  <FileSpreadsheet className="w-4 h-4" />
+                  {t("settings.templates") || "Import Templates"}
+                </CardTitle>
+                <CardDescription className="text-[10px] sm:text-xs">{t("settings.templatesDescription") || "Download Excel templates for importing products and invoices"}</CardDescription>
+              </CardHeader>
+              <CardContent className="p-2 sm:p-3">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-full sm:w-auto h-7 text-[10px] sm:text-xs">
+                      <FileSpreadsheet className="w-3 h-3 mr-1.5" />
+                      <span className="whitespace-nowrap">{t("settings.downloadTemplates") || "Download Templates"}</span>
+                      <ChevronDown className="w-3 h-3 ml-1.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem onClick={async () => {
+                      try {
+                        const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+                        const token = localStorage.getItem('auth_token');
+                        
+                        const url = API_BASE_URL 
+                          ? `${API_BASE_URL.replace(/\/$/, '')}/api/templates/products`
+                          : '/api/templates/products';
+                        
+                        const response = await fetch(url, {
+                          method: 'GET',
+                          headers: {
+                            'Authorization': `Bearer ${token}`,
+                          },
+                        });
+                        
+                        if (!response.ok) {
+                          throw new Error('Failed to download template');
+                        }
+                        
+                        const blob = await response.blob();
+                        const blobUrl = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = blobUrl;
+                        link.download = 'products_import_template.xlsx';
+                        document.body.appendChild(link);
+                        link.click();
+                        setTimeout(() => {
+                          document.body.removeChild(link);
+                          window.URL.revokeObjectURL(blobUrl);
+                        }, 100);
+                        
+                        toast.success(t("settings.templateDownloaded") || "Product template downloaded successfully");
+                      } catch (error: any) {
+                        toast.error(error.message || (t("settings.failedToDownloadTemplate") || "Failed to download template"));
+                      }
+                    }}>
+                      <Download className="w-4 h-4 mr-2" />
+                      {t("settings.productTemplate") || "Product Import Template"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={async () => {
+                      try {
+                        const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+                        const token = localStorage.getItem('auth_token');
+                        
+                        const url = API_BASE_URL 
+                          ? `${API_BASE_URL.replace(/\/$/, '')}/api/templates/invoices`
+                          : '/api/templates/invoices';
+                        
+                        const response = await fetch(url, {
+                          method: 'GET',
+                          headers: {
+                            'Authorization': `Bearer ${token}`,
+                          },
+                        });
+                        
+                        if (!response.ok) {
+                          throw new Error('Failed to download template');
+                        }
+                        
+                        const blob = await response.blob();
+                        const blobUrl = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = blobUrl;
+                        link.download = 'invoice_import_template.xlsx';
+                        document.body.appendChild(link);
+                        link.click();
+                        setTimeout(() => {
+                          document.body.removeChild(link);
+                          window.URL.revokeObjectURL(blobUrl);
+                        }, 100);
+                        
+                        toast.success(t("settings.templateDownloaded") || "Invoice template downloaded successfully");
+                      } catch (error: any) {
+                        toast.error(error.message || (t("settings.failedToDownloadTemplate") || "Failed to download template"));
+                      }
+                    }}>
+                      <Download className="w-4 h-4 mr-2" />
+                      {t("settings.invoiceTemplate") || "Invoice Import Template"}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </CardContent>
             </Card>
 

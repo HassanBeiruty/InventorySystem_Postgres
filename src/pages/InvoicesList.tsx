@@ -10,12 +10,13 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, TrendingUp, TrendingDown, DollarSign, Plus, Eye, Pencil, Trash2, Calendar, Search, X, FileSpreadsheet } from "lucide-react";
+import { FileText, TrendingUp, TrendingDown, DollarSign, Plus, Eye, Pencil, Trash2, Calendar, Search, X, FileSpreadsheet, Download, ChevronDown } from "lucide-react";
 import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { invoicesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const InvoicesList = () => {
   const { t } = useTranslation();
@@ -233,6 +234,75 @@ const InvoicesList = () => {
     fileInputRef.current?.click();
   }, []);
 
+  const handleExportInvoices = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+      
+      // Build query parameters from current filters
+      const params = new URLSearchParams();
+      if (startDate) {
+        params.append('startDate', startDate);
+      }
+      if (endDate) {
+        params.append('endDate', endDate);
+      }
+      // Note: invoice_type filter is not currently in the UI, but we can add it if needed
+      
+      const queryString = params.toString();
+      const exportUrl = API_BASE_URL 
+        ? `${API_BASE_URL.replace(/\/$/, '')}/api/export/invoices${queryString ? `?${queryString}` : ''}`
+        : `/api/export/invoices${queryString ? `?${queryString}` : ''}`;
+      
+      const response = await fetch(exportUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to export invoices' }));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+      
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      
+      // Generate filename with date range if applicable
+      let filename = 'invoices_export.xlsx';
+      if (startDate || endDate) {
+        const dateStr = startDate && endDate 
+          ? `${startDate}_to_${endDate}`
+          : startDate 
+          ? `from_${startDate}`
+          : `until_${endDate}`;
+        filename = `invoices_export_${dateStr}.xlsx`;
+      }
+      
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+      }, 100);
+      
+      toast({
+        title: t('invoices.exportSuccess') || "Success",
+        description: t('invoices.invoicesExported') || "Invoices exported successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: t('invoices.exportFailed') || "Export Failed",
+        description: error.message || 'Failed to export invoices',
+        variant: "destructive",
+      });
+    }
+  }, [startDate, endDate, toast, t]);
+
   const handleDeleteInvoice = useCallback(async (invoiceId: string) => {
     if (!confirm(t('invoices.confirmDelete') || 'Are you sure you want to delete this invoice? This action cannot be undone.')) {
       return;
@@ -365,16 +435,30 @@ const InvoicesList = () => {
               <span className="hidden sm:inline">{t('invoices.newSellInvoice')}</span>
               <span className="sm:hidden">Sell</span>
             </Button>
-            <Button
-              variant="outline"
-              onClick={triggerFileInput}
-              disabled={importLoading}
-              className="gap-1 hover:scale-105 transition-all duration-300 text-[10px] sm:text-xs h-7 flex-1 sm:flex-initial"
-            >
-              <FileSpreadsheet className="w-3 h-3" />
-              <span className="hidden sm:inline">{importLoading ? (t('invoices.importing') || 'Importing...') : (t('invoices.importExcel') || 'Import Excel')}</span>
-              <span className="sm:hidden">{importLoading ? '...' : 'Import'}</span>
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  disabled={importLoading}
+                  className="gap-1 hover:scale-105 transition-all duration-300 text-[10px] sm:text-xs h-7 flex-1 sm:flex-initial"
+                >
+                  <FileSpreadsheet className="w-3 h-3" />
+                  <span className="hidden sm:inline">{importLoading ? (t('invoices.importing') || 'Importing...') : (t('invoices.importExport') || 'Import/Export')}</span>
+                  <span className="sm:hidden">{importLoading ? '...' : 'I/E'}</span>
+                  <ChevronDown className="w-3 h-3 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={triggerFileInput} disabled={importLoading}>
+                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                  {t('invoices.importExcel') || 'Import Excel'}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportInvoices}>
+                  <Download className="w-4 h-4 mr-2" />
+                  {t('invoices.exportExcel') || 'Export Excel'}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <input
               ref={fileInputRef}
               type="file"
@@ -591,12 +675,16 @@ const InvoicesList = () => {
                                     const productBarcode = item.product_barcode || '';
                                     const productSku = item.product_sku || '';
                                     const identifier = productSku || productBarcode || '';
+                                    // Use private_price_amount if it's a private price, otherwise use unit_price
+                                    const displayUnitPrice = item.is_private_price && item.private_price_amount 
+                                      ? item.private_price_amount 
+                                      : item.unit_price || 0;
                                     
                                     return (
                                       <div key={itemIdx} className="text-[10px] bg-muted/30 rounded px-1 py-0.5">
                                         <div className="font-semibold text-xs truncate">{productName}</div>
                                         <div className="text-muted-foreground text-[9px] font-mono truncate">
-                                          {identifier && `${identifier} • `}Qty: {item.quantity} × ${Number(item.unit_price || 0).toFixed(2)}
+                                          {identifier && `${identifier} • `}Qty: {item.quantity} × ${Number(displayUnitPrice).toFixed(2)}
                                         </div>
                                       </div>
                                     );
@@ -737,8 +825,8 @@ const InvoicesList = () => {
         }}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="text-xl">Invoice Import Preview</DialogTitle>
-              <DialogDescription>Review the invoices and items that will be imported</DialogDescription>
+              <DialogTitle className="text-xl">{t('invoices.importPreview') || 'Invoice Import Preview'}</DialogTitle>
+              <DialogDescription>{t('invoices.reviewImportData') || 'Review the invoices and items that will be imported'}</DialogDescription>
             </DialogHeader>
 
             {previewData && (
@@ -832,14 +920,25 @@ const InvoicesList = () => {
                                 {invoice.items.length} item(s)
                               </div>
                               <div className="space-y-0.5 max-h-[150px] overflow-y-auto mt-1">
-                                {invoice.items.map((item: any, itemIdx: number) => (
-                                  <div key={itemIdx} className="text-[10px] bg-muted/30 rounded px-1.5 py-0.5 ml-2">
-                                    <div className="font-medium">{item.product_name}</div>
-                                    <div className="text-muted-foreground">
-                                      Qty: {item.quantity} × ${Number(item.unit_price || 0).toFixed(2)} = ${Number(item.total_price || 0).toFixed(2)}
+                                {invoice.items.map((item: any, itemIdx: number) => {
+                                  // Use private_price_amount if it's a private price, otherwise use unit_price
+                                  const displayUnitPrice = item.is_private_price && item.private_price_amount 
+                                    ? item.private_price_amount 
+                                    : item.unit_price || 0;
+                                  // Get barcode or SKU for display
+                                  const identifier = item.product_barcode || item.product_sku || '';
+                                  return (
+                                    <div key={itemIdx} className="text-[10px] bg-muted/30 rounded px-1.5 py-0.5 ml-2">
+                                      <div className="font-medium">
+                                        {item.product_name}
+                                        {identifier && <span className="text-[9px] font-mono text-muted-foreground ml-1">({identifier})</span>}
+                                      </div>
+                                      <div className="text-muted-foreground">
+                                        Qty: {item.quantity} × ${Number(displayUnitPrice).toFixed(2)} = ${Number(item.total_price || 0).toFixed(2)}
+                                      </div>
                                     </div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
                           </div>

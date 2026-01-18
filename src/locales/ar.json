@@ -162,7 +162,14 @@
     "totalOutstanding": "إجمالي المستحقات",
     "view": "عرض",
     "edit": "تعديل",
-    "recordPayment": "تسجيل الدفع"
+    "recordPayment": "تسجيل الدفع",
+    "importExcel": "استيراد Excel",
+    "importing": "جارٍ الاستيراد...",
+    "importPreview": "معاينة استيراد الفواتير",
+    "reviewImportData": "راجع الفواتير والعناصر التي سيتم استيرادها",
+    "confirmImport": "تأكيد والاستيراد",
+    "importSuccess": "تم استيراد الفواتير بنجاح",
+    "importFailed": "فشل الاستيراد"
   },
   "inventory": {
     "title": "المخزون",
