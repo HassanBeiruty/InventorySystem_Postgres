@@ -44,6 +44,11 @@ export default function ProductDetailsSidePanel({ open, onOpenChange, productId 
 
   const fetchProductDetails = async () => {
     setLoading(true);
+    // Reset state immediately when fetching new product
+    setProduct(null);
+    setLatestPrice(null);
+    setStockInfo(null);
+    
     try {
       // Fetch product details
       const productsResponse = await productsRepo.list({ limit: 1000 });
@@ -71,6 +76,8 @@ export default function ProductDetailsSidePanel({ open, onOpenChange, productId 
             retail_price: price.retail_price,
             effective_date: price.effective_date,
           });
+        } else {
+          setLatestPrice(null);
         }
       } catch (error) {
         // Price not found is okay

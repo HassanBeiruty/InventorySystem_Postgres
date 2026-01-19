@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { invoicesRepo, productsRepo, productCostsRepo, customersRepo, suppliersRepo, reportsRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { FileText, TrendingUp, TrendingDown, Package, Download, BarChart3, DollarSign, AlertCircle, Calendar, X } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useAdmin } from "@/hooks/useAdmin";
@@ -83,6 +85,16 @@ const Reports = () => {
   const [topProducts, setTopProducts] = useState<any[]>([]);
   const [topCustomers, setTopCustomers] = useState<any[]>([]);
   const [paymentStatusData, setPaymentStatusData] = useState<any[]>([]);
+  const [dailyProfitDialogOpen, setDailyProfitDialogOpen] = useState(false);
+  const [dailyProfitData, setDailyProfitData] = useState<any[]>([]);
+  const [dailyProfitLoading, setDailyProfitLoading] = useState(false);
+  const [supplierPurchasesDialogOpen, setSupplierPurchasesDialogOpen] = useState(false);
+  const [supplierPurchasesData, setSupplierPurchasesData] = useState<any[]>([]);
+  const [supplierPurchasesLoading, setSupplierPurchasesLoading] = useState(false);
+  const [customerSalesDialogOpen, setCustomerSalesDialogOpen] = useState(false);
+  const [customerSalesData, setCustomerSalesData] = useState<any[]>([]);
+  const [customerSalesLoading, setCustomerSalesLoading] = useState(false);
+  const [dateFiltersInitialized, setDateFiltersInitialized] = useState(false);
   
   // Memoize chart colors to avoid recalculating on every render
   const chartColors = useMemo(() => getChartColors(), []);
@@ -211,6 +223,169 @@ const Reports = () => {
     return Array.from(dataMap.values()).sort((a, b) => a.label.localeCompare(b.label));
   }, []);
 
+  // Function to fetch supplier purchases breakdown
+  const handleShowSupplierPurchases = useCallback(async () => {
+    setSupplierPurchasesDialogOpen(true);
+    setSupplierPurchasesLoading(true);
+    setSupplierPurchasesData([]);
+    
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+      const token = localStorage.getItem('auth_token');
+      
+      const url = API_BASE_URL 
+        ? `${API_BASE_URL.replace(/\/$/, '')}/api/reports/supplier-purchases`
+        : '/api/reports/supplier-purchases';
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch supplier purchases data');
+      }
+      
+      const data = await response.json();
+      setSupplierPurchasesData(data);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch supplier purchases data",
+        variant: "destructive",
+      });
+    } finally {
+      setSupplierPurchasesLoading(false);
+    }
+  }, [toast]);
+
+  // Function to fetch customer sales breakdown
+  const handleShowCustomerSales = useCallback(async () => {
+    setCustomerSalesDialogOpen(true);
+    setCustomerSalesLoading(true);
+    setCustomerSalesData([]);
+    
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+      const token = localStorage.getItem('auth_token');
+      
+      const url = API_BASE_URL 
+        ? `${API_BASE_URL.replace(/\/$/, '')}/api/reports/customer-sales`
+        : '/api/reports/customer-sales';
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch customer sales data');
+      }
+      
+      const data = await response.json();
+      setCustomerSalesData(data);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch customer sales data",
+        variant: "destructive",
+      });
+    } finally {
+      setCustomerSalesLoading(false);
+    }
+  }, [toast]);
+
+  const handleShowDailyProfit = useCallback(async () => {
+    // Determine effective date range - use filtered dates or default to last 30 days
+    let effectiveStartDate: string;
+    let effectiveEndDate: string;
+    
+    if (startDate && startDate !== "") {
+      effectiveStartDate = startDate;
+      effectiveEndDate = (endDate && endDate !== "") ? endDate : getTodayLebanon();
+    } else {
+      // Default to last 30 days if no date range is set
+      const today = new Date();
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(today.getDate() - 30);
+      effectiveStartDate = formatDateForComparison(thirtyDaysAgo);
+      effectiveEndDate = formatDateForComparison(today);
+    }
+    
+    // Parse dates correctly (YYYY-MM-DD format)
+    const startParts = effectiveStartDate.split('-');
+    const endParts = effectiveEndDate.split('-');
+    const start = new Date(parseInt(startParts[0]), parseInt(startParts[1]) - 1, parseInt(startParts[2]));
+    const end = new Date(parseInt(endParts[0]), parseInt(endParts[1]) - 1, parseInt(endParts[2]));
+    
+    // Check if date range is too large (more than 365 days)
+    const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    
+    if (daysDiff > 365) {
+      toast({
+        title: "Date Range Too Large",
+        description: "Please select a date range of 365 days or less for daily profit breakdown",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setDailyProfitDialogOpen(true);
+    setDailyProfitLoading(true);
+    setDailyProfitData([]);
+    
+    try {
+      // Generate array of dates between start and end date (inclusive)
+      const dates: string[] = [];
+      const currentDate = new Date(start);
+      currentDate.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+      
+      while (currentDate <= end) {
+        const dateStr = formatDateForComparison(currentDate);
+        dates.push(dateStr);
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      
+      // Fetch profit for each day using the stored procedure
+      const dailyData = await Promise.all(
+        dates.map(async (date) => {
+          try {
+            const result = await reportsRepo.getNetProfit(date, date);
+            return {
+              date: date,
+              net_profit: parseFloat(String(result.net_profit || 0)),
+              total_revenue: parseFloat(String(result.total_revenue || 0)),
+              total_cost: parseFloat(String(result.total_cost || 0)),
+            };
+          } catch (error) {
+            console.error(`Error fetching profit for ${date}:`, error);
+            return {
+              date: date,
+              net_profit: 0,
+              total_revenue: 0,
+              total_cost: 0,
+            };
+          }
+        })
+      );
+      
+      setDailyProfitData(dailyData);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch daily profit data",
+        variant: "destructive",
+      });
+    } finally {
+      setDailyProfitLoading(false);
+    }
+  }, [startDate, endDate, toast, formatDateForComparison]);
+
   const fetchReports = useCallback(async () => {
     setLoading(true);
     try {
@@ -335,10 +510,83 @@ const Reports = () => {
     }
   }, [toast, t, startDate, endDate, chartPeriod, filterByDateRange, generateChartData]);
 
+  // Initialize date filters: startDate = min sell invoice date, endDate = today
+  // If min date is more than 3 months ago, use 2.5 months before today instead
   useEffect(() => {
-    if (!isAdmin || isAdminLoading) return;
+    if (!isAdmin || isAdminLoading || dateFiltersInitialized) return;
+    
+    const initializeDateFilters = async () => {
+      try {
+        const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+        const token = localStorage.getItem('auth_token');
+        
+        const url = API_BASE_URL 
+          ? `${API_BASE_URL.replace(/\/$/, '')}/api/reports/min-sell-date`
+          : '/api/reports/min-sell-date';
+        
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        
+        const today = getTodayLebanon();
+        let finalStartDate = today;
+        
+        if (response.ok) {
+          const data = await response.json();
+          const minDate = data.min_date || today;
+          
+          // Calculate 3 months ago (approximately 90 days) and 2.5 months ago (approximately 75 days)
+          const todayDate = new Date(today);
+          const threeMonthsAgo = new Date(todayDate);
+          threeMonthsAgo.setDate(todayDate.getDate() - 90); // 3 months ≈ 90 days
+          
+          const twoAndHalfMonthsAgo = new Date(todayDate);
+          twoAndHalfMonthsAgo.setDate(todayDate.getDate() - 75); // 2.5 months ≈ 75 days
+          
+          const minDateObj = new Date(minDate);
+          
+          // If minimum date is more than 3 months ago, use 2.5 months ago instead
+          if (minDateObj < threeMonthsAgo) {
+            finalStartDate = formatDateForComparison(twoAndHalfMonthsAgo);
+          } else {
+            // Use the minimum sell invoice date
+            finalStartDate = minDate;
+          }
+        } else {
+          // Fallback: if API fails, use 2.5 months ago as start date
+          const todayDate = new Date(today);
+          const twoAndHalfMonthsAgo = new Date(todayDate);
+          twoAndHalfMonthsAgo.setDate(todayDate.getDate() - 75);
+          finalStartDate = formatDateForComparison(twoAndHalfMonthsAgo);
+        }
+        
+        setStartDate(finalStartDate);
+        // Always set endDate to today
+        setEndDate(today);
+        setDateFiltersInitialized(true);
+      } catch (error) {
+        console.error('Failed to fetch min sell date:', error);
+        // Fallback: set start date to 2.5 months ago, end date to today
+        const today = getTodayLebanon();
+        const todayDate = new Date(today);
+        const twoAndHalfMonthsAgo = new Date(todayDate);
+        twoAndHalfMonthsAgo.setDate(todayDate.getDate() - 75);
+        setStartDate(formatDateForComparison(twoAndHalfMonthsAgo));
+        setEndDate(today);
+        setDateFiltersInitialized(true);
+      }
+    };
+    
+    initializeDateFilters();
+  }, [isAdmin, isAdminLoading, dateFiltersInitialized, formatDateForComparison]);
+
+  useEffect(() => {
+    if (!isAdmin || isAdminLoading || !dateFiltersInitialized) return;
     fetchReports();
-  }, [isAdmin, isAdminLoading, fetchReports, startDate, endDate]);
+  }, [isAdmin, isAdminLoading, fetchReports, startDate, endDate, dateFiltersInitialized]);
 
   const exportToPDF = async () => {
     try {
@@ -514,25 +762,33 @@ const Reports = () => {
         ) : (
           <>
             <div className="grid gap-2 sm:gap-3 md:grid-cols-4">
-              <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 border-2">
+              <Card 
+                className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 border-2 cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={handleShowCustomerSales}
+              >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-2 px-2.5">
                   <CardTitle className="text-xs sm:text-sm font-medium">Total Sales</CardTitle>
                   <TrendingUp className="h-4 w-4 text-success" />
                 </CardHeader>
                 <CardContent className="px-2.5 pb-2">
                   <div className="text-base sm:text-lg font-bold text-success">${summary.totalSales.toFixed(2)}</div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground">Revenue from sell invoices</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Revenue from sell invoices (all-time)</p>
+                  <p className="text-[9px] text-muted-foreground mt-1 italic">Click to view by customer</p>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-destructive/10 to-destructive/5 border-destructive/20 border-2">
+              <Card 
+                className="bg-gradient-to-br from-destructive/10 to-destructive/5 border-destructive/20 border-2 cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={handleShowSupplierPurchases}
+              >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-2 px-2.5">
                   <CardTitle className="text-xs sm:text-sm font-medium">Total Purchases</CardTitle>
                   <TrendingDown className="h-4 w-4 text-destructive" />
                 </CardHeader>
                 <CardContent className="px-2.5 pb-2">
                   <div className="text-base sm:text-lg font-bold text-destructive">${summary.totalPurchases.toFixed(2)}</div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground">Cost from buy invoices</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Cost from buy invoices (all-time)</p>
+                  <p className="text-[9px] text-muted-foreground mt-1 italic">Click to view by supplier</p>
                 </CardContent>
               </Card>
 
@@ -547,7 +803,10 @@ const Reports = () => {
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-accent/10 to-accent/5 border-accent/20 border-2">
+              <Card 
+                className="bg-gradient-to-br from-accent/10 to-accent/5 border-accent/20 border-2 cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={handleShowDailyProfit}
+              >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-2 px-2.5">
                   <CardTitle className="text-xs sm:text-sm font-medium">Profit</CardTitle>
                   <DollarSign className="h-4 w-4 text-accent" />
@@ -555,6 +814,7 @@ const Reports = () => {
                 <CardContent className="px-2.5 pb-2">
                   <div className="text-base sm:text-lg font-bold text-accent">${summary.actualProfit.toFixed(2)}</div>
                   <p className="text-[10px] sm:text-xs text-muted-foreground">Sum of (quantity × (price - cost)) per item {startDate ? `(${startDate}${endDate ? ` - ${endDate}` : ' - today'})` : '(filtered by date range)'}</p>
+                  <p className="text-[9px] text-muted-foreground mt-1 italic">Click to view daily breakdown</p>
                 </CardContent>
               </Card>
             </div>
@@ -711,6 +971,217 @@ const Reports = () => {
             </Card>
           </>
         )}
+
+        {/* Daily Profit Breakdown Dialog */}
+        <Dialog open={dailyProfitDialogOpen} onOpenChange={setDailyProfitDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Daily Profit Breakdown</DialogTitle>
+              <DialogDescription>
+                Net profit calculated day by day using get_net_profit function
+                {dailyProfitData.length > 0 && (
+                  <span className="block mt-1 text-xs">
+                    {dailyProfitData[0]?.date} to {dailyProfitData[dailyProfitData.length - 1]?.date}
+                  </span>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            
+            {dailyProfitLoading ? (
+              <div className="space-y-2 py-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : dailyProfitData.length > 0 ? (
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">Date</TableHead>
+                      <TableHead className="text-xs text-right">Total Revenue</TableHead>
+                      <TableHead className="text-xs text-right">Total Cost</TableHead>
+                      <TableHead className="text-xs text-right">Net Profit</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dailyProfitData.map((day, idx) => {
+                      const dateObj = new Date(day.date);
+                      const formattedDate = dateObj.toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'short', 
+                        day: 'numeric',
+                        weekday: 'short'
+                      });
+                      
+                      return (
+                        <TableRow key={idx} className={Number(day.net_profit) === 0 ? 'opacity-50' : ''}>
+                          <TableCell className="text-xs font-medium">{formattedDate}</TableCell>
+                          <TableCell className="text-xs text-right">${Number(day.total_revenue).toFixed(2)}</TableCell>
+                          <TableCell className="text-xs text-right">${Number(day.total_cost).toFixed(2)}</TableCell>
+                          <TableCell className={`text-xs text-right font-bold ${Number(day.net_profit) >= 0 ? 'text-success' : 'text-destructive'}`}>
+                            ${Number(day.net_profit).toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                <div className="p-3 border-t bg-muted/50">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="font-medium">Total:</span>
+                    <span className={`font-bold ${dailyProfitData.reduce((sum, d) => sum + Number(d.net_profit), 0) >= 0 ? 'text-success' : 'text-destructive'}`}>
+                      ${dailyProfitData.reduce((sum, d) => sum + Number(d.net_profit), 0).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="py-8 text-center text-muted-foreground">
+                <p>No data available for the selected date range.</p>
+                <p className="text-xs mt-2">Please select a date range to view daily profit breakdown.</p>
+              </div>
+            )}
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDailyProfitDialogOpen(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Customer Sales Breakdown Dialog */}
+        <Dialog open={customerSalesDialogOpen} onOpenChange={setCustomerSalesDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Customer Sales Breakdown</DialogTitle>
+              <DialogDescription>
+                Total sales to each customer (all-time, not filtered by date)
+              </DialogDescription>
+            </DialogHeader>
+            
+            {customerSalesLoading ? (
+              <div className="space-y-2 py-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : customerSalesData.length > 0 ? (
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">Customer</TableHead>
+                      <TableHead className="text-xs text-right">Invoice Count</TableHead>
+                      <TableHead className="text-xs text-right">Total Sales</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {customerSalesData.map((customer: any, idx: number) => (
+                      <TableRow key={customer.customer_id || idx}>
+                        <TableCell className="text-xs font-medium">{customer.customer_name || 'Unknown Customer'}</TableCell>
+                        <TableCell className="text-xs text-right">{customer.invoice_count || 0}</TableCell>
+                        <TableCell className="text-xs text-right font-bold text-success">
+                          ${Number(customer.total_sales).toFixed(2)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <div className="p-3 border-t bg-muted/50">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="font-medium">Total:</span>
+                    <span className="font-bold text-success">
+                      ${customerSalesData.reduce((sum, c) => sum + Number(c.total_sales), 0).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
+                    <span>Customers: {customerSalesData.length}</span>
+                    <span>Total Invoices: {customerSalesData.reduce((sum, c) => sum + Number(c.invoice_count), 0)}</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="py-8 text-center text-muted-foreground">
+                <p>No sales data available.</p>
+                <p className="text-xs mt-2">No sell invoices found for any customers.</p>
+              </div>
+            )}
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCustomerSalesDialogOpen(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Supplier Purchases Breakdown Dialog */}
+        <Dialog open={supplierPurchasesDialogOpen} onOpenChange={setSupplierPurchasesDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Supplier Purchases Breakdown</DialogTitle>
+              <DialogDescription>
+                Total purchases from each supplier (all-time, not filtered by date)
+              </DialogDescription>
+            </DialogHeader>
+            
+            {supplierPurchasesLoading ? (
+              <div className="space-y-2 py-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : supplierPurchasesData.length > 0 ? (
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">Supplier</TableHead>
+                      <TableHead className="text-xs text-right">Invoice Count</TableHead>
+                      <TableHead className="text-xs text-right">Total Purchases</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {supplierPurchasesData.map((supplier: any, idx: number) => (
+                      <TableRow key={supplier.supplier_id || idx}>
+                        <TableCell className="text-xs font-medium">{supplier.supplier_name || 'Unknown Supplier'}</TableCell>
+                        <TableCell className="text-xs text-right">{supplier.invoice_count || 0}</TableCell>
+                        <TableCell className="text-xs text-right font-bold text-destructive">
+                          ${Number(supplier.total_purchases).toFixed(2)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <div className="p-3 border-t bg-muted/50">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="font-medium">Total:</span>
+                    <span className="font-bold text-destructive">
+                      ${supplierPurchasesData.reduce((sum, s) => sum + Number(s.total_purchases), 0).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
+                    <span>Suppliers: {supplierPurchasesData.length}</span>
+                    <span>Total Invoices: {supplierPurchasesData.reduce((sum, s) => sum + Number(s.invoice_count), 0)}</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="py-8 text-center text-muted-foreground">
+                <p>No purchase data available.</p>
+                <p className="text-xs mt-2">No buy invoices found for any suppliers.</p>
+              </div>
+            )}
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSupplierPurchasesDialogOpen(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

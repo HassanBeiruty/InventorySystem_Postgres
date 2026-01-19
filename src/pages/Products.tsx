@@ -346,8 +346,13 @@ const Products = () => {
       
       // Show preview dialog
       setPreviewData(previewResult);
-      // Initialize all existing products as unchecked by default
-      setCheckedExistingProducts(new Set());
+      // Initialize all existing products as checked by default
+      if (previewResult.existingProducts && previewResult.existingProducts.length > 0) {
+        const allChecked = new Set(previewResult.existingProducts.map((p: any) => p.row));
+        setCheckedExistingProducts(allChecked);
+      } else {
+        setCheckedExistingProducts(new Set());
+      }
       setPreviewOpen(true);
     } catch (error: any) {
       toast({
@@ -528,7 +533,7 @@ const Products = () => {
                     const blobUrl = window.URL.createObjectURL(blob);
                     const link = document.createElement('a');
                     link.href = blobUrl;
-                    link.download = `products-${new Date().toISOString().split('T')[0]}.csv`;
+                    link.download = `products_export_${new Date().toISOString().split('T')[0]}.xlsx`;
                     document.body.appendChild(link);
                     link.click();
                     setTimeout(() => {
@@ -550,7 +555,7 @@ const Products = () => {
                   }
                 }}>
                   <Upload className="w-4 h-4 mr-2" />
-                  {t('products.exportCsv')}
+                  {t('products.exportExcel')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -990,6 +995,8 @@ const Products = () => {
                             <TableHead className="text-xs p-1.5">SKU</TableHead>
                             <TableHead className="text-xs p-1.5">Barcode</TableHead>
                             <TableHead className="text-xs p-1.5">Category</TableHead>
+                            <TableHead className="text-xs p-1.5">Wholesale Price</TableHead>
+                            <TableHead className="text-xs p-1.5">Retail Price</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1000,6 +1007,8 @@ const Products = () => {
                               <TableCell className="text-xs p-1.5 font-mono">{product.sku || '-'}</TableCell>
                               <TableCell className="text-xs p-1.5 font-mono">{product.barcode || '-'}</TableCell>
                               <TableCell className="text-xs p-1.5">{product.category || '-'}</TableCell>
+                              <TableCell className="text-xs p-1.5">${product.wholesale_price ? Number(product.wholesale_price).toFixed(2) : '-'}</TableCell>
+                              <TableCell className="text-xs p-1.5">${product.retail_price ? Number(product.retail_price).toFixed(2) : '-'}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -1034,6 +1043,23 @@ const Products = () => {
                         if ((product.category || '') !== (product.existing_category_name || '')) changes.category = { before: product.existing_category_name || '-', after: product.category || '-' };
                         if ((product.description || '') !== (product.existing_description || '')) changes.description = { before: product.existing_description || '-', after: product.description || '-' };
                         if ((product.shelf || '') !== (product.existing_shelf || '')) changes.shelf = { before: product.existing_shelf || '-', after: product.shelf || '-' };
+                        // Check price changes
+                        const existingWholesale = product.existing_wholesale_price || 0;
+                        const existingRetail = product.existing_retail_price || 0;
+                        const newWholesale = product.wholesale_price || 0;
+                        const newRetail = product.retail_price || 0;
+                        if (Math.abs(newWholesale - existingWholesale) > 0.01) {
+                          changes.wholesale_price = { 
+                            before: existingWholesale > 0 ? `$${Number(existingWholesale).toFixed(2)}` : '-', 
+                            after: newWholesale > 0 ? `$${Number(newWholesale).toFixed(2)}` : '-' 
+                          };
+                        }
+                        if (Math.abs((newRetail || 0) - (existingRetail || 0)) > 0.01) {
+                          changes.retail_price = { 
+                            before: existingRetail > 0 ? `$${Number(existingRetail).toFixed(2)}` : '-', 
+                            after: (newRetail || 0) > 0 ? `$${Number(newRetail).toFixed(2)}` : '-' 
+                          };
+                        }
                         
                         const hasChanges = Object.keys(changes).length > 0;
                         

@@ -67,6 +67,7 @@
     "importExcel": "استيراد Excel",
     "importing": "جارٍ الاستيراد...",
     "exportCsv": "تصدير CSV",
+    "exportExcel": "تصدير Excel",
     "basicInformation": "المعلومات الأساسية",
     "pricing": "التسعير",
     "sku": "رمز المنتج",

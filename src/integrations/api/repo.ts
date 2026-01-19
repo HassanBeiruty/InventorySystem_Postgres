@@ -561,6 +561,9 @@ export const reportsRepo = {
     const queryString = params.toString();
     return fetchJson<NetProfitResult>(`/api/reports/net-profit?${queryString}`);
   },
+  async getSupplierPurchases(): Promise<Array<{ supplier_id: number; supplier_name: string; total_purchases: number; invoice_count: number }>> {
+    return fetchJson<Array<{ supplier_id: number; supplier_name: string; total_purchases: number; invoice_count: number }>>('/api/reports/supplier-purchases');
+  },
 };
 
 export interface UserEntity {

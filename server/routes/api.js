@@ -2988,27 +2988,73 @@ function toCSV(data, headers) {
 	return rows.join('\n');
 }
 
-// Export products (requires authentication)
+// Export products (requires authentication) - Excel format matching import template
 router.get('/export/products', authenticateToken, async (req, res) => {
 	try {
 		// Check if categories table exists, if not, query without join
 		let result;
 		try {
 			result = await query(
-				'SELECT p.id, p.name, p.sku, p.barcode, p.shelf, p.description, c.name as category_name, p.created_at FROM products p LEFT JOIN categories c ON p.category_id = c.id ORDER BY p.created_at DESC',
+				'SELECT p.id, p.name, p.sku, p.barcode, p.shelf, p.description, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id ORDER BY p.created_at DESC',
 				[]
 			);
 		} catch (joinErr) {
 			// If join fails (categories table doesn't exist), query without category
 			result = await query(
-				'SELECT p.id, p.name, p.sku, p.barcode, p.shelf, p.description, NULL as category_name, p.created_at FROM products p ORDER BY p.created_at DESC',
+				'SELECT p.id, p.name, p.sku, p.barcode, p.shelf, p.description, NULL as category_name FROM products p ORDER BY p.created_at DESC',
 				[]
 			);
 		}
-		const csv = toCSV(result.recordset, ['id', 'name', 'sku', 'barcode', 'shelf', 'description', 'category_name', 'created_at']);
-		res.setHeader('Content-Type', 'text/csv');
-		res.setHeader('Content-Disposition', 'attachment; filename="products.csv"');
-		res.send(csv);
+		
+		// Get latest prices for all products
+		const pricesResult = await query(
+			`SELECT DISTINCT ON (product_id) product_id, wholesale_price, retail_price
+			 FROM product_prices
+			 ORDER BY product_id, effective_date DESC, created_at DESC`,
+			[]
+		);
+		
+		// Create a map of product_id -> latest prices
+		const pricesMap = new Map();
+		pricesResult.recordset.forEach(row => {
+			pricesMap.set(row.product_id, {
+				wholesale_price: parseFloat(row.wholesale_price) || 0,
+				retail_price: parseFloat(row.retail_price) || null
+			});
+		});
+		
+		// Prepare export data matching import template format
+		// Import template columns: name, sku, barcode, description, category, wholesale_price, retail_price, shelf
+		const exportRows = result.recordset.map(row => {
+			const productId = row.id;
+			const prices = pricesMap.get(productId) || { wholesale_price: 0, retail_price: null };
+			
+			return {
+				name: row.name || '',
+				sku: row.sku || '',
+				barcode: row.barcode || '',
+				description: row.description || '',
+				category: row.category_name || '',
+				wholesale_price: prices.wholesale_price || 0,
+				retail_price: prices.retail_price || '',
+				shelf: row.shelf || ''
+			};
+		});
+		
+		// Generate Excel file with exact column order matching import template
+		// Column order: name, sku, barcode, description, category, wholesale_price, retail_price, shelf
+		const worksheet = XLSX.utils.json_to_sheet(exportRows, {
+			header: ['name', 'sku', 'barcode', 'description', 'category', 'wholesale_price', 'retail_price', 'shelf']
+		});
+		const workbook = XLSX.utils.book_new();
+		XLSX.utils.book_append_sheet(workbook, worksheet, 'Products');
+		
+		// Generate buffer
+		const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+		
+		res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+		res.setHeader('Content-Disposition', 'attachment; filename="products_export.xlsx"');
+		res.send(excelBuffer);
 	} catch (err) {
 		console.error('Export products error:', err);
 		res.status(500).json({ error: err.message });
@@ -3321,7 +3367,97 @@ router.get('/admin/health', authenticateToken, requireAdmin, async (req, res) =>
 	}
 });
 
+// Get supplier purchases breakdown (all-time totals per supplier)
+router.get('/reports/supplier-purchases', authenticateToken, async (req, res) => {
+	try {
+		// Get all buy invoices grouped by supplier with totals
+		const result = await query(
+			`SELECT 
+				s.id as supplier_id,
+				s.name as supplier_name,
+				COALESCE(SUM(i.total_amount), 0) as total_purchases,
+				COUNT(i.id) as invoice_count
+			FROM suppliers s
+			LEFT JOIN invoices i ON i.supplier_id = s.id AND i.invoice_type = 'buy'
+			GROUP BY s.id, s.name
+			HAVING COALESCE(SUM(i.total_amount), 0) > 0
+			ORDER BY total_purchases DESC`,
+			[]
+		);
+		
+		res.json(result.recordset.map(row => ({
+			supplier_id: row.supplier_id,
+			supplier_name: row.supplier_name,
+			total_purchases: parseFloat(row.total_purchases) || 0,
+			invoice_count: parseInt(row.invoice_count) || 0
+		})));
+	} catch (err) {
+		console.error('Get supplier purchases error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Get minimum invoice date for sell invoices
+router.get('/reports/min-sell-date', authenticateToken, async (req, res) => {
+	try {
+		const result = await query(
+			`SELECT MIN(CAST(invoice_date AS DATE)) as min_date
+			FROM invoices
+			WHERE invoice_type = 'sell'`,
+			[]
+		);
+		
+		const minDate = result.recordset[0]?.min_date;
+		if (minDate) {
+			// Format date as YYYY-MM-DD
+			const date = new Date(minDate);
+			const year = date.getFullYear();
+			const month = String(date.getMonth() + 1).padStart(2, '0');
+			const day = String(date.getDate()).padStart(2, '0');
+			res.json({ min_date: `${year}-${month}-${day}` });
+		} else {
+			// No sell invoices found, return today's date as fallback
+			const today = getTodayLocal();
+			res.json({ min_date: today });
+		}
+	} catch (err) {
+		console.error('Get min sell date error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Get customer sales breakdown (all-time totals per customer)
+router.get('/reports/customer-sales', authenticateToken, async (req, res) => {
+	try {
+		// Get all sell invoices grouped by customer with totals
+		const result = await query(
+			`SELECT 
+				c.id as customer_id,
+				c.name as customer_name,
+				COALESCE(SUM(i.total_amount), 0) as total_sales,
+				COUNT(i.id) as invoice_count
+			FROM customers c
+			LEFT JOIN invoices i ON i.customer_id = c.id AND i.invoice_type = 'sell'
+			GROUP BY c.id, c.name
+			HAVING COALESCE(SUM(i.total_amount), 0) > 0
+			ORDER BY total_sales DESC`,
+			[]
+		);
+		
+		res.json(result.recordset.map(row => ({
+			customer_id: row.customer_id,
+			customer_name: row.customer_name,
+			total_sales: parseFloat(row.total_sales) || 0,
+			invoice_count: parseInt(row.invoice_count) || 0
+		})));
+	} catch (err) {
+		console.error('Get customer sales error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
 // Reports: Get net profit using stored procedure
+
 router.get('/reports/net-profit', async (req, res) => {
 	try {
 		const { start_date, end_date } = req.query;
@@ -3883,8 +4019,11 @@ router.post('/products/import-excel-preview',
 				const descriptionRaw = columnMap.description ? String(row[columnMap.description] || '').trim() : null;
 				const barcodeRaw = columnMap.barcode ? String(row[columnMap.barcode] || '').trim() : null;
 				const categoryName = columnMap.category ? String(row[columnMap.category] || '').trim() : null;
-				const wholesalePrice = columnMap.wholesale_price ? parseFloat(String(row[columnMap.wholesale_price] || '0').replace(/[^0-9.-]/g, '')) || 0 : 0;
-				const retailPrice = columnMap.retail_price ? parseFloat(String(row[columnMap.retail_price] || '0').replace(/[^0-9.-]/g, '')) : null;
+				// Parse prices - only if column exists and value is not empty
+				const wholesalePriceRaw = columnMap.wholesale_price ? String(row[columnMap.wholesale_price] || '').trim() : '';
+				const retailPriceRaw = columnMap.retail_price ? String(row[columnMap.retail_price] || '').trim() : '';
+				const wholesalePrice = wholesalePriceRaw ? (parseFloat(wholesalePriceRaw.replace(/[^0-9.-]/g, '')) || 0) : 0;
+				const retailPrice = retailPriceRaw ? (parseFloat(retailPriceRaw.replace(/[^0-9.-]/g, '')) || null) : null;
 				const shelf = columnMap.shelf ? String(row[columnMap.shelf] || '').trim() : null;
 
 				// Normalize barcode and SKU
@@ -3922,14 +4061,29 @@ router.post('/products/import-excel-preview',
 				};
 
 				if (existingProduct) {
-					// Check if there are any changes
+					// Get existing prices for comparison
+					const existingPricesResult = await query(
+						`SELECT DISTINCT ON (product_id) wholesale_price, retail_price 
+						 FROM product_prices 
+						 WHERE product_id = $1 
+						 ORDER BY product_id, effective_date DESC, created_at DESC 
+						 LIMIT 1`,
+						[existingProduct.id]
+					);
+					const existingPrices = existingPricesResult.recordset[0] || { wholesale_price: 0, retail_price: 0 };
+					const existingWholesalePrice = parseFloat(existingPrices.wholesale_price) || 0;
+					const existingRetailPrice = parseFloat(existingPrices.retail_price) || 0;
+					
+					// Check if there are any changes (including prices and barcode)
 					const hasChanges = 
 						productName !== existingProduct.name ||
 						productSku !== existingProduct.sku ||
 						normalizedBarcode !== existingProduct.barcode ||
 						categoryName !== existingProduct.category_name ||
 						(descriptionRaw || null) !== existingProduct.description ||
-						(shelf || null) !== existingProduct.shelf;
+						(shelf || null) !== existingProduct.shelf ||
+						Math.abs(wholesalePrice - existingWholesalePrice) > 0.01 ||
+						Math.abs((retailPrice || 0) - existingRetailPrice) > 0.01;
 					
 					// Only add to update list if there are changes
 					if (hasChanges) {
@@ -3943,6 +4097,8 @@ router.post('/products/import-excel-preview',
 							existing_category_name: existingProduct.category_name,
 							existing_description: existingProduct.description,
 							existing_shelf: existingProduct.shelf,
+							existing_wholesale_price: existingWholesalePrice,
+							existing_retail_price: existingRetailPrice,
 						});
 					}
 					// If no changes, skip this product (don't add to new or existing lists)
@@ -4114,8 +4270,11 @@ router.post('/products/import-excel',
 					const descriptionRaw = columnMap.description ? String(row[columnMap.description] || '').trim() : null;
 					const barcodeRaw = columnMap.barcode ? String(row[columnMap.barcode] || '').trim() : null;
 					const categoryName = columnMap.category ? String(row[columnMap.category] || '').trim() : null;
-					const wholesalePrice = columnMap.wholesale_price ? parseFloat(String(row[columnMap.wholesale_price] || '0').replace(/[^0-9.-]/g, '')) || 0 : 0;
-					const retailPrice = columnMap.retail_price ? parseFloat(String(row[columnMap.retail_price] || '0').replace(/[^0-9.-]/g, '')) : null;
+					// Parse prices - only if column exists and value is not empty
+					const wholesalePriceRaw = columnMap.wholesale_price ? String(row[columnMap.wholesale_price] || '').trim() : '';
+					const retailPriceRaw = columnMap.retail_price ? String(row[columnMap.retail_price] || '').trim() : '';
+					const wholesalePrice = wholesalePriceRaw ? (parseFloat(wholesalePriceRaw.replace(/[^0-9.-]/g, '')) || 0) : 0;
+					const retailPrice = retailPriceRaw ? (parseFloat(retailPriceRaw.replace(/[^0-9.-]/g, '')) || null) : null;
 					const shelf = columnMap.shelf ? String(row[columnMap.shelf] || '').trim() : null;
 
 					// Normalize barcode and SKU by removing ALL spaces (left, right, and middle)
@@ -4211,15 +4370,31 @@ router.post('/products/import-excel',
 						}
 						
 						const fullExistingProduct = fullProductResult.rows[0];
+						const productId = existingProduct.id;
 						
-						// Check if there are any changes - skip if no changes
+						// Get existing prices for comparison
+						const existingPricesResult = await client.query(
+							`SELECT DISTINCT ON (product_id) wholesale_price, retail_price 
+							 FROM product_prices 
+							 WHERE product_id = $1 
+							 ORDER BY product_id, effective_date DESC, created_at DESC 
+							 LIMIT 1`,
+							[productId]
+						);
+						const existingPrices = existingPricesResult.rows[0] || { wholesale_price: 0, retail_price: 0 };
+						const existingWholesalePrice = parseFloat(existingPrices.wholesale_price) || 0;
+						const existingRetailPrice = parseFloat(existingPrices.retail_price) || 0;
+						
+						// Check if there are any changes - skip if no changes (including prices)
 						const hasChanges = 
 							productName !== fullExistingProduct.name ||
 							productSku !== fullExistingProduct.sku ||
 							normalizedBarcode !== fullExistingProduct.barcode ||
 							categoryName !== fullExistingProduct.category_name ||
 							(description || null) !== fullExistingProduct.description ||
-							(shelf || null) !== fullExistingProduct.shelf;
+							(shelf || null) !== fullExistingProduct.shelf ||
+							Math.abs(wholesalePrice - existingWholesalePrice) > 0.01 ||
+							Math.abs((retailPrice || 0) - existingRetailPrice) > 0.01;
 						
 						if (!hasChanges) {
 							// No changes - skip this product
@@ -4236,18 +4411,15 @@ router.post('/products/import-excel',
 						}
 
 						// Update existing product with new data
-						const productId = existingProduct.id;
 						
-						// Update product
+						// Update product (including barcode)
 						await client.query(
-							'UPDATE products SET name = $1, category_id = $2, description = $3, sku = $4, shelf = $5 WHERE id = $6',
-							[productName, categoryId, description, productSku, shelf, productId]
+							'UPDATE products SET name = $1, barcode = $2, category_id = $3, description = $4, sku = $5, shelf = $6 WHERE id = $7',
+							[productName, normalizedBarcode, categoryId, description, productSku, shelf, productId]
 						);
 
-						// Update or add price if provided
-						if (wholesalePrice > 0 || (retailPrice !== null && retailPrice > 0)) {
-							const finalRetailPrice = retailPrice !== null && retailPrice > 0 ? retailPrice : wholesalePrice * 1.2; // Default 20% markup if retail not provided
-							
+						// Update or add price ONLY if BOTH wholesale_price AND retail_price are provided (> 0)
+						if (wholesalePrice > 0 && retailPrice !== null && retailPrice > 0) {
 							// Check if price already exists for today
 							const existingPrice = await client.query(
 								'SELECT id FROM product_prices WHERE product_id = $1 AND effective_date = $2',
@@ -4258,13 +4430,13 @@ router.post('/products/import-excel',
 								await client.query(
 									`INSERT INTO product_prices (product_id, wholesale_price, retail_price, effective_date, created_at)
 									 VALUES ($1, $2, $3, $4, $5)`,
-									[productId, wholesalePrice, finalRetailPrice, today, createdAt]
+									[productId, wholesalePrice, retailPrice, today, createdAt]
 								);
 							} else {
 								// Update existing price
 								await client.query(
 									`UPDATE product_prices SET wholesale_price = $1, retail_price = $2, created_at = $3 WHERE id = $4`,
-									[wholesalePrice, finalRetailPrice, createdAt, existingPrice.rows[0].id]
+									[wholesalePrice, retailPrice, createdAt, existingPrice.rows[0].id]
 								);
 							}
 						}
@@ -4297,10 +4469,8 @@ router.post('/products/import-excel',
 						[productId, today, createdAt]
 					);
 
-					// Add price if provided
-					if (wholesalePrice > 0 || (retailPrice !== null && retailPrice > 0)) {
-						const finalRetailPrice = retailPrice !== null && retailPrice > 0 ? retailPrice : wholesalePrice * 1.2; // Default 20% markup if retail not provided
-						
+					// Add price ONLY if BOTH wholesale_price AND retail_price are provided (> 0)
+					if (wholesalePrice > 0 && retailPrice !== null && retailPrice > 0) {
 						// Check if price already exists for today
 						const existingPrice = await client.query(
 							'SELECT id FROM product_prices WHERE product_id = $1 AND effective_date = $2',
@@ -4311,13 +4481,13 @@ router.post('/products/import-excel',
 							await client.query(
 								`INSERT INTO product_prices (product_id, wholesale_price, retail_price, effective_date, created_at)
 								 VALUES ($1, $2, $3, $4, $5)`,
-								[productId, wholesalePrice, finalRetailPrice, today, createdAt]
+								[productId, wholesalePrice, retailPrice, today, createdAt]
 							);
 						} else {
 							// Update existing price
 							await client.query(
 								`UPDATE product_prices SET wholesale_price = $1, retail_price = $2, created_at = $3 WHERE id = $4`,
-								[wholesalePrice, finalRetailPrice, createdAt, existingPrice.rows[0].id]
+								[wholesalePrice, retailPrice, createdAt, existingPrice.rows[0].id]
 							);
 						}
 					}

@@ -67,6 +67,7 @@
     "importExcel": "Import Excel",
     "importing": "Importing...",
     "exportCsv": "Export CSV",
+    "exportExcel": "Export Excel",
     "basicInformation": "Basic Information",
     "pricing": "Pricing",
     "sku": "SKU",
