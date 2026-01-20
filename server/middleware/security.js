@@ -107,10 +107,14 @@ const speedLimiter = slowDown({
 // File upload rate limiter
 const fileUploadLimiter = rateLimit({
 	windowMs: 60 * 60 * 1000, // 1 hour
-	max: 10, // 10 file uploads per hour
+	max: process.env.NODE_ENV === 'production' ? 50 : 1000, // 50 uploads per hour in production, 1000 in development
 	message: 'Too many file uploads, please try again later.',
 	standardHeaders: true,
 	legacyHeaders: false,
+	skip: (req) => {
+		// Skip rate limiting entirely in development mode for easier testing
+		return process.env.NODE_ENV !== 'production';
+	},
 	validate: {
 		trustProxy: false, // Skip trust proxy validation since we configure it in Express
 		xForwardedForHeader: false, // Skip X-Forwarded-For validation

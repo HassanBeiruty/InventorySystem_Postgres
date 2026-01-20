@@ -419,7 +419,7 @@ const Reports = () => {
         console.error('Failed to fetch average costs:', e);
       }
       setProductCosts(costsMap);
-
+      
       // Calculate net profit using stored procedure (get_net_profit) - same logic as manual invoice creation
       // This uses daily_stock to get cost at invoice date for accurate profit calculation
       let actualProfit = 0;

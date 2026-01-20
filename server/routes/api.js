@@ -658,23 +658,23 @@ router.get('/products', async (req, res) => {
 		
 		// Get total count for pagination info (calculate for all pages to ensure accurate pagination)
 		let totalCount = null;
-		if (search) {
-			// Normalize search term for barcode/SKU matching (same as main query)
-			// Performance optimized: Direct comparison first, REPLACE for backward compatibility
-			const normalizedSearch = normalizeBarcodeOrSku(search) || '';
-			const searchPattern = `%${search.trim()}%`;
-			const normalizedPattern = `%${normalizedSearch}%`;
-			const countResult = await query(
-				`SELECT COUNT(*) as count FROM products 
-				 WHERE name ILIKE $1 
-				 OR (barcode IS NOT NULL AND (barcode ILIKE $2 OR REPLACE(barcode, ' ', '') ILIKE $3))
-				 OR (sku IS NOT NULL AND (sku ILIKE $2 OR REPLACE(sku, ' ', '') ILIKE $3))`,
-				[searchPattern, normalizedPattern, normalizedPattern]
-			);
-			totalCount = parseInt(countResult.recordset[0].count);
-		} else {
-			const countResult = await query('SELECT COUNT(*) as count FROM products', []);
-			totalCount = parseInt(countResult.recordset[0].count);
+			if (search) {
+				// Normalize search term for barcode/SKU matching (same as main query)
+				// Performance optimized: Direct comparison first, REPLACE for backward compatibility
+				const normalizedSearch = normalizeBarcodeOrSku(search) || '';
+				const searchPattern = `%${search.trim()}%`;
+				const normalizedPattern = `%${normalizedSearch}%`;
+				const countResult = await query(
+					`SELECT COUNT(*) as count FROM products 
+					 WHERE name ILIKE $1 
+					 OR (barcode IS NOT NULL AND (barcode ILIKE $2 OR REPLACE(barcode, ' ', '') ILIKE $3))
+					 OR (sku IS NOT NULL AND (sku ILIKE $2 OR REPLACE(sku, ' ', '') ILIKE $3))`,
+					[searchPattern, normalizedPattern, normalizedPattern]
+				);
+				totalCount = parseInt(countResult.recordset[0].count);
+			} else {
+				const countResult = await query('SELECT COUNT(*) as count FROM products', []);
+				totalCount = parseInt(countResult.recordset[0].count);
 		}
 		
 		const response = {
@@ -3619,6 +3619,60 @@ router.post('/admin/seed-master-data', authenticateToken, requireAdmin, async (r
 	}
 });
 
+// Clear transactions only (keep entities)
+router.post('/admin/clear-transactions-only', authenticateToken, requireAdmin, async (req, res) => {
+	try {
+		console.log(`[Admin] Clear transactions only requested at ${lebanonTimeForLog()} (Lebanon time)`);
+		
+		// Import and run the clear function
+		const { clearTransactionsOnly } = require('../scripts/clear_data');
+		
+		// Run the clear function
+		const result = await clearTransactionsOnly();
+		
+		console.log(`[Admin] ✓ Clear transactions completed successfully at ${lebanonTimeForLog()} (Lebanon time)`);
+		
+		res.json({
+			success: true,
+			message: result.message || 'Transactions cleared successfully. Entities (categories, products, customers, suppliers) preserved.',
+		});
+		
+	} catch (err) {
+		console.error('[Admin] Clear transactions error:', err);
+		res.status(500).json({ 
+			error: err.message || 'Failed to clear transactions',
+			details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+		});
+	}
+});
+
+// Clear everything (fresh start)
+router.post('/admin/clear-everything', authenticateToken, requireAdmin, async (req, res) => {
+	try {
+		console.log(`[Admin] Clear everything requested at ${lebanonTimeForLog()} (Lebanon time)`);
+		
+		// Import and run the clear function
+		const { clearEverything } = require('../scripts/clear_data');
+		
+		// Run the clear function
+		const result = await clearEverything();
+		
+		console.log(`[Admin] ✓ Clear everything completed successfully at ${lebanonTimeForLog()} (Lebanon time)`);
+		
+		res.json({
+			success: true,
+			message: result.message || 'All data cleared successfully. Fresh start ready.',
+		});
+		
+	} catch (err) {
+		console.error('[Admin] Clear everything error:', err);
+		res.status(500).json({ 
+			error: err.message || 'Failed to clear data',
+			details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+		});
+	}
+});
+
 // Manual trigger for daily stock snapshot
 router.post('/admin/daily-stock-snapshot', authenticateToken, requireAdmin, async (req, res) => {
 	try {
@@ -4072,16 +4126,34 @@ router.post('/products/import-excel-preview',
 					const existingWholesalePrice = parseFloat(existingPrices.wholesale_price) || 0;
 					const existingRetailPrice = parseFloat(existingPrices.retail_price) || 0;
 					
+					// Normalize values for comparison
+					const existingBarcodeNormalized = normalizeBarcodeOrSku(existingProduct.barcode);
+					const existingSkuNormalized = normalizeBarcodeOrSku(existingProduct.sku);
+					const existingDescription = existingProduct.description || null;
+					const existingCategory = existingProduct.category_name || null;
+					const existingShelf = existingProduct.shelf || null;
+					
+					// Normalize import values
+					const importDescription = descriptionRaw || null;
+					const importCategory = categoryName || null;
+					const importShelf = shelf || null;
+					
+					// Check if prices were provided in import (non-empty values)
+					const hasWholesalePriceInImport = wholesalePriceRaw && wholesalePriceRaw.trim() !== '';
+					const hasRetailPriceInImport = retailPriceRaw && retailPriceRaw.trim() !== '';
+					
 					// Check if there are any changes (including prices and barcode)
+					// Compare normalized barcodes and SKUs, and normalize null/empty strings
+					// Only compare prices if they were provided in the import
 					const hasChanges = 
 						productName !== existingProduct.name ||
-						productSku !== existingProduct.sku ||
-						normalizedBarcode !== existingProduct.barcode ||
-						categoryName !== existingProduct.category_name ||
-						(descriptionRaw || null) !== existingProduct.description ||
-						(shelf || null) !== existingProduct.shelf ||
-						Math.abs(wholesalePrice - existingWholesalePrice) > 0.01 ||
-						Math.abs((retailPrice || 0) - existingRetailPrice) > 0.01;
+						productSku !== existingSkuNormalized ||
+						normalizedBarcode !== existingBarcodeNormalized ||
+						importCategory !== existingCategory ||
+						importDescription !== existingDescription ||
+						importShelf !== existingShelf ||
+						(hasWholesalePriceInImport && Math.abs(wholesalePrice - existingWholesalePrice) > 0.01) ||
+						(hasRetailPriceInImport && Math.abs((retailPrice || 0) - existingRetailPrice) > 0.01);
 					
 					// Only add to update list if there are changes
 					if (hasChanges) {
@@ -4383,16 +4455,34 @@ router.post('/products/import-excel',
 						const existingWholesalePrice = parseFloat(existingPrices.wholesale_price) || 0;
 						const existingRetailPrice = parseFloat(existingPrices.retail_price) || 0;
 						
+						// Normalize values for comparison
+						const existingBarcodeNormalized = normalizeBarcodeOrSku(fullExistingProduct.barcode);
+						const existingSkuNormalized = normalizeBarcodeOrSku(fullExistingProduct.sku);
+						const existingDescription = fullExistingProduct.description || null;
+						const existingCategory = fullExistingProduct.category_name || null;
+						const existingShelf = fullExistingProduct.shelf || null;
+						
+						// Normalize import values
+						const importDescription = description || null;
+						const importCategory = categoryName || null;
+						const importShelf = shelf || null;
+						
+						// Check if prices were provided in import (non-empty values)
+						const hasWholesalePriceInImport = wholesalePriceRaw && wholesalePriceRaw.trim() !== '';
+						const hasRetailPriceInImport = retailPriceRaw && retailPriceRaw.trim() !== '';
+						
 						// Check if there are any changes - skip if no changes (including prices)
+						// Compare normalized barcodes and SKUs, and normalize null/empty strings
+						// Only compare prices if they were provided in the import
 						const hasChanges = 
 							productName !== fullExistingProduct.name ||
-							productSku !== fullExistingProduct.sku ||
-							normalizedBarcode !== fullExistingProduct.barcode ||
-							categoryName !== fullExistingProduct.category_name ||
-							(description || null) !== fullExistingProduct.description ||
-							(shelf || null) !== fullExistingProduct.shelf ||
-							Math.abs(wholesalePrice - existingWholesalePrice) > 0.01 ||
-							Math.abs((retailPrice || 0) - existingRetailPrice) > 0.01;
+							productSku !== existingSkuNormalized ||
+							normalizedBarcode !== existingBarcodeNormalized ||
+							importCategory !== existingCategory ||
+							importDescription !== existingDescription ||
+							importShelf !== existingShelf ||
+							(hasWholesalePriceInImport && Math.abs(wholesalePrice - existingWholesalePrice) > 0.01) ||
+							(hasRetailPriceInImport && Math.abs((retailPrice || 0) - existingRetailPrice) > 0.01);
 						
 						if (!hasChanges) {
 							// No changes - skip this product

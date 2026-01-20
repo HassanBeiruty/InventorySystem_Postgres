@@ -352,11 +352,11 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
         ? item.private_price_amount 
         : item.unit_price || 0;
       return [
-        `#${item.product_id} ${item.product_name || 'Product'}`,
-        item.quantity.toString(),
+      `#${item.product_id} ${item.product_name || 'Product'}`,
+      item.quantity.toString(),
         `$${Number(displayUnitPrice).toFixed(2)}`,
-        item.price_type,
-        `$${Number(item.total_price || 0).toFixed(2)}`
+      item.price_type,
+      `$${Number(item.total_price || 0).toFixed(2)}`
       ];
     });
     

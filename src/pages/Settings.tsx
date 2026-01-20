@@ -93,6 +93,34 @@ const Settings = () => {
     },
   });
 
+  // Clear transactions only mutation
+  const clearTransactionsOnlyMutation = useMutation({
+    mutationFn: () => adminRepo.clearTransactionsOnly(),
+    onSuccess: (data) => {
+      toast.success(data.message || "Transactions cleared successfully");
+      refetchHealth();
+      // Refresh the page to show updated data
+      setTimeout(() => window.location.reload(), 2000);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to clear transactions");
+    },
+  });
+
+  // Clear everything mutation
+  const clearEverythingMutation = useMutation({
+    mutationFn: () => adminRepo.clearEverything(),
+    onSuccess: (data) => {
+      toast.success(data.message || "All data cleared successfully");
+      refetchHealth();
+      // Refresh the page to show updated data
+      setTimeout(() => window.location.reload(), 2000);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to clear data");
+    },
+  });
+
   // Users query
   const { data: users, isLoading: usersLoading, refetch: refetchUsers } = useQuery<UserEntity[]>({
     queryKey: ["admin", "users"],
@@ -349,28 +377,52 @@ const Settings = () => {
                     <p className="text-[10px] sm:text-xs text-muted-foreground mb-2 flex-1 min-h-[2.5rem]">
                       Clear all data and seed fresh master data (categories, products with barcode/SKU/shelf, prices, customers, suppliers). No invoices created.
                     </p>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        if (confirm("⚠️ WARNING: This will DELETE ALL DATA (including invoices) and seed fresh master data. Are you sure?")) {
-                          seedMasterDataMutation.mutate();
-                        }
-                      }}
-                      disabled={seedMasterDataMutation.isPending}
-                      className="w-full h-7 text-[10px] sm:text-xs mt-auto"
-                    >
-                      {seedMasterDataMutation.isPending ? (
-                        <>
-                          <RefreshCw className="w-3 h-3 animate-spin" />
-                          Seeding...
-                        </>
-                      ) : (
-                        <>
-                          <Database className="w-3 h-3" />
-                          Seed Master Data
-                        </>
-                      )}
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          disabled={seedMasterDataMutation.isPending || clearTransactionsOnlyMutation.isPending || clearEverythingMutation.isPending}
+                          className="w-full h-7 text-[10px] sm:text-xs mt-auto"
+                        >
+                          {seedMasterDataMutation.isPending || clearTransactionsOnlyMutation.isPending || clearEverythingMutation.isPending ? (
+                            <>
+                              <RefreshCw className="w-3 h-3 animate-spin mr-1.5" />
+                              Processing...
+                            </>
+                          ) : (
+                            <>
+                              <Database className="w-3 h-3 mr-1.5" />
+                              Seed Master Data
+                              <ChevronDown className="w-3 h-3 ml-1.5" />
+                            </>
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            if (confirm("⚠️ WARNING: This will DELETE ALL TRANSACTIONS (invoices, payments, stock movements, daily stock, product prices) but KEEP entities (categories, products, customers, suppliers). Are you sure?")) {
+                              clearTransactionsOnlyMutation.mutate();
+                            }
+                          }}
+                          disabled={clearTransactionsOnlyMutation.isPending}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Remove Everything Except Entities
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            if (confirm("⚠️ WARNING: This will DELETE ALL DATA (including entities like categories, products, customers, suppliers). Fresh start. Are you sure?")) {
+                              clearEverythingMutation.mutate();
+                            }
+                          }}
+                          disabled={clearEverythingMutation.isPending}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Remove Everything (Fresh Start)
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
 
                   {/* Recompute Positions */}

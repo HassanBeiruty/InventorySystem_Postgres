@@ -617,6 +617,16 @@ export const adminRepo = {
       method: "POST",
     });
   },
+  async clearTransactionsOnly(): Promise<AdminActionResponse> {
+    return fetchJson<AdminActionResponse>("/api/admin/clear-transactions-only", {
+      method: "POST",
+    });
+  },
+  async clearEverything(): Promise<AdminActionResponse> {
+    return fetchJson<AdminActionResponse>("/api/admin/clear-everything", {
+      method: "POST",
+    });
+  },
 };
 
 
