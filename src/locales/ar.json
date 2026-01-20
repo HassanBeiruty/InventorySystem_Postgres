@@ -91,7 +91,14 @@
     "failedToLoadProducts": "فشل تحميل المنتجات",
     "failedToDeleteProduct": "فشل حذف المنتج",
     "failedToImportFile": "فشل استيراد الملف",
-    "nA": "غير متاح"
+    "nA": "غير متاح",
+    "showing": "عرض",
+    "of": "من",
+    "products": "منتجات",
+    "previousPage": "السابق",
+    "nextPage": "التالي",
+    "page": "صفحة",
+    "goToPage": "انتقل إلى الصفحة"
   },
   "customers": {
     "title": "العملاء",

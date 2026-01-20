@@ -656,27 +656,25 @@ router.get('/products', async (req, res) => {
 		
 		const result = await query(queryText, queryParams);
 		
-		// Get total count for pagination info (only if first page)
+		// Get total count for pagination info (calculate for all pages to ensure accurate pagination)
 		let totalCount = null;
-		if (offset === 0) {
-			if (search) {
-				// Normalize search term for barcode/SKU matching (same as main query)
-				// Performance optimized: Direct comparison first, REPLACE for backward compatibility
-				const normalizedSearch = normalizeBarcodeOrSku(search) || '';
-				const searchPattern = `%${search.trim()}%`;
-				const normalizedPattern = `%${normalizedSearch}%`;
-				const countResult = await query(
-					`SELECT COUNT(*) as count FROM products 
-					 WHERE name ILIKE $1 
-					 OR (barcode IS NOT NULL AND (barcode ILIKE $2 OR REPLACE(barcode, ' ', '') ILIKE $3))
-					 OR (sku IS NOT NULL AND (sku ILIKE $2 OR REPLACE(sku, ' ', '') ILIKE $3))`,
-					[searchPattern, normalizedPattern, normalizedPattern]
-				);
-				totalCount = parseInt(countResult.recordset[0].count);
-			} else {
-				const countResult = await query('SELECT COUNT(*) as count FROM products', []);
-				totalCount = parseInt(countResult.recordset[0].count);
-			}
+		if (search) {
+			// Normalize search term for barcode/SKU matching (same as main query)
+			// Performance optimized: Direct comparison first, REPLACE for backward compatibility
+			const normalizedSearch = normalizeBarcodeOrSku(search) || '';
+			const searchPattern = `%${search.trim()}%`;
+			const normalizedPattern = `%${normalizedSearch}%`;
+			const countResult = await query(
+				`SELECT COUNT(*) as count FROM products 
+				 WHERE name ILIKE $1 
+				 OR (barcode IS NOT NULL AND (barcode ILIKE $2 OR REPLACE(barcode, ' ', '') ILIKE $3))
+				 OR (sku IS NOT NULL AND (sku ILIKE $2 OR REPLACE(sku, ' ', '') ILIKE $3))`,
+				[searchPattern, normalizedPattern, normalizedPattern]
+			);
+			totalCount = parseInt(countResult.recordset[0].count);
+		} else {
+			const countResult = await query('SELECT COUNT(*) as count FROM products', []);
+			totalCount = parseInt(countResult.recordset[0].count);
 		}
 		
 		const response = {

@@ -226,8 +226,8 @@ export const categoriesRepo = {
 export const productsRepo = {
   async list(options?: { limit?: number; offset?: number; search?: string }): Promise<{ data: ProductEntity[]; pagination?: { limit: number; offset: number; total: number | null; hasMore: boolean | null } } | ProductEntity[]> {
     const params = new URLSearchParams();
-    if (options?.limit) params.append('limit', options.limit.toString());
-    if (options?.offset) params.append('offset', options.offset.toString());
+    if (options?.limit !== undefined) params.append('limit', options.limit.toString());
+    if (options?.offset !== undefined) params.append('offset', options.offset.toString());
     if (options?.search) params.append('search', options.search);
     const queryString = params.toString();
     const response = await fetchJson<{ data: ProductEntity[]; pagination?: { limit: number; offset: number; total: number | null; hasMore: boolean | null } } | ProductEntity[]>(`/api/products${queryString ? `?${queryString}` : ''}`);

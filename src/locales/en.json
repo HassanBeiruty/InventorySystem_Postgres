@@ -91,7 +91,14 @@
     "failedToLoadProducts": "Failed to load products",
     "failedToDeleteProduct": "Failed to delete product",
     "failedToImportFile": "Failed to import file",
-    "nA": "N/A"
+    "nA": "N/A",
+    "showing": "Showing",
+    "of": "of",
+    "products": "products",
+    "previousPage": "Previous",
+    "nextPage": "Next",
+    "page": "Page",
+    "goToPage": "Go to page"
   },
   "customers": {
     "title": "Customers",

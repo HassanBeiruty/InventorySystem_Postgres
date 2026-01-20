@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, Package, Pencil, Download, Trash2, Scan, Search, X, Upload, FileSpreadsheet, ChevronDown } from "lucide-react";
+import { Plus, Package, Pencil, Download, Trash2, Scan, Search, X, Upload, FileSpreadsheet, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { productsRepo, categoriesRepo, productPricesRepo } from "@/integrations/api/repo";
 import { getTodayLebanon } from "@/utils/dateUtils";
 import { useToast } from "@/hooks/use-toast";
@@ -42,14 +42,39 @@ const Products = () => {
   const [previewData, setPreviewData] = useState<any>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [checkedExistingProducts, setCheckedExistingProducts] = useState<Set<number>>(new Set());
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize] = useState<number>(50);
+  const [totalProducts, setTotalProducts] = useState<number>(0);
+  const [paginationInfo, setPaginationInfo] = useState<{ limit: number; offset: number; total: number | null; hasMore: boolean | null } | null>(null);
   const { toast } = useToast();
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (page: number, search: string) => {
     try {
-      const response = await productsRepo.list({ limit: 200 });
+      const offset = (page - 1) * pageSize;
+      const options: { limit: number; offset: number; search?: string } = {
+        limit: pageSize,
+        offset: offset
+      };
+      
+      // Use server-side search if search query exists
+      if (search.trim()) {
+        options.search = search.trim();
+      }
+      
+      const response = await productsRepo.list(options);
+      
       // Handle both old format (array) and new format (object with data property)
       const products = Array.isArray(response) ? response : (response.data || []);
       setProducts(products);
+      
+      // Handle pagination info
+      if (!Array.isArray(response) && response.pagination) {
+        setPaginationInfo(response.pagination);
+        setTotalProducts(response.pagination.total || products.length);
+      } else {
+        setPaginationInfo(null);
+        setTotalProducts(products.length);
+      }
     } catch (error: any) {
       console.error('Error fetching products:', error);
       toast({ 
@@ -58,6 +83,8 @@ const Products = () => {
         variant: "destructive" 
       });
       setProducts([]);
+      setTotalProducts(0);
+      setPaginationInfo(null);
     } finally {
       setPageLoading(false);
     }
@@ -74,42 +101,48 @@ const Products = () => {
     }
   };
 
+  // Reset to page 1 when search query changes
+  useEffect(() => {
+    if (searchQuery.trim() && currentPage !== 1) {
+      setCurrentPage(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
+  // Fetch products when page or search changes
   useEffect(() => {
     const loadData = async () => {
       setPageLoading(true);
-      await Promise.all([fetchProducts(), fetchCategories()]);
+      await Promise.all([fetchProducts(currentPage, searchQuery), fetchCategories()]);
     };
     loadData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, searchQuery]);
 
-  // Performance optimization: Memoize filtered products to avoid re-filtering on every render
+  // Products are already filtered server-side when searchQuery exists
+  // No need for client-side filtering
   const filteredProducts = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return products;
+    return products;
+  }, [products]);
+  
+  // Calculate pagination info
+  const totalPages = Math.max(1, Math.ceil(totalProducts / pageSize));
+  const startIndex = totalProducts > 0 ? (currentPage - 1) * pageSize + 1 : 0;
+  const endIndex = Math.min(currentPage * pageSize, totalProducts);
+  
+  // Ensure currentPage doesn't exceed totalPages
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(1);
     }
-    
-    const query = searchQuery.trim().toLowerCase();
-    const normalizedQueryForBarcodeSku = normalizeBarcodeOrSkuForSearch(searchQuery);
-    
-    return products.filter(p => {
-      const name = (p.name || "").toLowerCase();
-      // Performance: Normalize once per product during filter
-      const barcode = normalizeBarcodeOrSkuForSearch(p.barcode);
-      const sku = normalizeBarcodeOrSkuForSearch(p.sku);
-      const shelf = (p.shelf || "").toLowerCase();
-      const category = (p.category_name || "").toLowerCase();
-      const description = (p.description || "").toLowerCase();
-      const id = (p.id || "").toString();
-      
-      return name.includes(query) || 
-             barcode.includes(normalizedQueryForBarcodeSku) || 
-             sku.includes(normalizedQueryForBarcodeSku) || 
-             shelf.includes(query) || 
-             category.includes(query) || 
-             description.includes(query) ||
-             id.includes(query);
-    });
-  }, [products, searchQuery]);
+  }, [totalPages, currentPage]);
+  
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -166,7 +199,8 @@ const Products = () => {
       e.currentTarget.reset();
     }
     setIsOpen(false);
-    fetchProducts();
+    // Refresh current page
+    fetchProducts(currentPage, searchQuery);
   };
 
   const handleEdit = async (product: any) => {
@@ -259,7 +293,8 @@ const Products = () => {
     setWholesalePrice("");
     setRetailPrice("");
     setLatestPrice(null);
-    fetchProducts();
+    // Refresh current page
+    fetchProducts(currentPage, searchQuery);
   };
 
   const handleDelete = async (product: any) => {
@@ -273,7 +308,8 @@ const Products = () => {
         title: t('common.success'),
         description: t('products.productDeleted'),
       });
-      fetchProducts();
+      // Refresh current page
+      fetchProducts(currentPage, searchQuery);
     } catch (error: any) {
       toast({
         title: t('common.error'),
@@ -348,7 +384,8 @@ const Products = () => {
       setPreviewData(previewResult);
       // Initialize all existing products as checked by default
       if (previewResult.existingProducts && previewResult.existingProducts.length > 0) {
-        const allChecked = new Set(previewResult.existingProducts.map((p: any) => p.row));
+        const rowNumbers: number[] = previewResult.existingProducts.map((p: any) => Number(p.row));
+        const allChecked = new Set<number>(rowNumbers);
         setCheckedExistingProducts(allChecked);
       } else {
         setCheckedExistingProducts(new Set());
@@ -422,8 +459,13 @@ const Products = () => {
         fileInputRef.current.value = '';
       }
       
-      // Refresh products list
-      fetchProducts();
+      // Refresh products list and reset to page 1
+      if (currentPage !== 1) {
+        setCurrentPage(1);
+      } else {
+        // If already on page 1, fetch products directly
+        fetchProducts(1, searchQuery);
+      }
     } catch (error: any) {
       toast({
         title: t('products.importFailed'),
@@ -716,83 +758,120 @@ const Products = () => {
                     </p>
                   </div>
                 ) : (
-                  <div className="rounded-xl border-2 overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5 hover:from-primary/10 hover:to-accent/10">
-                          <TableHead className="font-bold whitespace-nowrap p-2 pl-2 pr-0.5 text-xs">{t('products.productName')}</TableHead>
-                          <TableHead className="font-bold whitespace-nowrap p-2 pl-0.5 text-xs">Category</TableHead>
-                          <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('products.barcode')}</TableHead>
-                          <TableHead className="font-bold whitespace-nowrap p-2 text-xs">SKU</TableHead>
-                          <TableHead className="font-bold whitespace-nowrap p-2 text-xs">Description</TableHead>
-                          <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('common.actions')}</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredProducts.map((product, idx) => {
-                          const isSelected = selectedProductId === String(product.id);
-                          return (
-                            <TableRow 
-                              key={product.id} 
-                              className={`hover:bg-primary/5 transition-colors cursor-pointer animate-fade-in ${isSelected ? 'bg-primary/10 border-l-4 border-l-primary' : ''}`}
-                              style={{ animationDelay: `${idx * 0.05}s` }}
-                              onClick={() => handleViewDetails(String(product.id))}
-                            >
-                              <TableCell className="font-medium whitespace-nowrap p-2 pl-2 pr-0.5">
-                                <div>
-                                  <span className="font-semibold text-sm">{product.name}</span>
-                                  <span className="text-muted-foreground text-[10px] ml-1.5">#{product.id}</span>
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-muted-foreground whitespace-nowrap text-xs p-2 pl-0.5">{product.category_name || "-"}</TableCell>
-                              <TableCell className="text-muted-foreground whitespace-nowrap font-mono text-xs p-2">{product.barcode || "-"}</TableCell>
-                              <TableCell className="text-muted-foreground whitespace-nowrap font-mono text-xs p-2">{product.sku || "-"}</TableCell>
-                              <TableCell className="text-muted-foreground text-xs p-2 max-w-[200px]">
-                                {product.description ? (
-                                  <span 
-                                    className="block truncate" 
-                                    title={product.description}
-                                  >
-                                    {product.description}
-                                  </span>
-                                ) : (
-                                  <span className="text-muted-foreground/50">-</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="p-2" onClick={(e) => e.stopPropagation()}>
-                                <div className="flex items-center gap-1">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleEdit(product);
-                                    }}
-                                    className="hover:bg-primary/10 hover:scale-110 transition-all duration-300 h-7 w-7 p-0"
-                                    title={t('common.edit')}
-                                  >
-                                    <Pencil className="w-3.5 h-3.5 text-primary" />
-                                  </Button>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDelete(product);
-                                    }}
-                                    className="hover:bg-destructive/10 hover:scale-110 transition-all duration-300 text-destructive hover:text-destructive h-7 w-7 p-0"
-                                    title={t('common.delete')}
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
+                  <>
+                    <div className="rounded-xl border-2 overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5 hover:from-primary/10 hover:to-accent/10">
+                            <TableHead className="font-bold whitespace-nowrap p-2 pl-2 pr-0.5 text-xs">{t('products.productName')}</TableHead>
+                            <TableHead className="font-bold whitespace-nowrap p-2 pl-0.5 text-xs">Category</TableHead>
+                            <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('products.barcode')}</TableHead>
+                            <TableHead className="font-bold whitespace-nowrap p-2 text-xs">SKU</TableHead>
+                            <TableHead className="font-bold whitespace-nowrap p-2 text-xs">Description</TableHead>
+                            <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('common.actions')}</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredProducts.map((product, idx) => {
+                            const isSelected = selectedProductId === String(product.id);
+                            return (
+                              <TableRow 
+                                key={product.id} 
+                                className={`hover:bg-primary/5 transition-colors cursor-pointer animate-fade-in ${isSelected ? 'bg-primary/10 border-l-4 border-l-primary' : ''}`}
+                                style={{ animationDelay: `${idx * 0.05}s` }}
+                                onClick={() => handleViewDetails(String(product.id))}
+                              >
+                                <TableCell className="font-medium whitespace-nowrap p-2 pl-2 pr-0.5">
+                                  <div>
+                                    <span className="font-semibold text-sm">{product.name}</span>
+                                    <span className="text-muted-foreground text-[10px] ml-1.5">#{product.id}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-muted-foreground whitespace-nowrap text-xs p-2 pl-0.5">{product.category_name || "-"}</TableCell>
+                                <TableCell className="text-muted-foreground whitespace-nowrap font-mono text-xs p-2">{product.barcode || "-"}</TableCell>
+                                <TableCell className="text-muted-foreground whitespace-nowrap font-mono text-xs p-2">{product.sku || "-"}</TableCell>
+                                <TableCell className="text-muted-foreground text-xs p-2 max-w-[200px]">
+                                  {product.description ? (
+                                    <span 
+                                      className="block truncate" 
+                                      title={product.description}
+                                    >
+                                      {product.description}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground/50">-</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="p-2" onClick={(e) => e.stopPropagation()}>
+                                  <div className="flex items-center gap-1">
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEdit(product);
+                                      }}
+                                      className="hover:bg-primary/10 hover:scale-110 transition-all duration-300 h-7 w-7 p-0"
+                                      title={t('common.edit')}
+                                    >
+                                      <Pencil className="w-3.5 h-3.5 text-primary" />
+                                    </Button>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDelete(product);
+                                      }}
+                                      className="hover:bg-destructive/10 hover:scale-110 transition-all duration-300 text-destructive hover:text-destructive h-7 w-7 p-0"
+                                      title={t('common.delete')}
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    {/* Pagination Controls */}
+                    {totalProducts > 0 && (
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 pt-4 border-t">
+                        <div className="text-sm text-muted-foreground">
+                          {t('products.showing')} {startIndex}-{endIndex} {t('products.of')} {totalProducts} {t('products.products')}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePageChange(currentPage - 1)}
+                            disabled={currentPage === 1 || pageLoading}
+                            className="h-8"
+                          >
+                            <ChevronLeft className="w-4 h-4 mr-1" />
+                            {t('products.previousPage')}
+                          </Button>
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm text-muted-foreground px-2">
+                              {t('products.page')} {currentPage} {t('products.of')} {totalPages}
+                            </span>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePageChange(currentPage + 1)}
+                            disabled={currentPage >= totalPages || pageLoading}
+                            className="h-8"
+                          >
+                            {t('products.nextPage')}
+                            <ChevronRight className="w-4 h-4 ml-1" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
