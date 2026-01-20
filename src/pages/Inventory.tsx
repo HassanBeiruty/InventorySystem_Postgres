@@ -8,6 +8,7 @@ import { Package, AlertTriangle, Search, X, Warehouse } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import ProductNameWithCode from "@/components/ProductNameWithCode";
 
 interface InventoryItem {
   id: string;
@@ -21,6 +22,7 @@ interface InventoryItem {
     name: string;
     barcode: string;
     sku: string;
+    category_name?: string;
   };
 }
 
@@ -136,11 +138,12 @@ const Inventory = () => {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5 hover:from-primary/10 hover:to-accent/10">
-                      <TableHead className="font-bold whitespace-nowrap p-2 pl-2 pr-0.5 text-xs">{t('invoiceForm.product')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap hidden sm:table-cell p-2 pl-0.5 text-xs">{t('products.barcode')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap hidden sm:table-cell p-2 text-xs">SKU</TableHead>
-                      <TableHead className="text-center font-bold whitespace-nowrap p-2 text-xs">{t('inventory.availableQty')}</TableHead>
-                      <TableHead className="text-right font-bold whitespace-nowrap p-2 text-xs">Average Cost</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap p-2 pl-2 pr-0.5 text-xs w-[35%]">{t('invoiceForm.product')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs w-[15%]">Category</TableHead>
+                      <TableHead className="text-center font-bold whitespace-nowrap p-2 text-xs w-[12%]">{t('inventory.availableQty')}</TableHead>
+                      <TableHead className="text-right font-bold whitespace-nowrap p-2 text-xs w-[12%]">Avg Cost</TableHead>
+                      <TableHead className="text-right font-bold whitespace-nowrap p-2 text-xs w-[14%]">Total Value</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs w-[12%]">SKU</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -152,13 +155,15 @@ const Inventory = () => {
                           style={{ animationDelay: `${idx * 0.03}s` }}
                         >
                           <TableCell className="font-semibold p-2 pl-2 pr-0.5 text-sm">
-                            <span className="text-muted-foreground text-xs">#{item.product_id}</span> {item.products?.name || "Unknown Product"}
+                            <ProductNameWithCode 
+                              product={item.products || { name: "Unknown Product" }}
+                              showId={true}
+                              product_id={item.product_id}
+                              nameClassName="text-sm"
+                            />
                           </TableCell>
-                          <TableCell className="font-mono text-xs text-muted-foreground p-2 pl-0.5">
-                            {item.products?.barcode || "N/A"}
-                          </TableCell>
-                          <TableCell className="font-mono text-xs text-muted-foreground p-2">
-                            {item.products?.sku || "N/A"}
+                          <TableCell className="text-muted-foreground text-xs p-2">
+                            {item.products?.category_name || "-"}
                           </TableCell>
                           <TableCell className="text-center p-2">
                             <div className="flex items-center justify-center gap-1.5">
@@ -170,8 +175,14 @@ const Inventory = () => {
                               </span>
                             </div>
                           </TableCell>
-                          <TableCell className="text-right font-semibold p-2 text-xs">
+                          <TableCell className="text-right font-mono text-xs p-2">
                             ${item.avg_cost ? parseFloat(String(item.avg_cost || 0)).toFixed(2) : "0.00"}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-xs p-2">
+                            ${((item.available_qty || 0) * parseFloat(String(item.avg_cost || 0))).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground font-mono text-xs p-2">
+                            {item.products?.sku || "-"}
                           </TableCell>
                         </TableRow>
                       );

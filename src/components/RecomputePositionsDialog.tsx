@@ -20,6 +20,7 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { productsRepo } from "@/integrations/api/repo";
 import { toast } from "sonner";
 import { fetchJson } from "@/integrations/api/repo";
+import ProductNameWithCode from "@/components/ProductNameWithCode";
 
 interface RecomputePositionsDialogProps {
   open: boolean;
@@ -127,11 +128,11 @@ export function RecomputePositionsDialog({
               <SelectContent side="bottom" align="start">
                 <SelectItem value="all">All Products</SelectItem>
                 {products.map((product) => {
-                  const identifier = product.barcode || product.sku || null;
                   return (
                     <SelectItem key={product.id} value={String(product.id)}>
-                      {product.name}
-                      {identifier && ` (${identifier})`}
+                      <ProductNameWithCode 
+                        product={product}
+                      />
                     </SelectItem>
                   );
                 })}

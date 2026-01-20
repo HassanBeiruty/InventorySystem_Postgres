@@ -10,6 +10,7 @@ import { productsRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { normalizeBarcodeOrSku } from "@/utils/barcodeSkuUtils";
+import ProductNameWithCode from "@/components/ProductNameWithCode";
 
 const QuickAddProducts = () => {
   const { t } = useTranslation();
@@ -353,7 +354,13 @@ const QuickAddProducts = () => {
                       key={product.id}
                       className="p-2 border rounded-lg hover:bg-primary/5 transition-colors"
                     >
-                      <p className="font-medium text-xs sm:text-sm truncate mb-0.5">{product.name}</p>
+                      <p className="font-medium text-xs sm:text-sm truncate mb-0.5">
+                        <ProductNameWithCode 
+                          product={product}
+                          nameClassName="font-medium"
+                          codeClassName="text-[10px] sm:text-xs text-muted-foreground font-mono ml-1.5"
+                        />
+                      </p>
                       <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
                         {product.barcode && `Barcode: ${product.barcode}`}
                         {product.barcode && product.sku && " • "}

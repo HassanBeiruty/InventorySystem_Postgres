@@ -7,6 +7,7 @@ import { invoicesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
 import { Printer, X, Download } from "lucide-react";
+import ProductNameWithCode from "@/components/ProductNameWithCode";
 
 interface InvoiceItem {
   id: number;
@@ -254,7 +255,7 @@ export default function InvoiceItemsSidePanel({ open, onOpenChange, invoiceId }:
                   : item.unit_price || 0;
                 return `
                 <tr>
-                  <td>#${item.product_id} ${item.product_name || 'Product'}</td>
+                  <td>#${item.product_id} ${item.product_name || 'Product'}${item.product_barcode || item.product_sku ? ` - ${item.product_barcode || item.product_sku}` : ''}</td>
                   <td>${item.product_sku || item.product_barcode || 'N/A'}</td>
                   <td>${item.quantity}</td>
                   <td>$${Number(displayUnitPrice).toFixed(2)}</td>
@@ -345,7 +346,7 @@ export default function InvoiceItemsSidePanel({ open, onOpenChange, invoiceId }:
           ? item.private_price_amount 
           : item.unit_price || 0;
         return [
-          `#${item.product_id} ${item.product_name || 'Product'}`,
+          `#${item.product_id} ${item.product_name || 'Product'}${item.product_barcode || item.product_sku ? ` - ${item.product_barcode || item.product_sku}` : ''}`,
           item.product_sku || item.product_barcode || 'N/A',
           item.quantity.toString(),
           `$${Number(displayUnitPrice).toFixed(2)}`,
@@ -575,12 +576,13 @@ export default function InvoiceItemsSidePanel({ open, onOpenChange, invoiceId }:
                         <div key={item.id} className="p-2 hover:bg-muted/30 transition-colors">
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">
-                              <div className="font-medium text-xs mb-1">
-                                <span className="text-muted-foreground text-[10px]">#{item.product_id}</span> {item.product_name || 'Product'}
-                              </div>
-                              <div className="text-[10px] text-muted-foreground font-mono">
-                                {item.product_sku || item.product_barcode || 'N/A'}
-                              </div>
+                              <ProductNameWithCode 
+                                product={item}
+                                showId={true}
+                                product_id={item.product_id}
+                                nameClassName="font-medium text-xs"
+                                codeClassName="text-[10px] text-muted-foreground font-mono ml-1.5"
+                              />
                             </div>
                             <div className="text-right flex-shrink-0">
                               <div className="text-xs text-muted-foreground mb-1">

@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { productsRepo, productPricesRepo, inventoryRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { X } from "lucide-react";
+import ProductNameWithCode from "@/components/ProductNameWithCode";
 
 interface ProductDetails {
   id: number;
@@ -163,7 +164,13 @@ export default function ProductDetailsSidePanel({ open, onOpenChange, productId 
               {/* Product Name */}
               <div className="border rounded-lg p-2 bg-secondary/10">
                 <div className="text-xs text-muted-foreground mb-1">Product Name</div>
-                <div className="text-sm font-bold">{product.name}</div>
+                <div className="text-sm font-bold">
+                  <ProductNameWithCode 
+                    product={product}
+                    nameClassName="font-bold"
+                    codeClassName="text-xs text-muted-foreground font-mono ml-2 font-normal"
+                  />
+                </div>
               </div>
 
               {/* Basic Information */}

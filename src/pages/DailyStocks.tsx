@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useTranslation } from "react-i18next";
+import ProductNameWithCode from "@/components/ProductNameWithCode";
 
 interface DailyStockItem {
   id: string;
@@ -209,12 +210,13 @@ const DailyStocks = () => {
                         <Table>
                           <TableHeader>
                             <TableRow className="bg-gradient-to-r from-accent/5 to-primary/5">
-                              <TableHead className="font-bold p-1.5 pl-2 pr-0.5 text-[10px]">{t('invoices.product')}</TableHead>
-                              <TableHead className="font-bold p-1.5 pl-0.5 text-[10px]">{t('products.barcode')}</TableHead>
-                              <TableHead className="font-bold p-1.5 text-[10px]">SKU</TableHead>
-                            <TableHead className="text-center font-bold p-1.5 text-[10px]">{t('inventory.availableQty')}</TableHead>
-                            <TableHead className="text-center font-bold p-1.5 text-[10px]">Avg Cost</TableHead>
-                              <TableHead className="font-bold p-1.5 text-[10px]">{t('inventory.lastUpdated')}</TableHead>
+                              <TableHead className="font-bold p-2 pl-2 pr-1 text-xs w-[30%]">{t('invoices.product')}</TableHead>
+                              <TableHead className="font-bold p-2 text-xs w-[12%]">Category</TableHead>
+                              <TableHead className="font-bold p-2 text-xs w-[9%]">SKU</TableHead>
+                              <TableHead className="text-center font-bold p-2 text-xs w-[9%]">{t('inventory.availableQty')}</TableHead>
+                              <TableHead className="text-right font-bold p-2 text-xs w-[10%]">Avg Cost</TableHead>
+                              <TableHead className="text-right font-bold p-2 text-xs w-[11%]">Total Value</TableHead>
+                              <TableHead className="font-bold p-2 text-xs w-[10%]">{t('inventory.lastUpdated')}</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -224,24 +226,33 @@ const DailyStocks = () => {
                                   key={item.id} 
                                   className="hover:bg-accent/5 transition-colors"
                                 >
-                                  <TableCell className="font-semibold p-1.5 pl-2 pr-0.5 text-xs">
-                                    <span className="text-muted-foreground text-[10px]">#{item.product_id}</span> {item.products?.name || "Unknown Product"}
+                                  <TableCell className="font-semibold p-2 pl-2 pr-1 text-xs">
+                                    <ProductNameWithCode 
+                                      product={item.products || { name: "Unknown Product" }}
+                                      showId={true}
+                                      product_id={item.product_id}
+                                      nameClassName=""
+                                      codeClassName="text-[10px] text-muted-foreground font-mono ml-1"
+                                    />
                                   </TableCell>
-                                  <TableCell className="font-mono text-[10px] text-muted-foreground p-1.5 pl-0.5">
-                                    {item.products?.barcode || "N/A"}
+                                  <TableCell className="text-muted-foreground text-xs p-2">
+                                    {item.products?.category_name || "-"}
                                   </TableCell>
-                                  <TableCell className="font-mono text-[10px] text-muted-foreground p-1.5">
-                                    {item.products?.sku || "N/A"}
+                                  <TableCell className="text-muted-foreground font-mono text-xs p-2">
+                                    {item.products?.sku || "-"}
                                   </TableCell>
-                                  <TableCell className="text-center p-1.5">
-                                    <span className={`font-bold text-xs ${item.available_qty === 0 ? 'text-destructive' : item.available_qty < 10 ? 'text-warning' : 'text-success'}`}>
+                                  <TableCell className="text-center p-2">
+                                    <span className={`font-bold text-sm ${item.available_qty === 0 ? 'text-destructive' : item.available_qty < 10 ? 'text-warning' : 'text-success'}`}>
                                       {item.available_qty}
                                     </span>
                                   </TableCell>
-                                  <TableCell className="text-center font-mono text-[10px] p-1.5">
-                                    {Number(item.avg_cost || 0).toFixed(2)}
+                                  <TableCell className="text-right font-mono text-xs p-2">
+                                    ${Number(item.avg_cost || 0).toFixed(2)}
                                   </TableCell>
-                                  <TableCell className="text-[10px] text-muted-foreground p-1.5">
+                                  <TableCell className="text-right font-semibold text-xs p-2">
+                                    ${(Number(item.available_qty) * Number(item.avg_cost || 0)).toFixed(2)}
+                                  </TableCell>
+                                  <TableCell className="text-xs text-muted-foreground p-2">
                                     {formatDateTimeLebanon(item.updated_at, "HH:mm:ss")}
                                   </TableCell>
                                 </TableRow>

@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { stockRepo } from "@/integrations/api/repo";
 import { useTranslation } from "react-i18next";
+import ProductNameWithCode from "@/components/ProductNameWithCode";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
 
 const StockAdjustments = () => {
@@ -141,7 +142,9 @@ const StockAdjustments = () => {
                         const identifier = product.barcode || product.sku || null;
                         return (
                           <SelectItem key={product.id} value={product.id.toString()}>
-                            {product.name} {identifier ? `(${identifier})` : ""}
+                            <ProductNameWithCode 
+                              product={product}
+                            />
                           </SelectItem>
                         );
                       })}
@@ -251,7 +254,13 @@ const StockAdjustments = () => {
                     {recentAdjustments.map((adj) => (
                       <TableRow key={adj.id}>
                         <TableCell className="pl-2">{formatDateTimeLebanon(adj.created_at, "MMM dd, yyyy HH:mm")}</TableCell>
-                        <TableCell>{adj.product_name || `Product #${adj.product_id}`}</TableCell>
+                        <TableCell>
+                          <ProductNameWithCode 
+                            product={{ product_name: adj.product_name }}
+                            showId={true}
+                            product_id={adj.product_id}
+                          />
+                        </TableCell>
                         <TableCell>
                           <span className="px-2 py-1 text-xs rounded-full bg-primary/10 text-primary">
                             {getMovementTypeLabel(adj.movement_type)}

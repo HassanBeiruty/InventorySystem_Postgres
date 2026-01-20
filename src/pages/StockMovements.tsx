@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { TrendingUp, TrendingDown, Package, Search, X, Calendar, History } from "lucide-react";
 import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { useTranslation } from "react-i18next";
+import ProductNameWithCode from "@/components/ProductNameWithCode";
 
 interface StockMovement {
   id: string;
@@ -27,6 +28,7 @@ interface StockMovement {
     name: string;
     barcode: string;
     sku: string;
+    category_name?: string;
   };
 }
 
@@ -192,14 +194,15 @@ const StockMovements = () => {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-warning/5 to-accent/5 hover:from-warning/10 hover:to-accent/10">
-                      <TableHead className="font-bold p-1.5 pl-2 text-[10px]">{t('stockMovements.date')}</TableHead>
-                      <TableHead className="font-bold p-1.5 pr-0.5 text-[10px]">{t('stockMovements.product')}</TableHead>
-                      <TableHead className="text-center font-bold p-1.5 pl-0.5 text-[10px]">{t('stockMovements.quantityBefore')}</TableHead>
-                      <TableHead className="text-center font-bold p-1.5 text-[10px]">{t('stockMovements.change')}</TableHead>
-                      <TableHead className="text-center font-bold p-1.5 text-[10px]">{t('stockMovements.quantityAfter')}</TableHead>
-                      <TableHead className="text-center font-bold p-1.5 text-[10px]">Unit Cost</TableHead>
-                      <TableHead className="text-center font-bold p-1.5 text-[10px]">Avg Cost After</TableHead>
-                      <TableHead className="font-bold p-1.5 text-[10px]">{t('stockMovements.invoice')}</TableHead>
+                      <TableHead className="font-bold p-2 pl-2 text-xs w-[12%]">{t('stockMovements.date')}</TableHead>
+                      <TableHead className="font-bold p-2 pr-1 text-xs w-[28%]">{t('stockMovements.product')}</TableHead>
+                      <TableHead className="font-bold p-2 text-xs w-[10%]">Category</TableHead>
+                      <TableHead className="text-center font-bold p-2 text-xs w-[8%]">{t('stockMovements.quantityBefore')}</TableHead>
+                      <TableHead className="text-center font-bold p-2 text-xs w-[8%]">{t('stockMovements.change')}</TableHead>
+                      <TableHead className="text-center font-bold p-2 text-xs w-[8%]">{t('stockMovements.quantityAfter')}</TableHead>
+                      <TableHead className="text-right font-bold p-2 text-xs w-[8%]">Unit Cost</TableHead>
+                      <TableHead className="text-right font-bold p-2 text-xs w-[9%]">Avg Cost After</TableHead>
+                      <TableHead className="font-bold p-2 text-xs w-[9%]">{t('stockMovements.invoice')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -212,15 +215,19 @@ const StockMovements = () => {
                         <TableCell className="text-[10px] p-1.5 pl-2">
                           {formatDateTimeLebanon(movement.invoice_date, "MMM dd, yyyy HH:mm")}
                         </TableCell>
-                        <TableCell className="font-semibold p-1.5 pr-0.5 text-xs">
-                          <span className="text-muted-foreground text-[10px]">#{movement.product_id}</span> {movement.products?.name || "Unknown Product"}
-                          {(movement.products?.barcode || movement.products?.sku) && (
-                            <span className="text-muted-foreground text-[10px] ml-1">
-                              - {movement.products?.barcode || movement.products?.sku}
-                            </span>
-                          )}
+                        <TableCell className="font-semibold p-1.5 pr-1 text-xs">
+                          <ProductNameWithCode 
+                            product={movement.products || { name: "Unknown Product" }}
+                            showId={true}
+                            product_id={movement.product_id}
+                            nameClassName=""
+                            codeClassName="text-[10px] text-muted-foreground font-mono ml-1"
+                          />
                         </TableCell>
-                        <TableCell className="text-center font-medium text-muted-foreground p-1.5 pl-0.5 text-[10px]">
+                        <TableCell className="text-muted-foreground p-1.5 text-[10px]">
+                          {movement.products?.category_name || "-"}
+                        </TableCell>
+                        <TableCell className="text-center font-medium text-muted-foreground p-1.5 text-[10px]">
                           {movement.quantity_before}
                         </TableCell>
                         <TableCell className="text-center p-1.5">

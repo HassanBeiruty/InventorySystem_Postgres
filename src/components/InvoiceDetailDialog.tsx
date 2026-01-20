@@ -14,6 +14,7 @@ import { invoicesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
 import { Printer, Download } from "lucide-react";
+import ProductNameWithCode from "@/components/ProductNameWithCode";
 
 interface InvoiceItem {
   id: number;
@@ -261,7 +262,7 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                   : item.unit_price || 0;
                 return `
                 <tr>
-                  <td>#${item.product_id} ${item.product_name || 'Product'}</td>
+                  <td>#${item.product_id} ${item.product_name || 'Product'}${item.product_barcode || item.product_sku ? ` - ${item.product_barcode || item.product_sku}` : ''}</td>
                   <td>${item.quantity}</td>
                   <td>$${Number(displayUnitPrice).toFixed(2)}</td>
                   <td>${item.price_type}</td>
@@ -352,7 +353,7 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
         ? item.private_price_amount 
         : item.unit_price || 0;
       return [
-      `#${item.product_id} ${item.product_name || 'Product'}`,
+      `#${item.product_id} ${item.product_name || 'Product'}${item.product_barcode || item.product_sku ? ` - ${item.product_barcode || item.product_sku}` : ''}`,
       item.quantity.toString(),
         `$${Number(displayUnitPrice).toFixed(2)}`,
       item.price_type,
@@ -610,12 +611,12 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                             {invoice.invoice_items.map((item) => (
                               <TableRow key={item.id}>
                                 <TableCell>
-                                  <div className="font-medium"><span className="text-muted-foreground text-sm">#{item.product_id}</span> {item.product_name || `Product`}</div>
-                                  {(item.product_barcode || item.product_sku) && (
-                                    <div className="text-xs text-muted-foreground">
-                                      {item.product_barcode ? `Barcode: ${item.product_barcode}` : `SKU: ${item.product_sku}`}
-                                    </div>
-                                  )}
+                                  <ProductNameWithCode 
+                                    product={item}
+                                    showId={true}
+                                    product_id={item.product_id}
+                                    nameClassName="font-medium"
+                                  />
                                 </TableCell>
                                 <TableCell>{item.quantity}</TableCell>
                                 <TableCell>${(() => {

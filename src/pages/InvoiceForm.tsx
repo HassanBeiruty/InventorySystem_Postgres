@@ -12,6 +12,7 @@ import { productsRepo, customersRepo, suppliersRepo, invoicesRepo, productPrices
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { normalizeBarcodeOrSku, normalizeBarcodeOrSkuForSearch } from "@/utils/barcodeSkuUtils";
+import ProductNameWithCode from "@/components/ProductNameWithCode";
 
 interface InvoiceItem {
   product_id: string;
@@ -1122,10 +1123,13 @@ const InvoiceForm = () => {
                                   const identifier = product.barcode || product.sku || null;
                                   return (
                                     <SelectItem key={product.id} value={String(product.id)}>
-                                      <span className="text-muted-foreground text-xs">#{product.id}</span> {product.name}
-                                      {identifier && (
-                                        <span className="text-muted-foreground text-xs ml-2">({identifier})</span>
-                                      )}
+                                      <ProductNameWithCode 
+                                        product={product}
+                                        showId={true}
+                                        id={product.id}
+                                        nameClassName=""
+                                        codeClassName="text-muted-foreground text-xs ml-2"
+                                      />
                                     </SelectItem>
                                   );
                                 });

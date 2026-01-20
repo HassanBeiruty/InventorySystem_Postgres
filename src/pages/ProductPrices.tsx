@@ -12,6 +12,7 @@ import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { productPricesRepo, productsRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import ProductNameWithCode from "@/components/ProductNameWithCode";
 
 const ProductPrices = () => {
   const { t } = useTranslation();
@@ -248,7 +249,11 @@ const ProductPrices = () => {
                         <SelectContent side="bottom" align="start">
                           {productsWithoutPrices.map((product) => (
                             <SelectItem key={product.id} value={String(product.id)}>
-                              <span className="text-muted-foreground text-xs">#{product.id}</span> {product.name}
+                              <ProductNameWithCode 
+                                product={product}
+                                showId={true}
+                                id={product.id}
+                              />
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -307,7 +312,11 @@ const ProductPrices = () => {
                     <SelectItem value="all">{t('invoices.allProducts')}</SelectItem>
                     {products.map((product) => (
                       <SelectItem key={product.id} value={product.id}>
-                        <span className="text-muted-foreground text-xs">#{product.id}</span> {product.name}
+                        <ProductNameWithCode 
+                          product={product}
+                          showId={true}
+                          id={product.id}
+                        />
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -426,7 +435,14 @@ const ProductPrices = () => {
                         className="hover:bg-primary/5 transition-colors animate-fade-in"
                         style={{ animationDelay: `${idx * 0.01}s` }}
                       >
-                        <TableCell className="font-semibold p-2 pl-2 text-sm"><span className="text-muted-foreground text-xs">#{price.product_id}</span> {price.product_name}</TableCell>
+                        <TableCell className="font-semibold p-2 pl-2 text-sm">
+                          <ProductNameWithCode 
+                            product={price}
+                            showId={true}
+                            product_id={price.product_id}
+                            nameClassName="text-sm"
+                          />
+                        </TableCell>
                         <TableCell className="text-xs p-2">
                           {formatDateTimeLebanon(price.effective_date, "MMM dd, yyyy")}
                         </TableCell>

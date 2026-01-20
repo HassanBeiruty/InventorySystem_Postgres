@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import ProductNameWithCode from "@/components/ProductNameWithCode";
 
 const InvoicesList = () => {
   const { t } = useTranslation();
@@ -671,10 +672,6 @@ const InvoicesList = () => {
                               {items.length > 0 ? (
                                 <div className="space-y-0.5">
                                   {itemsPreview.map((item: any, itemIdx: number) => {
-                                    const productName = item.product_name || 'Product';
-                                    const productBarcode = item.product_barcode || '';
-                                    const productSku = item.product_sku || '';
-                                    const identifier = productSku || productBarcode || '';
                                     // Use private_price_amount if it's a private price, otherwise use unit_price
                                     const displayUnitPrice = item.is_private_price && item.private_price_amount 
                                       ? item.private_price_amount 
@@ -682,9 +679,15 @@ const InvoicesList = () => {
                                     
                                     return (
                                       <div key={itemIdx} className="text-[10px] bg-muted/30 rounded px-1 py-0.5">
-                                        <div className="font-semibold text-xs truncate">{productName}</div>
+                                        <div className="font-semibold text-xs truncate">
+                                          <ProductNameWithCode 
+                                            product={item}
+                                            nameClassName="font-semibold"
+                                            codeClassName="text-[9px] text-muted-foreground font-mono ml-1"
+                                          />
+                                        </div>
                                         <div className="text-muted-foreground text-[9px] font-mono truncate">
-                                          {identifier && `${identifier} • `}Qty: {item.quantity} × ${Number(displayUnitPrice).toFixed(2)}
+                                          Qty: {item.quantity} × ${Number(displayUnitPrice).toFixed(2)}
                                         </div>
                                       </div>
                                     );
@@ -925,13 +928,14 @@ const InvoicesList = () => {
                                   const displayUnitPrice = item.is_private_price && item.private_price_amount 
                                     ? item.private_price_amount 
                                     : item.unit_price || 0;
-                                  // Get barcode or SKU for display
-                                  const identifier = item.product_barcode || item.product_sku || '';
                                   return (
                                     <div key={itemIdx} className="text-[10px] bg-muted/30 rounded px-1.5 py-0.5 ml-2">
                                       <div className="font-medium">
-                                        {item.product_name}
-                                        {identifier && <span className="text-[9px] font-mono text-muted-foreground ml-1">({identifier})</span>}
+                                        <ProductNameWithCode 
+                                          product={item}
+                                          nameClassName="font-medium"
+                                          codeClassName="text-[9px] font-mono text-muted-foreground ml-1"
+                                        />
                                       </div>
                                       <div className="text-muted-foreground">
                                         Qty: {item.quantity} × ${Number(displayUnitPrice).toFixed(2)} = ${Number(item.total_price || 0).toFixed(2)}

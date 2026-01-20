@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { DollarSign, TrendingUp, TrendingDown, Filter, X, Search } from "lucide-
 import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { productCostsRepo, productsRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
+import ProductNameWithCode from "@/components/ProductNameWithCode";
 
 const ProductCosts = () => {
   const { toast } = useToast();
@@ -93,26 +94,33 @@ const ProductCosts = () => {
     setStats({ totalValue, totalQuantity, averageCost, uniqueProducts });
   };
 
-  // Group costs by product for summary view
-  const productSummary = costs.reduce((acc: any, row) => {
-    if (!acc[row.product_id]) {
-      acc[row.product_id] = {
-        product_name: row.product_name,
-        product_id: row.product_id,
-        total_value: 0,
-        total_quantity: 0,
-        average_cost: 0,
-        snapshot_count: 0,
-      };
-    }
-    acc[row.product_id].total_value += parseFloat(row.avg_cost) * parseInt(row.available_qty);
-    acc[row.product_id].total_quantity += parseInt(row.available_qty);
-    acc[row.product_id].snapshot_count += 1;
-    acc[row.product_id].average_cost = acc[row.product_id].total_quantity > 0 ? (acc[row.product_id].total_value / acc[row.product_id].total_quantity) : 0;
-    return acc;
-  }, {} as any);
-
-  const productSummaryArray = Object.values(productSummary);
+  // Group costs by product for summary view - use useMemo to recalculate when costs or products change
+  const productSummaryArray = useMemo(() => {
+    const productSummary = costs.reduce((acc: any, row) => {
+      if (!acc[row.product_id]) {
+        // Find full product data from products list to get barcode/sku and category
+        const fullProduct = products.find((p: any) => String(p.id) === String(row.product_id));
+        acc[row.product_id] = {
+          product_name: row.product_name,
+          product_id: row.product_id,
+          name: row.product_name, // Add name for ProductNameWithCode
+          barcode: fullProduct?.barcode || null,
+          sku: fullProduct?.sku || null,
+          category_name: fullProduct?.category_name || null,
+          total_value: 0,
+          total_quantity: 0,
+          average_cost: 0,
+          snapshot_count: 0,
+        };
+      }
+      acc[row.product_id].total_value += parseFloat(row.avg_cost) * parseInt(row.available_qty);
+      acc[row.product_id].total_quantity += parseInt(row.available_qty);
+      acc[row.product_id].snapshot_count += 1;
+      acc[row.product_id].average_cost = acc[row.product_id].total_quantity > 0 ? (acc[row.product_id].total_value / acc[row.product_id].total_quantity) : 0;
+      return acc;
+    }, {} as any);
+    return Object.values(productSummary);
+  }, [costs, products]);
 
   const filteredSummary = productSummaryArray.filter((item: any) => {
     if (searchQuery.trim()) {
@@ -158,7 +166,11 @@ const ProductCosts = () => {
                     <SelectItem value="all">All products</SelectItem>
                     {products.map((product) => (
                       <SelectItem key={product.id} value={product.id}>
-                        <span className="text-muted-foreground text-xs">#{product.id}</span> {product.name}
+                        <ProductNameWithCode 
+                          product={product}
+                          showId={true}
+                          id={product.id}
+                        />
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -309,10 +321,11 @@ const ProductCosts = () => {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-warning/5 to-accent/5">
-                      <TableHead className="font-bold p-2 pl-2 text-xs">Product</TableHead>
-                      <TableHead className="text-center font-bold p-2 text-xs">Quantity</TableHead>
-                      <TableHead className="text-right font-bold p-2 text-xs">Avg Cost</TableHead>
-                      <TableHead className="text-right font-bold p-2 text-xs">Total Value</TableHead>
+                      <TableHead className="font-bold p-2 pl-2 text-xs w-[35%]">Product</TableHead>
+                      <TableHead className="font-bold p-2 text-xs w-[15%]">Category</TableHead>
+                      <TableHead className="text-center font-bold p-2 text-xs w-[12%]">Quantity</TableHead>
+                      <TableHead className="text-right font-bold p-2 text-xs w-[13%]">Avg Cost</TableHead>
+                      <TableHead className="text-right font-bold p-2 text-xs w-[15%]">Total Value</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -322,7 +335,17 @@ const ProductCosts = () => {
                         className="hover:bg-warning/5 transition-colors animate-fade-in"
                         style={{ animationDelay: `${idx * 0.02}s` }}
                       >
-                        <TableCell className="font-semibold p-2 pl-2 text-sm"><span className="text-muted-foreground text-xs">#{item.product_id}</span> {item.product_name}</TableCell>
+                        <TableCell className="font-semibold p-2 pl-2 text-sm">
+                          <ProductNameWithCode 
+                            product={item}
+                            showId={true}
+                            product_id={item.product_id}
+                            nameClassName="text-sm"
+                          />
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-xs p-2">
+                          {item.category_name || "-"}
+                        </TableCell>
                         <TableCell className="text-center font-bold text-sm p-2">{item.total_quantity}</TableCell>
                         <TableCell className="text-right font-bold text-warning text-sm p-2">
                           ${item.average_cost.toFixed(2)}
