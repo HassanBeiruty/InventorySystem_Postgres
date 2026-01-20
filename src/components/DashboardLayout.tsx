@@ -337,6 +337,12 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                     <span className="font-medium">Product Prices</span>
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild className="px-1.5 py-1 text-xs">
+                  <Link to="/barcode-generator" className="cursor-pointer flex items-center gap-1.5">
+                    <Scan className="w-3 h-3" />
+                    <span className="font-medium">Barcode Generator</span>
+                  </Link>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

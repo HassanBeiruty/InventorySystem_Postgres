@@ -52,6 +52,7 @@
     "embla-carousel-react": "^8.6.0",
     "i18next": "^25.6.0",
     "input-otp": "^1.4.2",
+    "jsbarcode": "^3.12.3",
     "jspdf": "^3.0.3",
     "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.462.0",
