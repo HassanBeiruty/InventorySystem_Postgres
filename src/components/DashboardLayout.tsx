@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Receipt, Package, Users, UserPlus, FileText, TrendingUp, TrendingDown, Home, History, Warehouse, ChevronDown, BarChart3, Calendar, DollarSign, AlertTriangle, FolderTree, AlertCircle, Settings, Scan, CreditCard, Wrench } from "lucide-react";
+import { LogOut, Receipt, Package, Users, UserPlus, FileText, TrendingUp, TrendingDown, Home, History, Warehouse, ChevronDown, BarChart3, Calendar, DollarSign, AlertTriangle, FolderTree, AlertCircle, Settings, Scan, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -241,7 +241,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                     location.pathname.startsWith("/inventory") || 
                     location.pathname.startsWith("/daily-stocks") || 
                     location.pathname.startsWith("/stock-movements") || 
-                    location.pathname.startsWith("/stock-adjustments") ||
                     location.pathname.startsWith("/low-stock")
                       ? "text-primary [&_svg]:text-primary dark:text-primary dark:[&_svg]:text-primary system:text-primary system:[&_svg]:text-primary" 
                       : "text-foreground [&_svg]:text-foreground dark:text-white dark:[&_svg]:text-white system:text-foreground system:[&_svg]:text-foreground hover:bg-warning/20 hover:text-foreground"
@@ -269,12 +268,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                   <Link to="/stock-movements" className="cursor-pointer flex items-center gap-1.5">
                     <History className="w-3 h-3" />
                     <span className="font-medium">Stock Movements</span>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild className="px-1.5 py-1 text-xs">
-                  <Link to="/stock-adjustments" className="cursor-pointer flex items-center gap-1.5">
-                    <Wrench className="w-3 h-3" />
-                    <span className="font-medium">Stock Adjustments</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild className="px-1.5 py-1 text-xs">

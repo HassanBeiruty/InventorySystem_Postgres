@@ -299,23 +299,6 @@
     "lastUpdated": "Last Updated",
     "noLowStock": "No products below threshold"
   },
-  "stockAdjustments": {
-    "title": "Stock Adjustments",
-    "subtitle": "Manually adjust inventory levels",
-    "addAdjustment": "Add Adjustment",
-    "product": "Product",
-    "movementType": "Movement Type",
-    "quantityChange": "Quantity Change",
-    "reason": "Reason",
-    "adjustment": "Adjustment",
-    "add": "Add",
-    "remove": "Remove",
-    "currentStock": "Current Stock",
-    "newStock": "New Stock",
-    "newStockWillBe": "New stock will be",
-    "recentAdjustments": "Recent Adjustments",
-    "noAdjustments": "No adjustments yet"
-  },
   "invoiceForm": {
   "title": "New Invoice",
   "editTitle": "Edit Invoice",
@@ -566,9 +549,7 @@
   "productPriceAdded": "Product price added successfully",
   "productPriceUpdated": "Product price updated successfully",
   "productPriceDeleted": "Product price deleted successfully",
-  "stockAdjustmentCreated": "Stock adjustment created successfully",
   "selectProductAndQuantity": "Please select a product and enter quantity change",
-  "failedToCreateAdjustment": "Failed to create stock adjustment",
   "invoiceDeleted": "Invoice deleted successfully",
   "pdfDownloaded": "PDF report downloaded successfully",
   "pdfFailed": "Failed to generate PDF",

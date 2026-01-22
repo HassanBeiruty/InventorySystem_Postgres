@@ -293,23 +293,6 @@
     "lastUpdated": "آخر تحديث",
     "noLowStock": "لا توجد منتجات تحت الحد الأدنى"
   },
-  "stockAdjustments": {
-    "title": "تعديلات المخزون",
-    "subtitle": "تعديل مستويات المخزون يدوياً",
-    "addAdjustment": "إضافة تعديل",
-    "product": "المنتج",
-    "movementType": "نوع الحركة",
-    "quantityChange": "تغيير الكمية",
-    "reason": "السبب",
-    "adjustment": "تعديل",
-    "add": "إضافة",
-    "remove": "إزالة",
-    "currentStock": "المخزون الحالي",
-    "newStock": "المخزون الجديد",
-    "newStockWillBe": "المخزون الجديد سيكون",
-    "recentAdjustments": "التعديلات الأخيرة",
-    "noAdjustments": "لا توجد تعديلات بعد"
-  },
   "invoiceForm": {
     "title": "فاتورة جديدة",
     "editTitle": "تعديل الفاتورة",
