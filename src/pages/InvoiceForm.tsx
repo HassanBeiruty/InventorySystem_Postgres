@@ -226,12 +226,10 @@ const InvoiceForm = () => {
     }
   }, [isEditMode]);
   
-  // Debug: Log when selectedEntity changes
   useEffect(() => {
     if (selectedEntity) {
       const entityList = invoiceType === 'sell' ? customers : suppliers;
       const found = entityList.find(e => String(e.id) === selectedEntity);
-      // Selected entity updated
     }
   }, [selectedEntity, invoiceType, customers, suppliers]);
 
@@ -861,7 +859,7 @@ const InvoiceForm = () => {
           <div className="flex items-center justify-center min-h-[400px]">
             <div className="text-center space-y-4">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-              <p className="text-muted-foreground">Loading invoice form...</p>
+              <p className="text-muted-foreground">{t('invoiceForm.loadingInvoiceForm')}</p>
             </div>
           </div>
         </div>
@@ -878,8 +876,8 @@ const InvoiceForm = () => {
           </h2>
           <p className="text-muted-foreground text-[9px] sm:text-[10px]">
             {isEditMode 
-              ? (invoiceType === 'sell' ? 'Edit sell invoice details and items' : 'Edit buy invoice details and items')
-              : (invoiceType === 'sell' ? 'Create a new sell invoice' : 'Create a new buy invoice')}
+              ? (invoiceType === 'sell' ? t('invoiceForm.editSellInvoiceDescription') : t('invoiceForm.editBuyInvoiceDescription'))
+              : (invoiceType === 'sell' ? t('invoiceForm.newSellInvoiceDescription') : t('invoiceForm.newBuyInvoiceDescription'))}
           </p>
         </div>
 

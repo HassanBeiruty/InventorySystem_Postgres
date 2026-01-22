@@ -27,6 +27,7 @@ const ProductCosts = lazy(() => import("./pages/ProductCosts"));
 const ProductPrices = lazy(() => import("./pages/ProductPrices"));
 const ExchangeRates = lazy(() => import("./pages/ExchangeRates"));
 const LowStock = lazy(() => import("./pages/LowStock"));
+const StockAdjustments = lazy(() => import("./pages/StockAdjustments"));
 const Settings = lazy(() => import("./pages/Settings"));
 const BarcodeGenerator = lazy(() => import("./pages/BarcodeGenerator"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -81,6 +82,7 @@ const App = () => (
             <Route path="/product-prices" element={<ProductPrices />} />
             <Route path="/exchange-rates" element={<ExchangeRates />} />
             <Route path="/low-stock" element={<LowStock />} />
+            <Route path="/stock-adjustments" element={<StockAdjustments />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/barcode-generator" element={<BarcodeGenerator />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

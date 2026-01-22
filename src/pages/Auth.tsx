@@ -148,7 +148,7 @@ const Auth = () => {
             </div>
             {!isLogin && (
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword" className="text-sm font-semibold">Confirm Password</Label>
+                <Label htmlFor="confirmPassword" className="text-sm font-semibold">{t('auth.confirmPassword')}</Label>
                 <Input
                   id="confirmPassword"
                   type="password"
@@ -165,7 +165,7 @@ const Auth = () => {
             {isLogin && (
               <div className="text-right">
                 <Link to="/forgot-password" className="text-sm text-primary hover:underline">
-                  Forgot password?
+                  {t('auth.forgotPassword')}
                 </Link>
               </div>
             )}

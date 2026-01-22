@@ -4,7 +4,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar, Package, Search, X } from "lucide-react";
+import { Calendar, Package, Search, X, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { formatDateTimeLebanon, formatDateLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,42 @@ const DailyStocks = () => {
     return date.toISOString().split('T')[0];
   });
   const [endDate, setEndDate] = useState<string>(getTodayLebanon());
+  const [currentDayIndex, setCurrentDayIndex] = useState<number>(0);
+
+  // Extract unique dates from actual daily stocks data (within the selected range)
+  const allDatesInRange = useMemo(() => {
+    if (!dailyStocks || dailyStocks.length === 0) return [];
+    
+    // Extract unique dates from daily stocks
+    const uniqueDates = new Set<string>();
+    dailyStocks.forEach(item => {
+      if (item.date) {
+        const dateStr = formatDateLebanon(item.date);
+        uniqueDates.add(dateStr);
+      }
+    });
+    
+    // Convert to array and sort descending (newest first)
+    const dates = Array.from(uniqueDates).sort((a, b) => b.localeCompare(a));
+    return dates;
+  }, [dailyStocks]);
+
+  // Reset to first day when daily stocks data changes
+  useEffect(() => {
+    setCurrentDayIndex(0);
+  }, [dailyStocks.length]);
+
+  // Ensure currentDayIndex is within bounds
+  useEffect(() => {
+    if (allDatesInRange.length > 0 && currentDayIndex >= allDatesInRange.length) {
+      setCurrentDayIndex(0);
+    }
+  }, [allDatesInRange.length, currentDayIndex]);
+
+  // Get current date being displayed
+  const currentDate = allDatesInRange.length > 0 && currentDayIndex < allDatesInRange.length 
+    ? allDatesInRange[currentDayIndex] 
+    : null;
 
   const fetchDailyStocks = useCallback(async () => {
     try {
@@ -63,33 +99,41 @@ const DailyStocks = () => {
   }, [fetchDailyStocks]);
 
   // Memoize grouped stocks to avoid recalculating on every render
-  // Note: Filtering is now done server-side, so we just group the already-filtered results
+  // Pre-compute date strings once to avoid repeated formatDateLebanon calls
   const groupedByDate = useMemo(() => {
-    return dailyStocks.reduce((acc, item) => {
-      const date = formatDateLebanon(item.date);
-      if (!acc[date]) acc[date] = [];
-      acc[date].push(item);
-      return acc;
-    }, {} as Record<string, DailyStockItem[]>);
+    const grouped: Record<string, DailyStockItem[]> = {};
+    dailyStocks.forEach(item => {
+      if (item.date) {
+        const date = formatDateLebanon(item.date);
+        if (!grouped[date]) grouped[date] = [];
+        grouped[date].push(item);
+      }
+    });
+    return grouped;
   }, [dailyStocks]);
 
-  // Use groupedByDate directly since filtering is done server-side
-  const filteredGroups = groupedByDate;
-
-  // Sort dates descending
-  const sortedDates = useMemo(() => {
-    return Object.keys(filteredGroups).sort((a, b) => b.localeCompare(a));
-  }, [filteredGroups]);
+  // Get items for current day only - optimized to avoid unnecessary recalculations
+  const currentDayItems = useMemo(() => {
+    if (!currentDate || !groupedByDate[currentDate]) {
+      return [];
+    }
+    return groupedByDate[currentDate];
+  }, [groupedByDate, currentDate]);
 
   return (
     <DashboardLayout>
       <div className="space-y-1.5 sm:space-y-2 animate-fade-in">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-          <div className="space-y-0.5">
-            <h1 className="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              📅 {t('dailyStocks.title')}
-            </h1>
-            <p className="text-muted-foreground text-[10px] sm:text-xs">{t('dailyStocks.subtitle')}</p>
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10">
+              <CalendarDays className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+                {t('dailyStocks.title')}
+              </h1>
+              <p className="text-muted-foreground text-[10px] sm:text-xs">{t('dailyStocks.subtitle')}</p>
+            </div>
           </div>
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
             <div className="flex items-center gap-2">
@@ -175,7 +219,14 @@ const DailyStocks = () => {
                   <Skeleton key={i} className="h-16 w-full" />
                 ))}
               </div>
-            ) : sortedDates.length === 0 ? (
+            ) : allDatesInRange.length === 0 ? (
+              <div className="text-center py-16">
+                <div className="w-20 h-20 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4">
+                  <Calendar className="w-10 h-10 text-accent/50" />
+                </div>
+                <p className="text-muted-foreground text-lg">Please select a valid date range</p>
+              </div>
+            ) : !currentDate ? (
               <div className="text-center py-16">
                 <div className="w-20 h-20 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4">
                   <Package className="w-10 h-10 text-accent/50" />
@@ -185,86 +236,119 @@ const DailyStocks = () => {
                 </p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {sortedDates.map((date, dateIdx) => {
-                  const items = filteredGroups[date];
-                  const isToday = date === getTodayLebanon();
-                  
-                  return (
-                    <div 
-                      key={date} 
-                      className="space-y-1.5 animate-fade-in"
-                      style={{ animationDelay: `${dateIdx * 0.1}s` }}
-                    >
-                      <div className="flex items-center gap-2 sticky top-0 bg-background py-1 z-10">
-                        <Calendar className="w-4 h-4 text-accent" />
-                        <h3 className="text-sm font-bold">
-                          {formatDateTimeLebanon(date, "EEEE, MMMM dd, yyyy")}
-                        </h3>
-                        {isToday && (
-                          <Badge className="bg-success text-success-foreground text-[10px]">{t('inventory.todayPosition')}</Badge>
-                        )}
-                      </div>
-                      
-                      <div className="rounded-lg border-2 overflow-hidden">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-gradient-to-r from-accent/5 to-primary/5">
-                              <TableHead className="font-bold p-2 pl-2 pr-1 text-xs w-[30%]">{t('invoices.product')}</TableHead>
-                              <TableHead className="font-bold p-2 text-xs w-[12%]">Category</TableHead>
-                              <TableHead className="font-bold p-2 text-xs w-[9%]">SKU</TableHead>
-                              <TableHead className="text-center font-bold p-2 text-xs w-[9%]">{t('inventory.availableQty')}</TableHead>
-                              <TableHead className="text-right font-bold p-2 text-xs w-[10%]">Avg Cost</TableHead>
-                              <TableHead className="text-right font-bold p-2 text-xs w-[11%]">Total Value</TableHead>
-                              <TableHead className="font-bold p-2 text-xs w-[10%]">{t('inventory.lastUpdated')}</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {items.map((item, idx) => {
-                              return (
-                                <TableRow 
-                                  key={item.id} 
-                                  className="hover:bg-accent/5 transition-colors"
-                                >
-                                  <TableCell className="font-semibold p-2 pl-2 pr-1 text-xs">
-                                    <ProductNameWithCode 
-                                      product={item.products || { name: "Unknown Product" }}
-                                      showId={true}
-                                      product_id={item.product_id}
-                                      nameClassName=""
-                                      codeClassName="text-[10px] text-muted-foreground font-mono ml-1"
-                                    />
-                                  </TableCell>
-                                  <TableCell className="text-muted-foreground text-xs p-2">
-                                    {item.products?.category_name || "-"}
-                                  </TableCell>
-                                  <TableCell className="text-muted-foreground font-mono text-xs p-2">
-                                    {item.products?.sku || "-"}
-                                  </TableCell>
-                                  <TableCell className="text-center p-2">
-                                    <span className={`font-bold text-sm ${item.available_qty === 0 ? 'text-destructive' : item.available_qty < 10 ? 'text-warning' : 'text-success'}`}>
-                                      {item.available_qty}
-                                    </span>
-                                  </TableCell>
-                                  <TableCell className="text-right font-mono text-xs p-2">
-                                    ${Number(item.avg_cost || 0).toFixed(2)}
-                                  </TableCell>
-                                  <TableCell className="text-right font-semibold text-xs p-2">
-                                    ${(Number(item.available_qty) * Number(item.avg_cost || 0)).toFixed(2)}
-                                  </TableCell>
-                                  <TableCell className="text-xs text-muted-foreground p-2">
-                                    {formatDateTimeLebanon(item.updated_at, "HH:mm:ss")}
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
+              <>
+                {/* Current Date Header */}
+                <div className="flex items-center justify-between mb-2 pb-2 border-b">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-accent" />
+                    <h3 className="text-sm font-bold">
+                      {formatDateTimeLebanon(currentDate, "EEEE, MMMM dd, yyyy")}
+                    </h3>
+                    {currentDate === getTodayLebanon() && (
+                      <Badge className="bg-success text-success-foreground text-[10px]">{t('inventory.todayPosition')}</Badge>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {currentDayItems.length} {currentDayItems.length === 1 ? 'product' : 'products'}
+                  </div>
+                </div>
+
+                {currentDayItems.length === 0 ? (
+                  <div className="text-center py-16">
+                    <div className="w-20 h-20 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4">
+                      <Package className="w-10 h-10 text-accent/50" />
                     </div>
-                  );
-                })}
-              </div>
+                    <p className="text-muted-foreground text-lg">
+                      {searchTerm ? "No products found matching your search for this day" : "No stock data for this day"}
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="rounded-lg border-2 overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-gradient-to-r from-accent/5 to-primary/5">
+                            <TableHead className="font-bold p-2 pl-2 pr-1 text-xs w-[28%]">{t('invoices.product')}</TableHead>
+                            <TableHead className="font-bold p-2 text-xs w-[12%]">Category</TableHead>
+                            <TableHead className="text-center font-bold p-2 text-xs w-[10%]">{t('inventory.availableQty')}</TableHead>
+                            <TableHead className="text-right font-bold p-2 text-xs w-[10%]">Avg Cost</TableHead>
+                            <TableHead className="text-right font-bold p-2 pr-6 text-xs w-[12%]">Total Value</TableHead>
+                            <TableHead className="font-bold p-2 pl-6 text-xs w-[18%]">{t('inventory.lastUpdated')}</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {currentDayItems.map((item) => {
+                            return (
+                              <TableRow 
+                                key={item.id} 
+                                className="hover:bg-accent/5 transition-colors"
+                              >
+                                <TableCell className="font-semibold p-2 pl-2 pr-1 text-xs">
+                                  <ProductNameWithCode 
+                                    product={item.products || { name: "Unknown Product" }}
+                                    showId={true}
+                                    product_id={item.product_id}
+                                    nameClassName=""
+                                    codeClassName="text-[10px] text-muted-foreground font-mono ml-1"
+                                  />
+                                </TableCell>
+                                <TableCell className="text-muted-foreground text-xs p-2">
+                                  {item.products?.category_name || "-"}
+                                </TableCell>
+                                <TableCell className="text-center p-2">
+                                  <span className={`font-bold text-sm ${item.available_qty === 0 ? 'text-destructive' : item.available_qty < 10 ? 'text-warning' : 'text-success'}`}>
+                                    {item.available_qty}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-xs p-2">
+                                  ${Number(item.avg_cost || 0).toFixed(2)}
+                                </TableCell>
+                                <TableCell className="text-right font-semibold text-xs p-2 pr-6">
+                                  ${(Number(item.available_qty) * Number(item.avg_cost || 0)).toFixed(2)}
+                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground p-2 pl-6">
+                                  {item.updated_at ? formatDateTimeLebanon(item.updated_at, "MMM dd, yyyy HH:mm") : "-"}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {/* Pagination Controls */}
+                    {allDatesInRange.length > 1 && (
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 pt-4 border-t">
+                        <div className="text-sm text-muted-foreground">
+                          Day {currentDayIndex + 1} of {allDatesInRange.length}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentDayIndex(Math.max(0, currentDayIndex - 1))}
+                            disabled={currentDayIndex === 0}
+                            className="h-7 text-xs"
+                          >
+                            <ChevronLeft className="w-4 h-4 mr-1" />
+                            Previous Day
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentDayIndex(Math.min(allDatesInRange.length - 1, currentDayIndex + 1))}
+                            disabled={currentDayIndex >= allDatesInRange.length - 1}
+                            className="h-7 text-xs"
+                          >
+                            Next Day
+                            <ChevronRight className="w-4 h-4 ml-1" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
             )}
           </div>
         </div>

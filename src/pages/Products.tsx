@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, Package, Pencil, Download, Trash2, Scan, Search, X, Upload, FileSpreadsheet, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Package, Pencil, Download, Trash2, Scan, Search, X, ArrowDown, ArrowUp, FileSpreadsheet, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { productsRepo, categoriesRepo, productPricesRepo } from "@/integrations/api/repo";
 import { getTodayLebanon } from "@/utils/dateUtils";
 import { useToast } from "@/hooks/use-toast";
@@ -535,7 +535,7 @@ const Products = () => {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={triggerFileInput} disabled={importLoading}>
-                  <Upload className="w-4 h-4 mr-2" />
+                  <ArrowDown className="w-4 h-4 mr-2" />
                   {importLoading ? t('products.importing') : t('products.importExcel')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={async () => {
@@ -596,7 +596,7 @@ const Products = () => {
                     });
                   }
                 }}>
-                  <Upload className="w-4 h-4 mr-2" />
+                  <ArrowUp className="w-4 h-4 mr-2" />
                   {t('products.exportExcel')}
                 </DropdownMenuItem>
               </DropdownMenuContent>

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { DollarSign, TrendingUp, TrendingDown, Filter, X, Search } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, Filter, X, Search, Wallet } from "lucide-react";
 import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { productCostsRepo, productsRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
@@ -136,11 +136,16 @@ const ProductCosts = () => {
     <DashboardLayout>
       <div className="space-y-3 sm:space-y-4 animate-fade-in">
         <div className="flex items-center justify-between gap-2">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              💰 Product Costs History
-            </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">Track purchase costs from all suppliers</p>
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10">
+              <Wallet className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+                Product Costs History
+              </h1>
+              <p className="text-muted-foreground text-[10px] sm:text-xs">Track purchase costs from all suppliers</p>
+            </div>
           </div>
           <Button
             variant="outline"

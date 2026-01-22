@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
+import { formatDateTimeLebanon } from "@/utils/dateUtils";
 
 interface InventoryItem {
   id: string;
@@ -138,12 +139,12 @@ const Inventory = () => {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5 hover:from-primary/10 hover:to-accent/10">
-                      <TableHead className="font-bold whitespace-nowrap p-2 pl-2 pr-0.5 text-xs w-[35%]">{t('invoiceForm.product')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs w-[15%]">Category</TableHead>
-                      <TableHead className="text-center font-bold whitespace-nowrap p-2 text-xs w-[12%]">{t('inventory.availableQty')}</TableHead>
-                      <TableHead className="text-right font-bold whitespace-nowrap p-2 text-xs w-[12%]">Avg Cost</TableHead>
-                      <TableHead className="text-right font-bold whitespace-nowrap p-2 text-xs w-[14%]">Total Value</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs w-[12%]">SKU</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap p-2 pl-2 pr-0.5 text-xs w-[28%]">{t('invoiceForm.product')}</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs w-[12%]">Category</TableHead>
+                      <TableHead className="text-center font-bold whitespace-nowrap p-2 text-xs w-[10%]">{t('inventory.availableQty')}</TableHead>
+                      <TableHead className="text-right font-bold whitespace-nowrap p-2 text-xs w-[10%]">Avg Cost</TableHead>
+                      <TableHead className="text-right font-bold whitespace-nowrap p-2 pr-6 text-xs w-[12%]">Total Value</TableHead>
+                      <TableHead className="font-bold whitespace-nowrap p-2 pl-6 text-xs w-[18%]">{t('inventory.lastUpdated')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -178,11 +179,11 @@ const Inventory = () => {
                           <TableCell className="text-right font-mono text-xs p-2">
                             ${item.avg_cost ? parseFloat(String(item.avg_cost || 0)).toFixed(2) : "0.00"}
                           </TableCell>
-                          <TableCell className="text-right font-semibold text-xs p-2">
+                          <TableCell className="text-right font-semibold text-xs p-2 pr-6">
                             ${((item.available_qty || 0) * parseFloat(String(item.avg_cost || 0))).toFixed(2)}
                           </TableCell>
-                          <TableCell className="text-muted-foreground font-mono text-xs p-2">
-                            {item.products?.sku || "-"}
+                          <TableCell className="text-muted-foreground text-xs p-2 pl-6">
+                            {item.updated_at ? formatDateTimeLebanon(item.updated_at, "MMM dd, yyyy HH:mm") : "-"}
                           </TableCell>
                         </TableRow>
                       );

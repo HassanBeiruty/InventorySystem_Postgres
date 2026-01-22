@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, TrendingUp, TrendingDown, DollarSign, Plus, Eye, Pencil, Trash2, Calendar, Search, X, FileSpreadsheet, Download, ChevronDown } from "lucide-react";
+import { FileText, TrendingUp, TrendingDown, DollarSign, Plus, Eye, Pencil, Trash2, Calendar, Search, X, FileSpreadsheet, ArrowDown, ArrowUp, ChevronDown } from "lucide-react";
 import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { invoicesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
@@ -56,7 +56,7 @@ const InvoicesList = () => {
       setInvoices(invoices);
     } catch (error: any) {
       toast({
-        title: "Error",
+        title: t('common.error'),
         description: error.message,
         variant: "destructive",
       });
@@ -451,11 +451,11 @@ const InvoicesList = () => {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={triggerFileInput} disabled={importLoading}>
-                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                  <ArrowDown className="w-4 h-4 mr-2" />
                   {t('invoices.importExcel') || 'Import Excel'}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleExportInvoices}>
-                  <Download className="w-4 h-4 mr-2" />
+                  <ArrowUp className="w-4 h-4 mr-2" />
                   {t('invoices.exportExcel') || 'Export Excel'}
                 </DropdownMenuItem>
               </DropdownMenuContent>

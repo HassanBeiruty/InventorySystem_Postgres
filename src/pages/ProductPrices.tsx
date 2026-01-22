@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DollarSign, TrendingUp, Filter, X, Plus, Pencil, Trash2, Search } from "lucide-react";
+import { DollarSign, TrendingUp, Filter, X, Plus, Pencil, Trash2, Search, Coins } from "lucide-react";
 import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { productPricesRepo, productsRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
@@ -51,7 +51,7 @@ const ProductPrices = () => {
       setProducts(prods || []);
     } catch (error: any) {
       toast({
-        title: "Error",
+        title: t('common.error'),
         description: error.message,
         variant: "destructive",
       });
@@ -72,7 +72,7 @@ const ProductPrices = () => {
       setPrices(pricesData || []);
     } catch (error: any) {
       toast({
-        title: "Error",
+        title: t('common.error'),
         description: error.message,
         variant: "destructive",
       });
@@ -93,7 +93,7 @@ const ProductPrices = () => {
       setProductsWithoutPrices(prods || []);
     } catch (error: any) {
       toast({
-        title: "Error",
+        title: t('common.error'),
         description: error.message,
         variant: "destructive",
       });
@@ -122,8 +122,8 @@ const ProductPrices = () => {
         effective_date: formData.get("effective_date") as string || undefined,
       });
       toast({
-        title: "Success",
-        description: "Product price added successfully",
+        title: t('common.success'),
+        description: t('productPrices.priceAdded'),
       });
       setIsAddOpen(false);
       setAddProductId("");
@@ -131,8 +131,8 @@ const ProductPrices = () => {
       fetchData();
     } catch (error: any) {
       toast({
-        title: "Error",
-        description: error.message,
+        title: t('common.error'),
+        description: error.message || t('productPrices.addPriceError'),
         variant: "destructive",
       });
     } finally {
@@ -157,16 +157,16 @@ const ProductPrices = () => {
         effective_date: formData.get("effective_date") as string || undefined,
       });
       toast({
-        title: "Success",
-        description: "Product price updated successfully",
+        title: t('common.success'),
+        description: t('productPrices.priceUpdated'),
       });
       setIsEditOpen(false);
       setEditingPrice(null);
       fetchData();
     } catch (error: any) {
       toast({
-        title: "Error",
-        description: error.message,
+        title: t('common.error'),
+        description: error.message || t('productPrices.updatePriceError'),
         variant: "destructive",
       });
     } finally {
@@ -175,19 +175,19 @@ const ProductPrices = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this price record?")) return;
+    if (!confirm(t('productPrices.deleteConfirm') || "Are you sure you want to delete this price record?")) return;
     
     try {
       await productPricesRepo.delete(id);
       toast({
-        title: "Success",
-        description: "Product price deleted successfully",
+        title: t('common.success'),
+        description: t('productPrices.priceDeleted'),
       });
       fetchData();
     } catch (error: any) {
       toast({
-        title: "Error",
-        description: error.message,
+        title: t('common.error'),
+        description: error.message || t('productPrices.deletePriceError'),
         variant: "destructive",
       });
     }
@@ -207,11 +207,16 @@ const ProductPrices = () => {
     <DashboardLayout>
       <div className="space-y-3 sm:space-y-4 animate-fade-in">
         <div className="flex items-center justify-between gap-2">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              💵 {t('productPrices.title')}
-            </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">{t('productPrices.subtitle')}</p>
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10">
+              <Coins className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+                {t('productPrices.title')}
+              </h1>
+              <p className="text-muted-foreground text-[10px] sm:text-xs">{t('productPrices.subtitle')}</p>
+            </div>
           </div>
           <div className="flex gap-2">
             <Button

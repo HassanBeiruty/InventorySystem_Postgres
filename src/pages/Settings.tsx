@@ -379,24 +379,24 @@ const Settings = () => {
                     </p>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
+                    <Button
+                      variant="outline"
                           disabled={seedMasterDataMutation.isPending || clearTransactionsOnlyMutation.isPending || clearEverythingMutation.isPending}
-                          className="w-full h-7 text-[10px] sm:text-xs mt-auto"
-                        >
+                      className="w-full h-7 text-[10px] sm:text-xs mt-auto"
+                    >
                           {seedMasterDataMutation.isPending || clearTransactionsOnlyMutation.isPending || clearEverythingMutation.isPending ? (
-                            <>
+                        <>
                               <RefreshCw className="w-3 h-3 animate-spin mr-1.5" />
                               Processing...
-                            </>
-                          ) : (
-                            <>
+                        </>
+                      ) : (
+                        <>
                               <Database className="w-3 h-3 mr-1.5" />
-                              Seed Master Data
+                          Seed Master Data
                               <ChevronDown className="w-3 h-3 ml-1.5" />
-                            </>
-                          )}
-                        </Button>
+                        </>
+                      )}
+                    </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start">
                         <DropdownMenuItem
