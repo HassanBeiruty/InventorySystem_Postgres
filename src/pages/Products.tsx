@@ -28,6 +28,7 @@ const Products = () => {
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>("");
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [formCategoryId, setFormCategoryId] = useState<string>("");
   const [editFormCategoryId, setEditFormCategoryId] = useState<string>("");
@@ -103,23 +104,31 @@ const Products = () => {
     }
   };
 
-  // Reset to page 1 when search query changes
+  // Debounce search: update debounced value after user stops typing (so we don't fetch on every keystroke)
   useEffect(() => {
-    if (searchQuery.trim() && currentPage !== 1) {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Reset to page 1 when debounced search query changes
+  useEffect(() => {
+    if (debouncedSearchQuery.trim() && currentPage !== 1) {
       setCurrentPage(1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery]);
+  }, [debouncedSearchQuery]);
 
-  // Fetch products when page or search changes
+  // Fetch products when page or debounced search changes
   useEffect(() => {
     const loadData = async () => {
       setPageLoading(true);
-      await Promise.all([fetchProducts(currentPage, searchQuery), fetchCategories()]);
+      await Promise.all([fetchProducts(currentPage, debouncedSearchQuery), fetchCategories()]);
     };
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, searchQuery]);
+  }, [currentPage, debouncedSearchQuery]);
 
   // Products are already filtered server-side when searchQuery exists
   // No need for client-side filtering
@@ -202,7 +211,7 @@ const Products = () => {
     }
     setIsOpen(false);
     // Refresh current page
-    fetchProducts(currentPage, searchQuery);
+    fetchProducts(currentPage, debouncedSearchQuery);
   };
 
   const handleEdit = async (product: any) => {
@@ -296,7 +305,7 @@ const Products = () => {
     setRetailPrice("");
     setLatestPrice(null);
     // Refresh current page
-    fetchProducts(currentPage, searchQuery);
+    fetchProducts(currentPage, debouncedSearchQuery);
   };
 
   const handleDelete = async (product: any) => {
@@ -311,7 +320,7 @@ const Products = () => {
         description: t('products.productDeleted'),
       });
       // Refresh current page
-      fetchProducts(currentPage, searchQuery);
+      fetchProducts(currentPage, debouncedSearchQuery);
     } catch (error: any) {
       toast({
         title: t('common.error'),
@@ -475,7 +484,7 @@ const Products = () => {
         setCurrentPage(1);
       } else {
         // If already on page 1, fetch products directly
-        fetchProducts(1, searchQuery);
+        fetchProducts(1, debouncedSearchQuery);
       }
     } catch (error: any) {
       toast({
