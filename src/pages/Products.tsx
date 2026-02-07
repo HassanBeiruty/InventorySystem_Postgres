@@ -29,6 +29,7 @@ const Products = () => {
   const [categories, setCategories] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>("");
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [formCategoryId, setFormCategoryId] = useState<string>("");
   const [editFormCategoryId, setEditFormCategoryId] = useState<string>("");
@@ -104,12 +105,22 @@ const Products = () => {
     }
   };
 
-  // Debounce search: update debounced value after user stops typing (so we don't fetch on every keystroke)
+  // Debounce search: update debounced value only after user stops typing (fetch runs once per finished phrase)
   useEffect(() => {
-    const timer = window.setTimeout(() => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = null;
+    }
+    searchDebounceRef.current = window.setTimeout(() => {
+      searchDebounceRef.current = null;
       setDebouncedSearchQuery(searchQuery);
-    }, 400);
-    return () => window.clearTimeout(timer);
+    }, 500);
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+        searchDebounceRef.current = null;
+      }
+    };
   }, [searchQuery]);
 
   // Reset to page 1 when debounced search query changes
