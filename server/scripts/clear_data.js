@@ -59,6 +59,38 @@ async function clearTransactionsOnly() {
 }
 
 /**
+ * Clear invoices and positions only - Keep all main entities
+ * Truncates: invoice_payments, stock_movements, invoice_items, invoices, daily_stock
+ * Does NOT touch: users, categories, products, customers, suppliers, product_prices, exchange_rates
+ * Uses TRUNCATE RESTART IDENTITY so id sequences start from 1
+ */
+async function clearInvoicesAndPositionsOnly() {
+	console.log('🗑️  Truncating invoices and positions (keeping main entities)...\n');
+
+	try {
+		// Truncate invoices and all tables that reference it; RESTART IDENTITY resets sequences to 1
+		console.log('   Truncating invoices (and invoice_items, invoice_payments, stock_movements)...');
+		await query(`
+			TRUNCATE TABLE invoices RESTART IDENTITY CASCADE
+		`, []);
+
+		console.log('   Truncating daily_stock...');
+		await query(`
+			TRUNCATE TABLE daily_stock RESTART IDENTITY
+		`, []);
+
+		console.log('✅ Invoices and positions cleared. IDs will start from 1.\n');
+		return {
+			success: true,
+			message: 'Invoices and positions truncated. Main entities preserved. Identity IDs reset.',
+		};
+	} catch (err) {
+		console.error('❌ Error clearing invoices/positions:', err);
+		throw err;
+	}
+}
+
+/**
  * Clear everything - Fresh start
  * Removes: All data including entities
  * Uses TRUNCATE to reset auto-increment IDs to start from 1
@@ -105,11 +137,11 @@ async function clearEverything() {
 	}
 }
 
-module.exports = { clearTransactionsOnly, clearEverything };
+module.exports = { clearTransactionsOnly, clearEverything, clearInvoicesAndPositionsOnly };
 
 // If run directly (not imported), show usage
 if (require.main === module) {
-	console.log('Usage: Import and call clearTransactionsOnly() or clearEverything()');
-	console.log('Example: const { clearTransactionsOnly } = require("./clear_data");');
-	console.log('        await clearTransactionsOnly();');
+	console.log('Usage: Import and call clearTransactionsOnly(), clearEverything(), or clearInvoicesAndPositionsOnly()');
+	console.log('Example: const { clearInvoicesAndPositionsOnly } = require("./clear_data");');
+	console.log('        await clearInvoicesAndPositionsOnly();');
 }

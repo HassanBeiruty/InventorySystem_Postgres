@@ -47,6 +47,8 @@ const InvoicesList = () => {
   const [importLoading, setImportLoading] = useState(false);
   const [checkedInvoices, setCheckedInvoices] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importInProgressRef = useRef(false);
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -147,6 +149,8 @@ const InvoicesList = () => {
 
       const previewResult = await response.json();
       setPreviewData(previewResult);
+      // One idempotency key per preview session: duplicate import requests return cached result
+      idempotencyKeyRef.current = crypto.randomUUID();
       // Initialize all invoices as checked by default
       if (previewResult.invoices && previewResult.invoices.length > 0) {
         const allChecked = new Set<number>(previewResult.invoices.map((_: any, idx: number) => idx));
@@ -169,6 +173,10 @@ const InvoicesList = () => {
   const handleConfirmImport = useCallback(async () => {
     if (!pendingFile || !previewData) return;
 
+    // Prevent double submission (double-click or React Strict Mode double-invoke)
+    if (importInProgressRef.current) return;
+    importInProgressRef.current = true;
+
     // Filter to only checked invoices
     const invoiceIndices = Array.from(checkedInvoices);
     if (invoiceIndices.length === 0) {
@@ -177,6 +185,7 @@ const InvoicesList = () => {
         description: "Please select at least one invoice to import",
         variant: "destructive",
       });
+      importInProgressRef.current = false;
       return;
     }
 
@@ -190,6 +199,9 @@ const InvoicesList = () => {
       const formData = new FormData();
       formData.append('file', pendingFile);
       formData.append('invoiceIndices', JSON.stringify(invoiceIndices));
+      if (idempotencyKeyRef.current) {
+        formData.append('idempotencyKey', idempotencyKeyRef.current);
+      }
 
       const response = await fetch(importUrl, {
         method: 'POST',
@@ -228,6 +240,7 @@ const InvoicesList = () => {
       });
     } finally {
       setImportLoading(false);
+      importInProgressRef.current = false;
     }
   }, [pendingFile, previewData, checkedInvoices, toast, t, queryClient, fetchData]);
 

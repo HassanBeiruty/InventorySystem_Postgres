@@ -5023,6 +5023,29 @@ router.post('/invoices/import-excel-preview',
 	}
 });
 
+// Idempotency store for invoice import: same key within TTL returns cached result (prevents duplicate imports)
+const invoiceImportIdempotencyStore = new Map(); // key -> { response, expiry }
+const INVOICE_IMPORT_IDEMPOTENCY_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function getInvoiceImportIdempotency(key) {
+	if (!key) return null;
+	const entry = invoiceImportIdempotencyStore.get(key);
+	if (!entry) return null;
+	if (Date.now() > entry.expiry) {
+		invoiceImportIdempotencyStore.delete(key);
+		return null;
+	}
+	return entry.response;
+}
+
+function setInvoiceImportIdempotency(key, response) {
+	if (!key) return;
+	invoiceImportIdempotencyStore.set(key, {
+		response: { success: true, created: { ...response.created } },
+		expiry: Date.now() + INVOICE_IMPORT_IDEMPOTENCY_TTL_MS
+	});
+}
+
 // Invoice import endpoint - creates invoices and items
 router.post('/invoices/import-excel',
 	authenticateToken,
@@ -5032,6 +5055,14 @@ router.post('/invoices/import-excel',
 	validateFileUpload,
 	sanitizeInput,
 	async (req, res) => {
+	// Idempotency: if same key was already processed, return cached result (no duplicate imports)
+	const idempotencyKey = req.body && (req.body.idempotencyKey || req.body.idempotency_key);
+	const cached = getInvoiceImportIdempotency(idempotencyKey);
+	if (cached) {
+		console.log('✓ Invoice import idempotency: returning cached result for key', idempotencyKey?.slice(0, 8) + '...');
+		return res.json(cached);
+	}
+
 	const pool = getPool();
 	const client = await pool.connect();
 
@@ -5585,6 +5616,11 @@ router.post('/invoices/import-excel',
 
 		await client.query('COMMIT');
 		console.log(`✓ Transaction committed successfully`);
+
+		// Store result for idempotency: duplicate requests with same key get this response without re-importing
+		if (idempotencyKey) {
+			setInvoiceImportIdempotency(idempotencyKey, created);
+		}
 
 		res.json({
 			success: true,
