@@ -114,7 +114,7 @@ const Products = () => {
     searchDebounceRef.current = window.setTimeout(() => {
       searchDebounceRef.current = null;
       setDebouncedSearchQuery(searchQuery);
-    }, 500);
+    }, 600);
     return () => {
       if (searchDebounceRef.current) {
         clearTimeout(searchDebounceRef.current);
