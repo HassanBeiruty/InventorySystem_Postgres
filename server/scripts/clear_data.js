@@ -68,16 +68,35 @@ async function clearInvoicesAndPositionsOnly() {
 	console.log('🗑️  Truncating invoices and positions (keeping main entities)...\n');
 
 	try {
-		// Truncate invoices and all tables that reference it; RESTART IDENTITY resets sequences to 1
-		console.log('   Truncating invoices (and invoice_items, invoice_payments, stock_movements)...');
+		// Truncate all invoice-related tables; list all so RESTART IDENTITY applies to each sequence.
+		// Order: child tables first (reference invoices), then invoices. No CASCADE needed when all are listed.
+		console.log('   Truncating invoice_payments, stock_movements, invoice_items, invoices...');
 		await query(`
-			TRUNCATE TABLE invoices RESTART IDENTITY CASCADE
+			TRUNCATE TABLE
+				invoice_payments,
+				stock_movements,
+				invoice_items,
+				invoices
+			RESTART IDENTITY
 		`, []);
 
 		console.log('   Truncating daily_stock...');
 		await query(`
 			TRUNCATE TABLE daily_stock RESTART IDENTITY
 		`, []);
+
+		// Explicitly reset sequences to 1 so next id is always 1 (covers any PG version/schema quirks)
+		const sequences = [
+			'invoices_id_seq',
+			'invoice_items_id_seq',
+			'invoice_payments_id_seq',
+			'stock_movements_id_seq',
+			'daily_stock_id_seq',
+		];
+		for (const seq of sequences) {
+			await query(`ALTER SEQUENCE IF EXISTS ${seq} RESTART WITH 1`, []);
+		}
+		console.log('   Reset sequences to start from 1.');
 
 		console.log('✅ Invoices and positions cleared. IDs will start from 1.\n');
 		return {
