@@ -4206,6 +4206,35 @@ router.post('/products/import-excel-preview',
 	}
 });
 
+// Idempotency store for product import: same key within TTL returns cached result (prevents duplicate imports)
+const productImportIdempotencyStore = new Map();
+const PRODUCT_IMPORT_IDEMPOTENCY_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function getProductImportIdempotency(key) {
+	if (!key) return null;
+	const entry = productImportIdempotencyStore.get(key);
+	if (!entry) return null;
+	if (Date.now() > entry.expiry) {
+		productImportIdempotencyStore.delete(key);
+		return null;
+	}
+	return entry.response;
+}
+
+function setProductImportIdempotency(key, response) {
+	if (!key) return;
+	productImportIdempotencyStore.set(key, {
+		response: {
+			success: true,
+			message: response.message,
+			summary: response.summary ? { ...response.summary } : undefined,
+			products: response.products ? [...response.products] : undefined,
+			errors: response.errors,
+		},
+		expiry: Date.now() + PRODUCT_IMPORT_IDEMPOTENCY_TTL_MS,
+	});
+}
+
 // Excel import endpoint with enhanced security - now updates existing products
 router.post('/products/import-excel', 
 	authenticateToken, 
@@ -4215,6 +4244,14 @@ router.post('/products/import-excel',
 	validateFileUpload,
 	sanitizeInput,
 	async (req, res) => {
+	// Idempotency: if same key was already processed, return cached result (no duplicate imports)
+	const idempotencyKey = req.body && (req.body.idempotencyKey || req.body.idempotency_key);
+	const cached = getProductImportIdempotency(idempotencyKey);
+	if (cached) {
+		console.log('✓ Product import idempotency: returning cached result for key', idempotencyKey?.slice(0, 8) + '...');
+		return res.json(cached);
+	}
+
 	try {
 		if (!req.file) {
 			return res.status(400).json({ error: 'No file uploaded' });
@@ -4602,7 +4639,7 @@ router.post('/products/import-excel',
 			await client.query('COMMIT');
 			client.release();
 
-			res.json({
+			const responsePayload = {
 				success: true,
 				message: `Import completed: ${results.created} created, ${results.updated} updated, ${results.skipped} skipped, ${results.errors.length} errors`,
 				summary: {
@@ -4614,7 +4651,14 @@ router.post('/products/import-excel',
 				},
 				products: results.products,
 				errors: results.errors.length > 0 ? results.errors : undefined
-			});
+			};
+
+			// Store result for idempotency: duplicate requests with same key get this response without re-importing
+			if (idempotencyKey) {
+				setProductImportIdempotency(idempotencyKey, responsePayload);
+			}
+
+			res.json(responsePayload);
 
 		} catch (transactionError) {
 			await client.query('ROLLBACK');

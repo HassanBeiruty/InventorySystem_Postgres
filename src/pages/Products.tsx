@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,9 @@ const Products = () => {
   const [importLoading, setImportLoading] = useState(false);
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string>("");
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const importInProgressRef = useRef(false);
+  const idempotencyKeyRef = useRef<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewData, setPreviewData] = useState<any>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -382,6 +384,8 @@ const Products = () => {
       
       // Show preview dialog
       setPreviewData(previewResult);
+      // One idempotency key per preview session: duplicate import requests return cached result
+      idempotencyKeyRef.current = crypto.randomUUID();
       // Initialize all existing products as checked by default
       if (previewResult.existingProducts && previewResult.existingProducts.length > 0) {
         const rowNumbers: number[] = previewResult.existingProducts.map((p: any) => Number(p.row));
@@ -405,6 +409,10 @@ const Products = () => {
   const handleConfirmImport = async () => {
     if (!pendingFile) return;
 
+    // Prevent double submission (double-click or React Strict Mode double-invoke)
+    if (importInProgressRef.current) return;
+    importInProgressRef.current = true;
+
     setPreviewOpen(false);
     setImportLoading(true);
 
@@ -417,6 +425,9 @@ const Products = () => {
       formData.append('file', pendingFile);
       // Send list of row numbers for existing products that should be updated
       formData.append('updateRows', JSON.stringify(Array.from(checkedExistingProducts)));
+      if (idempotencyKeyRef.current) {
+        formData.append('idempotencyKey', idempotencyKeyRef.current);
+      }
 
       const response = await fetch(url, {
         method: 'POST',
@@ -474,6 +485,7 @@ const Products = () => {
       });
     } finally {
       setImportLoading(false);
+      importInProgressRef.current = false;
     }
   };
 
