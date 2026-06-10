@@ -50,10 +50,10 @@ const InvoicesList = () => {
   const importInProgressRef = useRef(false);
   const idempotencyKeyRef = useRef<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (sd?: string, ed?: string) => {
     setLoading(true);
     try {
-      const invoicesData = await invoicesRepo.listWithRelations();
+      const invoicesData = await invoicesRepo.listWithRelations(sd, ed);
       const invoices = invoicesData || [];
       setInvoices(invoices);
     } catch (error: any) {
@@ -68,8 +68,8 @@ const InvoicesList = () => {
   }, [toast]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchData(startDate, endDate);
+  }, [fetchData, startDate, endDate]);
 
   // Refetch when navigating back to this page (using focus event)
   useEffect(() => {
@@ -78,16 +78,16 @@ const InvoicesList = () => {
       const lastFetch = (window as any).__lastInvoiceFetch || 0;
       const now = Date.now();
       if (now - lastFetch > 1000) {
-        fetchData();
+        fetchData(startDate, endDate);
         (window as any).__lastInvoiceFetch = now;
       }
     };
-    
+
     window.addEventListener('focus', handleFocus);
     return () => {
       window.removeEventListener('focus', handleFocus);
     };
-  }, [fetchData]);
+  }, [fetchData, startDate, endDate]);
 
 
   const handleRecordPayment = useCallback((invoiceId: string) => {
@@ -116,8 +116,8 @@ const InvoicesList = () => {
   }, [sidePanelOpen]);
 
   const handlePaymentRecorded = useCallback(() => {
-    fetchData(); // Refresh the invoice list
-  }, [fetchData]);
+    fetchData(startDate, endDate);
+  }, [fetchData, startDate, endDate]);
 
   const handleImportExcel = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -231,7 +231,7 @@ const InvoicesList = () => {
 
       // Refresh invoices list
       await queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      fetchData();
+      fetchData(startDate, endDate);
     } catch (error: any) {
       toast({
         title: t('invoices.importFailed') || "Import Failed",
@@ -242,7 +242,7 @@ const InvoicesList = () => {
       setImportLoading(false);
       importInProgressRef.current = false;
     }
-  }, [pendingFile, previewData, checkedInvoices, toast, t, queryClient, fetchData]);
+  }, [pendingFile, previewData, checkedInvoices, toast, t, queryClient, fetchData, startDate, endDate]);
 
   const triggerFileInput = useCallback(() => {
     fileInputRef.current?.click();
@@ -338,7 +338,7 @@ const InvoicesList = () => {
       ]);
        // Small delay to allow stored procedure to complete
        await new Promise(resolve => setTimeout(resolve, 500));
-       fetchData(); // Refresh the invoice list
+       fetchData(startDate, endDate);
     } catch (error: any) {
       toast({
         title: t('invoices.deleteError') || "Error",

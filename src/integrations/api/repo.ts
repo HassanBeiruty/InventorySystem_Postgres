@@ -288,8 +288,12 @@ export type InvoiceCreateItem = {
 };
 
 export const invoicesRepo = {
-  async listWithRelations(): Promise<(InvoiceEntity & { customers?: CustomerEntity; suppliers?: SupplierEntity })[]> {
-    return fetchJson(`/api/invoices`);
+  async listWithRelations(startDate?: string, endDate?: string): Promise<(InvoiceEntity & { customers?: CustomerEntity; suppliers?: SupplierEntity })[]> {
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    const qs = params.toString();
+    return fetchJson(`/api/invoices${qs ? `?${qs}` : ''}`);
   },
   async listRecent(limit: number) {
     return fetchJson(`/api/invoices/recent/${limit}`);

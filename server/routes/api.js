@@ -989,23 +989,53 @@ router.delete('/products/:id', [
 // ===== INVOICES =====
 router.get('/invoices', async (req, res) => {
 	try {
-		// Add pagination support - default to 100 items max for performance
-		const limit = Math.min(parseInt(req.query.limit) || 100, 500); // Max 500 items
-		const offset = Math.max(parseInt(req.query.offset) || 0, 0);
-		
-		// Optimized query with pagination - only load invoice items for returned invoices
-		const invoicesResult = await query(
-			`SELECT 
+		const { start_date, end_date } = req.query;
+
+		// Build WHERE clause for date filtering
+		const conditions = [];
+		const params = [];
+		if (start_date) {
+			params.push(start_date);
+			conditions.push(`CAST(i.invoice_date AS DATE) >= $${params.length}::DATE`);
+		}
+		if (end_date) {
+			params.push(end_date);
+			conditions.push(`CAST(i.invoice_date AS DATE) <= $${params.length}::DATE`);
+		}
+		const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+		// When date filters are provided, return all matching invoices (no arbitrary limit).
+		// Without filters fall back to pagination to protect against huge unfiltered loads.
+		let sqlQuery;
+		let sqlParams;
+		if (start_date || end_date) {
+			sqlQuery = `SELECT
 				i.*,
 				c.id as customer_id_val, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, c.credit_limit as customer_credit_limit, c.created_at as customer_created_at,
 				s.id as supplier_id_val, s.name as supplier_name, s.phone as supplier_phone, s.address as supplier_address, s.created_at as supplier_created_at
 			FROM invoices i
 			LEFT JOIN customers c ON i.customer_id = c.id
 			LEFT JOIN suppliers s ON i.supplier_id = s.id
-			ORDER BY i.created_at DESC
-			LIMIT $1 OFFSET $2`,
-			[limit, offset]
-		);
+			${whereClause}
+			ORDER BY i.invoice_date DESC, i.created_at DESC`;
+			sqlParams = params;
+		} else {
+			const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+			const offset = Math.max(parseInt(req.query.offset) || 0, 0);
+			sqlQuery = `SELECT
+				i.*,
+				c.id as customer_id_val, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, c.credit_limit as customer_credit_limit, c.created_at as customer_created_at,
+				s.id as supplier_id_val, s.name as supplier_name, s.phone as supplier_phone, s.address as supplier_address, s.created_at as supplier_created_at
+			FROM invoices i
+			LEFT JOIN customers c ON i.customer_id = c.id
+			LEFT JOIN suppliers s ON i.supplier_id = s.id
+			ORDER BY i.invoice_date DESC, i.created_at DESC
+			LIMIT $1 OFFSET $2`;
+			sqlParams = [limit, offset];
+		}
+
+		// Optimized query - only load invoice items for returned invoices
+		const invoicesResult = await query(sqlQuery, sqlParams);
 		
 		// Only fetch invoice items for the invoices we're returning (much faster)
 		const invoiceIds = invoicesResult.recordset.map(inv => inv.id);
