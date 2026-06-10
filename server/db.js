@@ -125,7 +125,7 @@ async function query(text, params = []) {
 	// PostgreSQL uses [value1, value2]
 	let paramValues = params;
 	
-	if (Array.isArray(params) && params.length > 0 && typeof params[0] === 'object' && params[0] !== null) {
+	if (Array.isArray(params) && params.length > 0 && typeof params[0] === 'object' && params[0] !== null && !Array.isArray(params[0])) {
 		// Check if it's an array of single-property objects or a single multi-property object
 		if (params.length === 1 && Object.keys(params[0]).length > 1) {
 			// Single object with multiple properties: {email: '...', passwordHash: '...', created_at: '...'}
