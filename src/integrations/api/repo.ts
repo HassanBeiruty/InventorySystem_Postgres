@@ -397,10 +397,11 @@ export const inventoryRepo = {
 };
 
 export const stockRepo = {
-  async recent(limit: number, filters?: { start_date?: string; end_date?: string }): Promise<(StockMovementEntity & { products?: ProductEntity })[]> {
+  async recent(limit: number, filters?: { start_date?: string; end_date?: string; product_id?: string }): Promise<(StockMovementEntity & { products?: ProductEntity })[]> {
     const params = new URLSearchParams();
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
+    if (filters?.product_id) params.append('product_id', filters.product_id);
     const queryString = params.toString();
     return fetchJson(`/api/stock-movements/recent/${limit}${queryString ? `?${queryString}` : ''}`);
   },

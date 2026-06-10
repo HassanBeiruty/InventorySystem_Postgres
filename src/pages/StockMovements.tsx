@@ -8,8 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { TrendingUp, TrendingDown, Package, Search, X, Calendar, History } from "lucide-react";
-import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
+import { TrendingUp, TrendingDown, Package, Search, X, Calendar, History, Filter } from "lucide-react";
+import { formatDateTimeLebanon, getTodayLebanon, getNDaysAgoLebanon } from "@/utils/dateUtils";
 import { useTranslation } from "react-i18next";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
 
@@ -37,24 +37,24 @@ const StockMovements = () => {
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  
-  // Date filter state - default to 3 days ago to today
-  const getDefaultStartDate = () => {
-    const date = new Date();
-    date.setDate(date.getDate() - 3);
-    return date.toISOString().split('T')[0];
-  };
-  const [startDate, setStartDate] = useState<string>(getDefaultStartDate());
+  const [productIdFilter, setProductIdFilter] = useState<string>("");
+
+  // Date filter state - default to 3 days ago to today (Lebanon timezone)
+  const [startDate, setStartDate] = useState<string>(() => getNDaysAgoLebanon(3));
   const [endDate, setEndDate] = useState<string>(getTodayLebanon());
 
   useEffect(() => {
     fetchStockMovements();
-  }, [startDate, endDate]);
+  }, [startDate, endDate, productIdFilter]);
 
   const fetchStockMovements = async () => {
     try {
       setLoading(true);
-      const data = await stockRepo.recent(100, { start_date: startDate, end_date: endDate });
+      const data = await stockRepo.recent(100, {
+        start_date: startDate,
+        end_date: endDate,
+        product_id: productIdFilter.trim() || undefined,
+      });
       setMovements((data as any[]) || []);
     } catch (error) {
       // Silently handle error
@@ -65,11 +65,13 @@ const StockMovements = () => {
 
   const filteredMovements = movements.filter(movement => {
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+      const q = searchQuery.toLowerCase();
       const productName = (movement.products?.name || "").toLowerCase();
+      const productBarcode = (movement.products?.barcode || "").toLowerCase();
+      const productSku = (movement.products?.sku || "").toLowerCase();
       const productId = (movement.product_id || "").toString();
       const invoiceId = (movement.invoice_id || "").toString();
-      return productName.includes(query) || productId.includes(query) || invoiceId.includes(query);
+      return productName.includes(q) || productBarcode.includes(q) || productSku.includes(q) || productId.includes(q) || invoiceId.includes(q);
     }
     return true;
   });
@@ -129,6 +131,33 @@ const StockMovements = () => {
                 max={getTodayLebanon()}
                 className="h-7 text-xs w-32"
               />
+            </div>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="product-id-filter" className="text-[10px] sm:text-xs whitespace-nowrap">
+                <Filter className="w-3 h-3 inline mr-1" />
+                Product ID:
+              </Label>
+              <div className="relative">
+                <Input
+                  id="product-id-filter"
+                  type="number"
+                  min="1"
+                  placeholder="e.g. 42"
+                  value={productIdFilter}
+                  onChange={(e) => setProductIdFilter(e.target.value)}
+                  className="h-7 text-xs w-24 pr-6"
+                />
+                {productIdFilter && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setProductIdFilter("")}
+                    className="absolute right-0.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>

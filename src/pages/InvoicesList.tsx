@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileText, TrendingUp, TrendingDown, DollarSign, Plus, Eye, Pencil, Trash2, Calendar, Search, X, FileSpreadsheet, ArrowDown, ArrowUp, ChevronDown } from "lucide-react";
-import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
+import { formatDateTimeLebanon, getTodayLebanon, getNDaysAgoLebanon } from "@/utils/dateUtils";
 import { invoicesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
@@ -28,13 +28,8 @@ const InvoicesList = () => {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
   
-  // Date filter state - default to 3 days ago to today
-  const getDefaultStartDate = () => {
-    const date = new Date();
-    date.setDate(date.getDate() - 3);
-    return date.toISOString().split('T')[0];
-  };
-  const [startDate, setStartDate] = useState<string>(getDefaultStartDate());
+  // Date filter state - default to 3 days ago to today (Lebanon timezone)
+  const [startDate, setStartDate] = useState<string>(() => getNDaysAgoLebanon(3));
   const [endDate, setEndDate] = useState<string>(getTodayLebanon());
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [sidePanelOpen, setSidePanelOpen] = useState(false);

@@ -22,6 +22,20 @@ export function getTodayLebanon(): string {
 }
 
 /**
+ * Get the date N days ago in Lebanon timezone (YYYY-MM-DD format)
+ */
+export function getNDaysAgoLebanon(n: number): string {
+  const past = new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: LEBANON_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  return formatter.format(past);
+}
+
+/**
  * Format a date to Lebanon timezone date string (YYYY-MM-DD format)
  */
 export function formatDateLebanon(date: Date | string): string {

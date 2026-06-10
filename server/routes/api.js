@@ -2625,19 +2625,21 @@ router.get('/inventory/daily-history', async (req, res) => {
 // ===== STOCK MOVEMENTS =====
 router.get('/stock-movements/recent/:limit', async (req, res) => {
 	try {
-		const limit = Math.min(parseInt(req.params.limit) || 20, 500); // Cap at 500 for performance
-		const { start_date, end_date } = req.query;
-		
-		let sql = `SELECT 
+		const { start_date, end_date, product_id } = req.query;
+		const hasFilters = start_date || end_date || product_id;
+
+		let sql = `SELECT
 				sm.*,
 				p.id as product_id_val, p.name as product_name, p.barcode as product_barcode, p.category_id as product_category_id,
-				p.description as product_description, p.sku as product_sku, p.shelf as product_shelf, p.created_at as product_created_at
+				p.description as product_description, p.sku as product_sku, p.shelf as product_shelf, p.created_at as product_created_at,
+				c.name as category_name
 			FROM stock_movements sm
 			LEFT JOIN products p ON sm.product_id = p.id
+			LEFT JOIN categories c ON p.category_id = c.id
 			WHERE 1=1`;
 		const params = [];
 		let paramIndex = 0;
-		
+
 		if (start_date) {
 			paramIndex++;
 			sql += ` AND CAST(sm.invoice_date AS DATE) >= $${paramIndex}`;
@@ -2648,33 +2650,46 @@ router.get('/stock-movements/recent/:limit', async (req, res) => {
 			sql += ` AND CAST(sm.invoice_date AS DATE) <= $${paramIndex}`;
 			params.push(end_date);
 		}
-		
-		sql += ` ORDER BY sm.invoice_date DESC, sm.created_at DESC LIMIT $${paramIndex + 1}`;
-		params.push(limit);
-		
+		if (product_id) {
+			paramIndex++;
+			sql += ` AND sm.product_id = $${paramIndex}`;
+			params.push(parseInt(product_id));
+		}
+
+		sql += ` ORDER BY sm.invoice_date DESC, sm.created_at DESC`;
+
+		// Only apply limit when no filters are active (unfiltered full-load protection)
+		if (!hasFilters) {
+			const limit = Math.min(parseInt(req.params.limit) || 20, 500);
+			paramIndex++;
+			sql += ` LIMIT $${paramIndex}`;
+			params.push(limit);
+		}
+
 		const result = await query(sql, params);
-		
+
 		const formattedResult = result.recordset.map((row) => {
-			const { product_id_val, product_name, product_barcode, product_category_id, product_description, 
-				product_sku, product_shelf, product_created_at, ...movementData } = row;
-			
+			const { product_id_val, product_name, product_barcode, product_category_id, product_description,
+				product_sku, product_shelf, product_created_at, category_name, ...movementData } = row;
+
 			const products = product_id_val ? {
 				id: product_id_val,
 				name: product_name,
 				barcode: product_barcode,
 				category_id: product_category_id,
+				category_name: category_name || null,
 				description: product_description,
 				sku: product_sku,
 				shelf: product_shelf,
 				created_at: product_created_at
 			} : undefined;
-			
+
 			return {
 				...movementData,
 				products
 			};
 		});
-		
+
 		res.json(formattedResult);
 	} catch (err) {
 		console.error('Recent stock movements error:', err);
