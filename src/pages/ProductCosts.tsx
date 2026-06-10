@@ -5,13 +5,14 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { DollarSign, TrendingUp, TrendingDown, Filter, X, Search, Wallet } from "lucide-react";
 import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { productCostsRepo, productsRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
+import ProductCombobox from "@/components/ProductCombobox";
+import { useDebounce } from "@/hooks/useDebounce";
 
 const ProductCosts = () => {
   const { toast } = useToast();
@@ -25,6 +26,7 @@ const ProductCosts = () => {
   });
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 400);
   const [stats, setStats] = useState({
     totalValue: 0,
     totalQuantity: 0,
@@ -123,8 +125,8 @@ const ProductCosts = () => {
   }, [costs, products]);
 
   const filteredSummary = productSummaryArray.filter((item: any) => {
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    if (debouncedSearchQuery.trim()) {
+      const query = debouncedSearchQuery.toLowerCase();
       const productName = (item.product_name || "").toLowerCase();
       const productId = (item.product_id || "").toString();
       return productName.includes(query) || productId.includes(query);
@@ -163,23 +165,13 @@ const ProductCosts = () => {
             <div className="grid gap-2 sm:gap-3 md:grid-cols-4">
               <div className="space-y-2">
                 <Label>Product</Label>
-                <Select value={filters.product_id} onValueChange={(value) => setFilters({...filters, product_id: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All products" />
-                  </SelectTrigger>
-                  <SelectContent side="bottom" align="start">
-                    <SelectItem value="all">All products</SelectItem>
-                    {products.map((product) => (
-                      <SelectItem key={product.id} value={product.id}>
-                        <ProductNameWithCode 
-                          product={product}
-                          showId={true}
-                          id={product.id}
-                        />
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ProductCombobox
+                  products={products}
+                  value={filters.product_id}
+                  onValueChange={(value) => setFilters({...filters, product_id: value})}
+                  includeAllOption
+                  allLabel="All products"
+                />
               </div>
               
               <div className="space-y-2">
@@ -290,6 +282,7 @@ const ProductCosts = () => {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-8 pr-8 h-8 text-sm"
+                  autoFocus
                 />
                 {searchQuery && (
                   <Button

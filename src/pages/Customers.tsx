@@ -10,6 +10,7 @@ import { customersRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useTranslation } from "react-i18next";
+import { useDebounce } from "@/hooks/useDebounce";
 
 const Customers = () => {
   const { t } = useTranslation();
@@ -19,6 +20,7 @@ const Customers = () => {
   const [customers, setCustomers] = useState<any[]>([]);
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 400);
   const { toast } = useToast();
 
   const fetchCustomers = async () => {
@@ -100,8 +102,8 @@ const Customers = () => {
   };
 
   const filteredCustomers = customers.filter(customer => {
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    if (debouncedSearchQuery.trim()) {
+      const query = debouncedSearchQuery.toLowerCase();
       const name = (customer.name || "").toLowerCase();
       const phone = (customer.phone || "").toLowerCase();
       const address = (customer.address || "").toLowerCase();
@@ -176,6 +178,7 @@ const Customers = () => {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-8 pr-8 h-8 text-sm"
+                  autoFocus
                 />
                 {searchQuery && (
                   <Button

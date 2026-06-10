@@ -14,6 +14,7 @@ import { exchangeRatesRepo, ExchangeRateEntity } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useTranslation } from "react-i18next";
+import { useDebounce } from "@/hooks/useDebounce";
 
 const ExchangeRates = () => {
   const { t } = useTranslation();
@@ -31,6 +32,7 @@ const ExchangeRates = () => {
   const [editingRate, setEditingRate] = useState<ExchangeRateEntity | null>(null);
   const [formLoading, setFormLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 400);
 
   const fetchData = useCallback(async () => {
     // Only fetch if admin check is complete and user is admin
@@ -214,8 +216,8 @@ const ExchangeRates = () => {
   const currentRates = getCurrentActiveRates();
 
   const filteredRates = rates.filter(rate => {
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    if (debouncedSearchQuery.trim()) {
+      const query = debouncedSearchQuery.toLowerCase();
       const currency = (rate.currency_code || "").toLowerCase();
       const id = (rate.id || "").toString();
       return currency.includes(query) || id.includes(query);
@@ -341,6 +343,7 @@ const ExchangeRates = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-8 pr-8 h-8 text-sm"
+              autoFocus
             />
             {searchQuery && (
               <Button

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useTranslation } from "react-i18next";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface DailyStockItem {
   id: string;
@@ -32,6 +33,7 @@ const DailyStocks = () => {
   const [dailyStocks, setDailyStocks] = useState<DailyStockItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 400);
   
   // Date filter state - default to 3 days ago to today
   const [startDate, setStartDate] = useState<string>(() => {
@@ -81,10 +83,10 @@ const DailyStocks = () => {
     try {
       setLoading(true);
       // Pass search term to server for efficient server-side filtering
-      const data = await inventoryRepo.dailyHistory({ 
-        start_date: startDate, 
+      const data = await inventoryRepo.dailyHistory({
+        start_date: startDate,
         end_date: endDate,
-        search: searchTerm.trim() || undefined
+        search: debouncedSearchTerm.trim() || undefined
       });
       setDailyStocks((data as any[]) || []);
     } catch (error) {
@@ -92,7 +94,7 @@ const DailyStocks = () => {
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate, searchTerm]);
+  }, [startDate, endDate, debouncedSearchTerm]);
 
   useEffect(() => {
     fetchDailyStocks();
@@ -198,6 +200,7 @@ const DailyStocks = () => {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-7 pr-7 h-7 text-xs"
+                  autoFocus
                 />
                 {searchTerm && (
                   <Button

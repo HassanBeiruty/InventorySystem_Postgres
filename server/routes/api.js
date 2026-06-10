@@ -1253,7 +1253,8 @@ router.get('/invoices/stats', async (req, res) => {
 			productsCount,
 			customersCount,
 			suppliersCount,
-			totalRevenueResult
+			totalRevenueResult,
+			stockValueResult
 		] = await Promise.all([
 			// Today's invoices - only count and sum revenue
 			query(
@@ -1276,10 +1277,15 @@ router.get('/invoices/stats', async (req, res) => {
 			query('SELECT COUNT(*) as count FROM suppliers', []),
 			// Total revenue - use SUM directly in SQL
 			query(
-				`SELECT COALESCE(SUM(total_amount), 0) as revenue 
-				FROM invoices 
+				`SELECT COALESCE(SUM(total_amount), 0) as revenue
+				FROM invoices
 				WHERE invoice_type = 'sell'`,
 				[]
+			),
+			// Total stock value (at cost) - today's snapshot
+			query(
+				'SELECT COALESCE(SUM(available_qty * avg_cost), 0) as stock_value FROM daily_stock WHERE date = $1',
+				[{ today }]
 			)
 		]);
 		
@@ -1293,7 +1299,8 @@ router.get('/invoices/stats', async (req, res) => {
 		const customersCountAll = parseInt(customersCount.recordset[0]?.count || 0);
 		const suppliersCountAll = parseInt(suppliersCount.recordset[0]?.count || 0);
 		const totalRevenue = parseFloat(totalRevenueResult.recordset[0]?.revenue || 0);
-		
+		const totalStockValue = parseFloat(stockValueResult.recordset[0]?.stock_value || 0);
+
 		res.json({
 			// All time stats (for reference)
 			invoicesCount: invoicesCountAll,
@@ -1306,6 +1313,7 @@ router.get('/invoices/stats', async (req, res) => {
 			todayProductsCount: todayProductsCount,
 			todayRevenue: todayRevenue,
 			todayTotalQuantity: todayTotalQuantity,
+			totalStockValue: totalStockValue,
 		});
 	} catch (err) {
 		console.error('Invoice stats error:', err);
@@ -3107,25 +3115,37 @@ router.get('/export/products', authenticateToken, async (req, res) => {
 // Export invoices (supports filtering by date range) - Excel format matching import template
 router.get('/export/invoices', authenticateToken, async (req, res) => {
 	try {
-		const { startDate, endDate, invoice_type } = req.query;
-		
+		const { startDate, endDate, invoice_type, ids } = req.query;
+
 		// Build the WHERE clause based on filters
 		let whereClauses = [];
 		let params = [];
 		let paramIndex = 1;
-		
+
+		if (ids) {
+			const invoiceIds = String(ids)
+				.split(',')
+				.map(id => parseInt(id.trim(), 10))
+				.filter(id => !isNaN(id));
+			if (invoiceIds.length > 0) {
+				whereClauses.push(`i.id = ANY($${paramIndex})`);
+				params.push(invoiceIds);
+				paramIndex++;
+			}
+		}
+
 		if (startDate) {
 			whereClauses.push(`CAST(i.invoice_date AS DATE) >= $${paramIndex}`);
 			params.push(startDate);
 			paramIndex++;
 		}
-		
+
 		if (endDate) {
 			whereClauses.push(`CAST(i.invoice_date AS DATE) <= $${paramIndex}`);
 			params.push(endDate);
 			paramIndex++;
 		}
-		
+
 		if (invoice_type) {
 			whereClauses.push(`i.invoice_type = $${paramIndex}`);
 			params.push(invoice_type);

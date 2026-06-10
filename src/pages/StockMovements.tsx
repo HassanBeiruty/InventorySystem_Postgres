@@ -12,6 +12,7 @@ import { TrendingUp, TrendingDown, Package, Search, X, Calendar, History, Filter
 import { formatDateTimeLebanon, getTodayLebanon, getNDaysAgoLebanon } from "@/utils/dateUtils";
 import { useTranslation } from "react-i18next";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface StockMovement {
   id: string;
@@ -37,7 +38,9 @@ const StockMovements = () => {
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 400);
   const [productIdFilter, setProductIdFilter] = useState<string>("");
+  const debouncedProductIdFilter = useDebounce(productIdFilter, 400);
 
   // Date filter state - default to 3 days ago to today (Lebanon timezone)
   const [startDate, setStartDate] = useState<string>(() => getNDaysAgoLebanon(3));
@@ -45,7 +48,7 @@ const StockMovements = () => {
 
   useEffect(() => {
     fetchStockMovements();
-  }, [startDate, endDate, productIdFilter]);
+  }, [startDate, endDate, debouncedProductIdFilter]);
 
   const fetchStockMovements = async () => {
     try {
@@ -53,7 +56,7 @@ const StockMovements = () => {
       const data = await stockRepo.recent(100, {
         start_date: startDate,
         end_date: endDate,
-        product_id: productIdFilter.trim() || undefined,
+        product_id: debouncedProductIdFilter.trim() || undefined,
       });
       setMovements((data as any[]) || []);
     } catch (error) {
@@ -64,8 +67,8 @@ const StockMovements = () => {
   };
 
   const filteredMovements = movements.filter(movement => {
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+    if (debouncedSearchQuery.trim()) {
+      const q = debouncedSearchQuery.toLowerCase();
       const productName = (movement.products?.name || "").toLowerCase();
       const productBarcode = (movement.products?.barcode || "").toLowerCase();
       const productSku = (movement.products?.sku || "").toLowerCase();
@@ -182,6 +185,7 @@ const StockMovements = () => {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-7 pr-7 h-7 text-xs"
+                  autoFocus
                 />
                 {searchQuery && (
                   <Button

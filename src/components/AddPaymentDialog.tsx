@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { invoicesRepo, exchangeRatesRepo } from "@/integrations/api/repo";
+import InvoiceCombobox from "@/components/InvoiceCombobox";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
 
@@ -257,22 +258,13 @@ export default function AddPaymentDialog({ open, onOpenChange, invoices, onPayme
           {/* Invoice Selection */}
           <div className="space-y-1.5">
             <Label htmlFor="invoice_select" className="text-xs">Select Invoice *</Label>
-            <Select value={selectedInvoiceId} onValueChange={setSelectedInvoiceId}>
-              <SelectTrigger id="invoice_select" className="h-8 text-xs">
-                <SelectValue placeholder="Select an invoice" />
-              </SelectTrigger>
-              <SelectContent>
-                {invoices.map((inv) => {
-                  const entityName = inv.customers?.name || inv.suppliers?.name || "N/A";
-                  const remainingBalance = Number(inv.total_amount || 0) - Number(inv.amount_paid || 0);
-                  return (
-                    <SelectItem key={inv.id} value={String(inv.id)}>
-                      #{inv.id} - {entityName} - ${Number(inv.total_amount || 0).toFixed(2)} (Remaining: ${remainingBalance.toFixed(2)})
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+            <InvoiceCombobox
+              invoices={invoices}
+              value={selectedInvoiceId}
+              onValueChange={setSelectedInvoiceId}
+              placeholder="Select an invoice"
+              className="h-8 text-xs"
+            />
           </div>
 
           {/* Invoice Details */}

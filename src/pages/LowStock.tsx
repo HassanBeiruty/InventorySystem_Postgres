@@ -10,6 +10,7 @@ import { Package, AlertTriangle, Search, X } from "lucide-react";
 import { inventoryRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface LowStockItem {
   id: string | number;
@@ -31,6 +32,7 @@ const LowStock = () => {
   const [threshold, setThreshold] = useState(20);
   const [allInventory, setAllInventory] = useState<LowStockItem[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 400);
 
   useEffect(() => {
     fetchLowStock();
@@ -63,8 +65,8 @@ const LowStock = () => {
   };
 
   const filteredLowStock = lowStockProducts.filter(item => {
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    if (debouncedSearchQuery.trim()) {
+      const query = debouncedSearchQuery.toLowerCase();
       const name = (item.products?.name || "").toLowerCase();
       const barcode = (item.products?.barcode || "").toLowerCase();
       const sku = (item.products?.sku || "").toLowerCase();
@@ -114,6 +116,7 @@ const LowStock = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-8 pr-8 h-8 text-sm"
+            autoFocus
           />
           {searchQuery && (
             <Button

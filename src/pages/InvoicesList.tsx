@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
+import { useDebounce } from "@/hooks/useDebounce";
 
 const InvoicesList = () => {
   const { t } = useTranslation();
@@ -27,7 +28,8 @@ const InvoicesList = () => {
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  
+  const debouncedSearchQuery = useDebounce(searchQuery, 400);
+
   // Date filter state - default to 3 days ago to today (Lebanon timezone)
   const [startDate, setStartDate] = useState<string>(() => getNDaysAgoLebanon(3));
   const [endDate, setEndDate] = useState<string>(getTodayLebanon());
@@ -243,75 +245,6 @@ const InvoicesList = () => {
     fileInputRef.current?.click();
   }, []);
 
-  const handleExportInvoices = useCallback(async () => {
-    try {
-      const token = localStorage.getItem('auth_token');
-      const API_BASE_URL = import.meta.env.VITE_API_URL || '';
-      
-      // Build query parameters from current filters
-      const params = new URLSearchParams();
-      if (startDate) {
-        params.append('startDate', startDate);
-      }
-      if (endDate) {
-        params.append('endDate', endDate);
-      }
-      // Note: invoice_type filter is not currently in the UI, but we can add it if needed
-      
-      const queryString = params.toString();
-      const exportUrl = API_BASE_URL 
-        ? `${API_BASE_URL.replace(/\/$/, '')}/api/export/invoices${queryString ? `?${queryString}` : ''}`
-        : `/api/export/invoices${queryString ? `?${queryString}` : ''}`;
-      
-      const response = await fetch(exportUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to export invoices' }));
-        throw new Error(errorData.error || `Server error: ${response.status}`);
-      }
-      
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      
-      // Generate filename with date range if applicable
-      let filename = 'invoices_export.xlsx';
-      if (startDate || endDate) {
-        const dateStr = startDate && endDate 
-          ? `${startDate}_to_${endDate}`
-          : startDate 
-          ? `from_${startDate}`
-          : `until_${endDate}`;
-        filename = `invoices_export_${dateStr}.xlsx`;
-      }
-      
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(blobUrl);
-      }, 100);
-      
-      toast({
-        title: t('invoices.exportSuccess') || "Success",
-        description: t('invoices.invoicesExported') || "Invoices exported successfully",
-      });
-    } catch (error: any) {
-      toast({
-        title: t('invoices.exportFailed') || "Export Failed",
-        description: error.message || 'Failed to export invoices',
-        variant: "destructive",
-      });
-    }
-  }, [startDate, endDate, toast, t]);
-
   const handleDeleteInvoice = useCallback(async (invoiceId: string) => {
     if (!confirm(t('invoices.confirmDelete') || 'Are you sure you want to delete this invoice? This action cannot be undone.')) {
       return;
@@ -366,8 +299,8 @@ const InvoicesList = () => {
     }
 
     // Search filter (invoice number, entity name, amount, or invoice items)
-    if (searchQuery.trim()) {
-      const searchLower = searchQuery.toLowerCase();
+    if (debouncedSearchQuery.trim()) {
+      const searchLower = debouncedSearchQuery.toLowerCase();
       result = result.filter(inv => {
         const invoiceNumber = inv.id?.toString() || "";
         const entityName = inv.customers?.name || inv.suppliers?.name || "";
@@ -396,7 +329,81 @@ const InvoicesList = () => {
     }
 
     return result;
-  }, [invoices, startDate, endDate, searchQuery]);
+  }, [invoices, startDate, endDate, debouncedSearchQuery]);
+
+  const handleExportInvoices = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+
+      // Build query parameters from current filters
+      const params = new URLSearchParams();
+      if (startDate) {
+        params.append('startDate', startDate);
+      }
+      if (endDate) {
+        params.append('endDate', endDate);
+      }
+      // Note: invoice_type filter is not currently in the UI, but we can add it if needed
+
+      // Restrict export to the invoices currently shown on screen (after search/date filters)
+      if (filteredInvoices.length > 0) {
+        params.append('ids', filteredInvoices.map(inv => inv.id).join(','));
+      }
+
+      const queryString = params.toString();
+      const exportUrl = API_BASE_URL
+        ? `${API_BASE_URL.replace(/\/$/, '')}/api/export/invoices${queryString ? `?${queryString}` : ''}`
+        : `/api/export/invoices${queryString ? `?${queryString}` : ''}`;
+
+      const response = await fetch(exportUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to export invoices' }));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+
+      // Generate filename with date range if applicable
+      let filename = 'invoices_export.xlsx';
+      if (startDate || endDate) {
+        const dateStr = startDate && endDate
+          ? `${startDate}_to_${endDate}`
+          : startDate
+          ? `from_${startDate}`
+          : `until_${endDate}`;
+        filename = `invoices_export_${dateStr}.xlsx`;
+      }
+
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+      }, 100);
+
+      toast({
+        title: t('invoices.exportSuccess') || "Success",
+        description: t('invoices.invoicesExported') || "Invoices exported successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: t('invoices.exportFailed') || "Export Failed",
+        description: error.message || 'Failed to export invoices',
+        variant: "destructive",
+      });
+    }
+  }, [startDate, endDate, filteredInvoices, toast, t]);
 
   // Memoize summary stats to avoid recalculating on every render
   const stats = useMemo(() => ({
@@ -488,6 +495,7 @@ const InvoicesList = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-6 pr-6 h-6 text-[10px]"
+              autoFocus
             />
             {searchQuery && (
               <Button

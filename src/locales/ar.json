@@ -43,6 +43,7 @@
     "totalPurchases": "إجمالي المشتريات",
     "netProfit": "صافي الربح",
     "lowStock": "مخزون منخفض",
+    "stockValue": "قيمة المخزون",
     "recentInvoices": "الفواتير الأخيرة",
     "todayInvoices": "فواتير اليوم",
     "lowStockAlerts": "تنبيهات المخزون المنخفض",

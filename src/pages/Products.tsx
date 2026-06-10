@@ -762,6 +762,7 @@ const Products = () => {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full pl-8 pr-8 h-8 text-sm"
+                        autoFocus
                       />
                       {searchQuery && (
                         <Button

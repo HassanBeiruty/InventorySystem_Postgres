@@ -14,6 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import InvoicePaymentsSidePanel from "@/components/InvoicePaymentsSidePanel";
 import AddPaymentDialog from "@/components/AddPaymentDialog";
+import InvoiceCombobox from "@/components/InvoiceCombobox";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface Payment {
   id: number;
@@ -46,6 +48,7 @@ const InvoicePayments = () => {
     end_date: "",
     search: "",
   });
+  const debouncedSearch = useDebounce(filters.search, 400);
 
   const [showFilters, setShowFilters] = useState(false);
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
@@ -110,9 +113,9 @@ const InvoicePayments = () => {
       });
     }
 
-    if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      filtered = filtered.filter(p => 
+    if (debouncedSearch) {
+      const searchLower = debouncedSearch.toLowerCase();
+      filtered = filtered.filter(p =>
         String(p.invoice_id).includes(searchLower) ||
         (p.customer_name && p.customer_name.toLowerCase().includes(searchLower)) ||
         (p.supplier_name && p.supplier_name.toLowerCase().includes(searchLower)) ||
@@ -122,7 +125,7 @@ const InvoicePayments = () => {
     }
 
     return filtered;
-  }, [payments, filters]);
+  }, [payments, filters, debouncedSearch]);
 
   const clearFilters = useCallback(() => {
     setFilters({
@@ -254,19 +257,13 @@ const InvoicePayments = () => {
 
               <div className="space-y-2">
                 <Label>Invoice</Label>
-                <Select value={filters.invoice_id} onValueChange={(value) => setFilters({...filters, invoice_id: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Invoices" />
-                  </SelectTrigger>
-                  <SelectContent side="bottom" align="start">
-                    <SelectItem value="all">All Invoices</SelectItem>
-                    {invoices.map((invoice) => (
-                      <SelectItem key={invoice.id} value={String(invoice.id)}>
-                        #{invoice.id} - {invoice.customers?.name || invoice.suppliers?.name || 'N/A'}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <InvoiceCombobox
+                  invoices={invoices}
+                  value={filters.invoice_id}
+                  onValueChange={(value) => setFilters({...filters, invoice_id: value})}
+                  includeAllOption
+                  allLabel="All Invoices"
+                />
               </div>
 
               <div className="space-y-2">

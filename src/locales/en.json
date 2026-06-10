@@ -43,6 +43,7 @@
     "totalPurchases": "Total Purchases",
     "netProfit": "Net Profit",
     "lowStock": "Low Stock",
+    "stockValue": "Stock Value",
     "recentInvoices": "Recent Invoices",
     "todayInvoices": "Today Invoices",
     "lowStockAlerts": "Low Stock Alerts",

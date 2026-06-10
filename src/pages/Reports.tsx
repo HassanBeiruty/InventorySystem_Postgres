@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { invoicesRepo, productsRepo, productCostsRepo, customersRepo, suppliersRepo, reportsRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, TrendingUp, TrendingDown, Package, Download, BarChart3, DollarSign, AlertCircle, Calendar, X } from "lucide-react";
+import { FileText, TrendingUp, TrendingDown, Package, Download, BarChart3, DollarSign, AlertCircle, Calendar, X, Warehouse } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
@@ -79,6 +79,7 @@ const Reports = () => {
     totalProducts: 0,
     totalCustomers: 0,
     totalSuppliers: 0,
+    totalStockValue: 0,
   });
   const [productCosts, setProductCosts] = useState<Map<string, number>>(new Map());
   const [monthlyData, setMonthlyData] = useState<any[]>([]);
@@ -389,11 +390,12 @@ const Reports = () => {
   const fetchReports = useCallback(async () => {
     setLoading(true);
     try {
-      const [all, productsResponse, customers, suppliers] = await Promise.all([
+      const [all, productsResponse, customers, suppliers, invoiceStats] = await Promise.all([
         invoicesRepo.listWithRelations(),
         productsRepo.list({ limit: 1000 }),
         customersRepo.list(),
         suppliersRepo.list(),
+        invoicesRepo.stats(),
       ]);
       const products = Array.isArray(productsResponse) ? productsResponse : productsResponse.data;
       
@@ -454,6 +456,7 @@ const Reports = () => {
         totalProducts: (products || []).length,
         totalCustomers: (customers || []).length,
         totalSuppliers: (suppliers || []).length,
+        totalStockValue: invoiceStats?.totalStockValue ?? 0,
       });
       
       // Generate chart data based on selected period
@@ -607,6 +610,7 @@ const Reports = () => {
           ['Total Purchases', `$${summary.totalPurchases.toFixed(2)}`],
           ['Net Profit', `$${summary.netProfit.toFixed(2)}`],
           ['Profit', `$${summary.actualProfit.toFixed(2)}`],
+          ['Stock Value', `$${summary.totalStockValue.toFixed(2)}`],
           ['Total Products', summary.totalProducts.toString()],
           ['Total Customers', summary.totalCustomers.toString()],
           ['Total Suppliers', summary.totalSuppliers.toString()],
@@ -751,8 +755,8 @@ const Reports = () => {
             </CardContent>
           </Card>
         ) : loading ? (
-          <div className="grid gap-2 sm:gap-3 md:grid-cols-4">
-            {Array(4).fill(0).map((_, i) => (
+          <div className="grid gap-2 sm:gap-3 md:grid-cols-5">
+            {Array(5).fill(0).map((_, i) => (
               <Card key={i} className="animate-pulse border-2">
                 <CardHeader className="pb-1.5 p-2"><div className="h-3 w-20 bg-muted rounded"></div></CardHeader>
                 <CardContent className="p-2"><div className="h-6 w-24 bg-muted rounded"></div></CardContent>
@@ -761,8 +765,8 @@ const Reports = () => {
           </div>
         ) : (
           <>
-            <div className="grid gap-2 sm:gap-3 md:grid-cols-4">
-              <Card 
+            <div className="grid gap-2 sm:gap-3 md:grid-cols-5">
+              <Card
                 className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 border-2 cursor-pointer hover:shadow-lg transition-shadow"
                 onClick={handleShowCustomerSales}
               >
@@ -815,6 +819,17 @@ const Reports = () => {
                   <div className="text-base sm:text-lg font-bold text-accent">${summary.actualProfit.toFixed(2)}</div>
                   <p className="text-[10px] sm:text-xs text-muted-foreground">Sum of (quantity × (price - cost)) per item {startDate ? `(${startDate}${endDate ? ` - ${endDate}` : ' - today'})` : '(filtered by date range)'}</p>
                   <p className="text-[9px] text-muted-foreground mt-1 italic">Click to view daily breakdown</p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-br from-success/10 to-success/5 border-success/20 border-2">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-2 px-2.5">
+                  <CardTitle className="text-xs sm:text-sm font-medium">{t('dashboard.stockValue')}</CardTitle>
+                  <Warehouse className="h-4 w-4 text-success" />
+                </CardHeader>
+                <CardContent className="px-2.5 pb-2">
+                  <div className="text-base sm:text-lg font-bold text-success">${summary.totalStockValue.toFixed(2)}</div>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Current stock value at cost (today)</p>
                 </CardContent>
               </Card>
             </div>
