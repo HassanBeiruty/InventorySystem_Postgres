@@ -1417,8 +1417,9 @@ router.put('/invoices/:id', async (req, res) => {
 			const item = items.find(item => parseInt(item.product_id) === productId);
 			if (item) {
 				const change = invoice_type === 'sell' ? -item.quantity : item.quantity;
-				const unitCost = parseFloat(item.unit_price);
-				
+				// Record the effective sold price (private price overrides base unit_price); buys are never private
+				const unitCost = parseFloat(item.is_private_price ? item.private_price_amount : item.unit_price);
+
 				// Call the stored procedure to recalculate - using plain array params
 				await query(
 					'SELECT recalculate_stock_after_invoice($1, $2, $3, $4, $5)',
@@ -1616,8 +1617,9 @@ router.post('/invoices', [
 				newAvgCost = denominator > 0 ? (((prevAvgCost || 0) * (qtyBefore || 0)) + (buyCost * buyQty)) / denominator : buyCost;
 			}
 			
-			const unitCost = parseFloat(item.unit_price);
-			
+			// Record the effective sold price (private price overrides base unit_price); buys are never private
+			const unitCost = parseFloat(item.is_private_price ? item.private_price_amount : item.unit_price);
+
 			// Build invoice items batch insert
 			itemValues.push(`($${itemParamIndex}, $${itemParamIndex + 1}, $${itemParamIndex + 2}, $${itemParamIndex + 3}, $${itemParamIndex + 4}, $${itemParamIndex + 5}, $${itemParamIndex + 6}, $${itemParamIndex + 7}, $${itemParamIndex + 8})`);
 			itemParams.push(
@@ -5659,7 +5661,8 @@ router.post('/invoices/import-excel',
 						newAvgCost = denominator > 0 ? (((prevAvgCost || 0) * (qtyBefore || 0)) + (buyCost * buyQty)) / denominator : buyCost;
 					}
 					
-					const unitCost = parseFloat(item.unit_price);
+					// Record the effective sold price (private price overrides base unit_price); buys are never private
+					const unitCost = parseFloat(item.is_private_price ? item.private_price_amount : item.unit_price);
 
 					// Build invoice items batch insert
 					itemValues.push(`($${itemParamIndex}, $${itemParamIndex + 1}, $${itemParamIndex + 2}, $${itemParamIndex + 3}, $${itemParamIndex + 4}, $${itemParamIndex + 5}, $${itemParamIndex + 6}, $${itemParamIndex + 7}, $${itemParamIndex + 8})`);

@@ -219,6 +219,59 @@ BEGIN
 END $$;`
 	},
 	{
+		name: 'backfill_stock_movements_private_price',
+		sql: `-- One-time backfill: sell stock_movements created before the private-price fix stored the
+-- base list price in unit_cost instead of the actual sold (private) price. Correct those rows.
+-- This is display-only data (sell unit_cost is never used in avg-cost or profit math), so it is safe.
+--
+-- Self-guarding: runs exactly once, keyed on the existence of the backup table. The backup table
+-- (stock_movements_unitcost_backup) captures the original value of every changed row so the fix
+-- can be rolled back. It is intentionally NOT dropped automatically — drop it manually once the
+-- data looks correct.
+--
+-- ROLLBACK (run manually if data looks inconsistent):
+--   UPDATE stock_movements sm
+--   SET unit_cost = b.old_unit_cost
+--   FROM stock_movements_unitcost_backup b
+--   WHERE sm.id = b.movement_id;
+-- CLEANUP (run once you are confident):
+--   DROP TABLE stock_movements_unitcost_backup;
+DO $$
+DECLARE
+	v_count INT;
+BEGIN
+	IF to_regclass('public.stock_movements_unitcost_backup') IS NULL THEN
+		-- 1) Snapshot the rows we are about to change (private-price sells with a wrong unit_cost)
+		CREATE TABLE stock_movements_unitcost_backup AS
+		SELECT sm.id AS movement_id,
+			   sm.invoice_id,
+			   sm.product_id,
+			   sm.unit_cost AS old_unit_cost,
+			   ii.private_price_amount AS new_unit_cost,
+			   now() AS backed_up_at
+		FROM stock_movements sm
+		JOIN invoice_items ii
+		  ON ii.invoice_id = sm.invoice_id
+		 AND ii.product_id = sm.product_id
+		WHERE ii.is_private_price = TRUE
+		  AND ii.private_price_amount IS NOT NULL
+		  AND sm.quantity_change < 0
+		  AND sm.unit_cost IS DISTINCT FROM ii.private_price_amount;
+
+		-- 2) Apply the correction from the snapshot (1:1 by movement id)
+		UPDATE stock_movements sm
+		SET unit_cost = b.new_unit_cost
+		FROM stock_movements_unitcost_backup b
+		WHERE sm.id = b.movement_id;
+
+		SELECT count(*) INTO v_count FROM stock_movements_unitcost_backup;
+		RAISE NOTICE 'Backfilled unit_cost for % private-price sell movement(s); backup kept in stock_movements_unitcost_backup', v_count;
+	ELSE
+		RAISE NOTICE 'Skipping private-price backfill: stock_movements_unitcost_backup already exists';
+	END IF;
+END $$;`
+	},
+	{
 		name: 'invoice_payments',
 		sql: `CREATE TABLE IF NOT EXISTS invoice_payments (
 	id SERIAL PRIMARY KEY,
