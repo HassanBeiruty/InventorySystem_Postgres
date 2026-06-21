@@ -300,23 +300,30 @@ const Reports = () => {
     }
   }, [toast]);
 
-  const handleShowDailyProfit = useCallback(async () => {
-    // Determine effective date range - use filtered dates or default to last 30 days
-    let effectiveStartDate: string;
-    let effectiveEndDate: string;
-    
+  // Single source of truth for the "Profit" date range. Both the Profit card
+  // (actualProfit) and the daily-breakdown dialog use this so they always agree:
+  // - filter set    -> [startDate, endDate || today]
+  // - filter cleared -> last 30 days
+  const getProfitRange = useCallback((): { start: string; end: string } => {
     if (startDate && startDate !== "") {
-      effectiveStartDate = startDate;
-      effectiveEndDate = (endDate && endDate !== "") ? endDate : getTodayLebanon();
-    } else {
-      // Default to last 30 days if no date range is set
-      const today = new Date();
-      const thirtyDaysAgo = new Date(today);
-      thirtyDaysAgo.setDate(today.getDate() - 30);
-      effectiveStartDate = formatDateForComparison(thirtyDaysAgo);
-      effectiveEndDate = formatDateForComparison(today);
+      return {
+        start: startDate,
+        end: (endDate && endDate !== "") ? endDate : getTodayLebanon(),
+      };
     }
-    
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+    return {
+      start: formatDateForComparison(thirtyDaysAgo),
+      end: formatDateForComparison(today),
+    };
+  }, [startDate, endDate, formatDateForComparison]);
+
+  const handleShowDailyProfit = useCallback(async () => {
+    // Use the same effective range as the Profit card (see getProfitRange)
+    const { start: effectiveStartDate, end: effectiveEndDate } = getProfitRange();
+
     // Parse dates correctly (YYYY-MM-DD format)
     const startParts = effectiveStartDate.split('-');
     const endParts = effectiveEndDate.split('-');
@@ -385,7 +392,7 @@ const Reports = () => {
     } finally {
       setDailyProfitLoading(false);
     }
-  }, [startDate, endDate, toast, formatDateForComparison]);
+  }, [getProfitRange, toast, formatDateForComparison]);
 
   const fetchReports = useCallback(async () => {
     setLoading(true);
@@ -399,11 +406,13 @@ const Reports = () => {
       ]);
       const products = Array.isArray(productsResponse) ? productsResponse : productsResponse.data;
       
-      // Total Sales and Total Purchases: Always calculate from ALL invoices (since inception), NOT filtered by date
-      const allSales = (all || []).filter((i: any) => i.invoice_type === "sell");
-      const allPurchases = (all || []).filter((i: any) => i.invoice_type === "buy");
-      const totalSales = allSales.reduce((sum: number, inv: any) => sum + Number(inv.total_amount), 0) || 0;
-      const totalPurchases = allPurchases.reduce((sum: number, inv: any) => sum + Number(inv.total_amount), 0) || 0;
+      // Total Sales and Total Purchases: Always all-time (since inception), NOT filtered by date.
+      // These come from server-side SUM aggregation (invoicesRepo.stats) so they cover EVERY
+      // invoice. (The invoicesRepo.listWithRelations() result is paginated/capped on the server,
+      // so it must NOT be used to compute all-time totals — that previously undercounted the cards
+      // and made them disagree with the customer/supplier breakdown dialogs.)
+      const totalSales = invoiceStats?.revenue ?? 0;
+      const totalPurchases = invoiceStats?.totalPurchases ?? 0;
       
       // Filter invoices by date range (only for charts and other filtered views, NOT for total sales/purchases)
       const filteredAll = filterByDateRange(all || []);
@@ -422,28 +431,21 @@ const Reports = () => {
       }
       setProductCosts(costsMap);
       
-      // Calculate net profit using stored procedure (get_net_profit) - same logic as manual invoice creation
-      // This uses daily_stock to get cost at invoice date for accurate profit calculation
+      // "Profit" card: COGS-based profit from the stored procedure (get_net_profit) -
+      // same cost logic as manual invoice creation (uses daily_stock cost at invoice date).
+      // Always computed over the SAME effective range as the daily-breakdown dialog
+      // (see getProfitRange) so the card and dialog always agree. We never fall back to
+      // the cash-basis (totalSales - totalPurchases) figure here, because that is the
+      // separate "Net Profit" card and mixing them made "Profit" change meaning when the
+      // date filter was cleared.
       let actualProfit = 0;
-      let netProfitRevenue = 0;
-      let netProfitCost = 0;
+      const { start: profitStart, end: profitEnd } = getProfitRange();
       try {
-        // Use stored procedure to calculate net profit if startDate is provided
-        // If endDate is empty, default to today
-        const effectiveEndDate = (endDate && endDate !== "") ? endDate : getTodayLebanon();
-        
-        if (startDate && startDate !== "") {
-          const netProfitResult = await reportsRepo.getNetProfit(startDate, effectiveEndDate);
-          actualProfit = parseFloat(String(netProfitResult.net_profit)) || 0;
-          netProfitRevenue = parseFloat(String(netProfitResult.total_revenue)) || 0;
-          netProfitCost = parseFloat(String(netProfitResult.total_cost)) || 0;
-        } else {
-          // Fallback: if no date range, use simple calculation
-          actualProfit = totalSales - totalPurchases;
-        }
+        const netProfitResult = await reportsRepo.getNetProfit(profitStart, profitEnd);
+        actualProfit = parseFloat(String(netProfitResult.net_profit)) || 0;
       } catch (e) {
         console.error('Failed to calculate net profit using stored procedure:', e);
-        // Fallback to simple calculation if stored procedure fails
+        // Last-resort fallback only on RPC failure
         actualProfit = totalSales - totalPurchases;
       }
 
@@ -511,7 +513,7 @@ const Reports = () => {
     } finally {
       setLoading(false);
     }
-  }, [toast, t, startDate, endDate, chartPeriod, filterByDateRange, generateChartData]);
+  }, [toast, t, startDate, endDate, chartPeriod, filterByDateRange, generateChartData, getProfitRange]);
 
   // Initialize date filters: startDate = min sell invoice date, endDate = today
   // If min date is more than 3 months ago, use 2.5 months before today instead
@@ -817,7 +819,7 @@ const Reports = () => {
                 </CardHeader>
                 <CardContent className="px-2.5 pb-2">
                   <div className="text-base sm:text-lg font-bold text-accent">${summary.actualProfit.toFixed(2)}</div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground">Sum of (quantity × (price - cost)) per item {startDate ? `(${startDate}${endDate ? ` - ${endDate}` : ' - today'})` : '(filtered by date range)'}</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Sum of (quantity × (price - cost)) per item {startDate ? `(${startDate} - ${endDate || 'today'})` : '(last 30 days)'}</p>
                   <p className="text-[9px] text-muted-foreground mt-1 italic">Click to view daily breakdown</p>
                 </CardContent>
               </Card>

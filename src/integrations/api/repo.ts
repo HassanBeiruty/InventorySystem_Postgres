@@ -299,7 +299,7 @@ export const invoicesRepo = {
     return fetchJson(`/api/invoices/recent/${limit}`);
   },
   async stats() {
-    return fetchJson<{ invoicesCount: number; productsCount: number; customersCount: number; suppliersCount: number; revenue: number; totalStockValue: number }>(`/api/invoices/stats`);
+    return fetchJson<{ invoicesCount: number; productsCount: number; customersCount: number; suppliersCount: number; revenue: number; totalPurchases: number; totalStockValue: number }>(`/api/invoices/stats`);
   },
   async createInvoice(input: {
     invoice_type: "buy" | "sell";

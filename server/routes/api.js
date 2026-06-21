@@ -1254,6 +1254,7 @@ router.get('/invoices/stats', async (req, res) => {
 			customersCount,
 			suppliersCount,
 			totalRevenueResult,
+			totalPurchasesResult,
 			stockValueResult
 		] = await Promise.all([
 			// Today's invoices - only count and sum revenue
@@ -1275,11 +1276,18 @@ router.get('/invoices/stats', async (req, res) => {
 			query('SELECT COUNT(*) as count FROM products', []),
 			query('SELECT COUNT(*) as count FROM customers', []),
 			query('SELECT COUNT(*) as count FROM suppliers', []),
-			// Total revenue - use SUM directly in SQL
+			// Total revenue (all-time sell invoices) - use SUM directly in SQL
 			query(
 				`SELECT COALESCE(SUM(total_amount), 0) as revenue
 				FROM invoices
 				WHERE invoice_type = 'sell'`,
+				[]
+			),
+			// Total purchases (all-time buy invoices) - use SUM directly in SQL
+			query(
+				`SELECT COALESCE(SUM(total_amount), 0) as purchases
+				FROM invoices
+				WHERE invoice_type = 'buy'`,
 				[]
 			),
 			// Total stock value (at cost) - today's snapshot
@@ -1299,6 +1307,7 @@ router.get('/invoices/stats', async (req, res) => {
 		const customersCountAll = parseInt(customersCount.recordset[0]?.count || 0);
 		const suppliersCountAll = parseInt(suppliersCount.recordset[0]?.count || 0);
 		const totalRevenue = parseFloat(totalRevenueResult.recordset[0]?.revenue || 0);
+		const totalPurchases = parseFloat(totalPurchasesResult.recordset[0]?.purchases || 0);
 		const totalStockValue = parseFloat(stockValueResult.recordset[0]?.stock_value || 0);
 
 		res.json({
@@ -1308,6 +1317,7 @@ router.get('/invoices/stats', async (req, res) => {
 			customersCount: customersCountAll,
 			suppliersCount: suppliersCountAll,
 			revenue: totalRevenue,
+			totalPurchases: totalPurchases,
 			// Today's live data
 			todayInvoicesCount: todayInvoicesCount,
 			todayProductsCount: todayProductsCount,
@@ -3433,21 +3443,24 @@ router.get('/admin/health', authenticateToken, requireAdmin, async (req, res) =>
 // Get supplier purchases breakdown (all-time totals per supplier)
 router.get('/reports/supplier-purchases', authenticateToken, async (req, res) => {
 	try {
-		// Get all buy invoices grouped by supplier with totals
+		// Get all buy invoices grouped by supplier with totals.
+		// Start FROM invoices so buy invoices without a linked supplier are still
+		// counted (grouped as "No Supplier"); this keeps the dialog total equal to
+		// the all-time Total Purchases card.
 		const result = await query(
-			`SELECT 
+			`SELECT
 				s.id as supplier_id,
-				s.name as supplier_name,
+				COALESCE(s.name, 'No Supplier') as supplier_name,
 				COALESCE(SUM(i.total_amount), 0) as total_purchases,
 				COUNT(i.id) as invoice_count
-			FROM suppliers s
-			LEFT JOIN invoices i ON i.supplier_id = s.id AND i.invoice_type = 'buy'
+			FROM invoices i
+			LEFT JOIN suppliers s ON i.supplier_id = s.id
+			WHERE i.invoice_type = 'buy'
 			GROUP BY s.id, s.name
-			HAVING COALESCE(SUM(i.total_amount), 0) > 0
 			ORDER BY total_purchases DESC`,
 			[]
 		);
-		
+
 		res.json(result.recordset.map(row => ({
 			supplier_id: row.supplier_id,
 			supplier_name: row.supplier_name,
@@ -3492,21 +3505,24 @@ router.get('/reports/min-sell-date', authenticateToken, async (req, res) => {
 // Get customer sales breakdown (all-time totals per customer)
 router.get('/reports/customer-sales', authenticateToken, async (req, res) => {
 	try {
-		// Get all sell invoices grouped by customer with totals
+		// Get all sell invoices grouped by customer with totals.
+		// Start FROM invoices so sell invoices without a linked customer are still
+		// counted (grouped as "No Customer"); this keeps the dialog total equal to
+		// the all-time Total Sales card.
 		const result = await query(
-			`SELECT 
+			`SELECT
 				c.id as customer_id,
-				c.name as customer_name,
+				COALESCE(c.name, 'No Customer') as customer_name,
 				COALESCE(SUM(i.total_amount), 0) as total_sales,
 				COUNT(i.id) as invoice_count
-			FROM customers c
-			LEFT JOIN invoices i ON i.customer_id = c.id AND i.invoice_type = 'sell'
+			FROM invoices i
+			LEFT JOIN customers c ON i.customer_id = c.id
+			WHERE i.invoice_type = 'sell'
 			GROUP BY c.id, c.name
-			HAVING COALESCE(SUM(i.total_amount), 0) > 0
 			ORDER BY total_sales DESC`,
 			[]
 		);
-		
+
 		res.json(result.recordset.map(row => ({
 			customer_id: row.customer_id,
 			customer_name: row.customer_name,
