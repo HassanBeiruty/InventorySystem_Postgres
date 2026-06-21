@@ -283,6 +283,11 @@ const Packages = () => {
                                 className="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
                               >
                                 {c.name}
+                                {(c.barcode || c.sku) && (
+                                  <span className="ml-1 font-mono font-normal text-primary/70">
+                                    {c.barcode || c.sku}
+                                  </span>
+                                )}
                               </span>
                             ))}
                           </div>

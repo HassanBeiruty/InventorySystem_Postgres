@@ -1061,46 +1061,50 @@ const InvoiceForm = () => {
                 </div>
               </div>
               
-              <div className="flex items-center gap-2 pt-2 border-t mt-2">
-                <input
-                  type="checkbox"
-                  id="paid-directly"
-                  checked={paidDirectly}
-                  onChange={(e) => {
-                    setPaidDirectly(e.target.checked);
-                    if (e.target.checked) setPartialPaidAmount(0);
-                  }}
-                  className="rounded border-input w-4 h-4"
-                  disabled={isEditMode}
-                />
-                <Label htmlFor="paid-directly" className="cursor-pointer text-[10px] sm:text-xs font-medium">
-                  💰 Mark as paid directly (invoice will be fully paid on creation)
-                </Label>
+              <div className="flex items-center justify-between gap-2 pt-2 border-t mt-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="paid-directly"
+                    checked={paidDirectly}
+                    onChange={(e) => {
+                      setPaidDirectly(e.target.checked);
+                      if (e.target.checked) setPartialPaidAmount(0);
+                    }}
+                    className="rounded border-input w-4 h-4"
+                    disabled={isEditMode}
+                  />
+                  <Label htmlFor="paid-directly" className="cursor-pointer text-[10px] sm:text-xs font-medium">
+                    💰 Mark as paid directly (invoice will be fully paid on creation)
+                  </Label>
+                </div>
+                {!isEditMode && !paidDirectly && (
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="partial-paid-amount" className="text-[10px] sm:text-xs font-medium whitespace-nowrap">
+                      Partial paid (USD)
+                    </Label>
+                    <Input
+                      id="partial-paid-amount"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      max={calculateTotal()}
+                      value={partialPaidAmount === 0 ? "" : partialPaidAmount}
+                      onChange={(e) => setPartialPaidAmount(parseFloat(e.target.value) || 0)}
+                      placeholder="0.00"
+                      className="w-28 h-8 text-xs"
+                    />
+                  </div>
+                )}
               </div>
               {!isEditMode && !paidDirectly && (
-                <div className="mt-2 pl-6 space-y-1">
-                  <Label htmlFor="partial-paid-amount" className="text-[10px] sm:text-xs font-medium">
-                    Partial paid amount (USD)
-                  </Label>
-                  <Input
-                    id="partial-paid-amount"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    max={calculateTotal()}
-                    value={partialPaidAmount === 0 ? "" : partialPaidAmount}
-                    onChange={(e) => setPartialPaidAmount(parseFloat(e.target.value) || 0)}
-                    placeholder="0.00"
-                    className="w-full h-8 text-xs"
-                  />
-                  <p className="text-[9px] text-muted-foreground">
-                    {partialPaidAmount > 0
-                      ? partialPaidAmount >= calculateTotal()
-                        ? `⚠️ Must be less than the total ($${calculateTotal().toFixed(2)})`
-                        : `🟡 Invoice will be marked partially paid ($${partialPaidAmount.toFixed(2)} of $${calculateTotal().toFixed(2)})`
-                      : "Leave as 0 for an unpaid (pending) invoice"}
-                  </p>
-                </div>
+                <p className="mt-1 text-[9px] text-muted-foreground">
+                  {partialPaidAmount > 0
+                    ? partialPaidAmount >= calculateTotal()
+                      ? `⚠️ Must be less than the total ($${calculateTotal().toFixed(2)})`
+                      : `🟡 Invoice will be marked partially paid ($${partialPaidAmount.toFixed(2)} of $${calculateTotal().toFixed(2)})`
+                    : "Leave as 0 for an unpaid (pending) invoice"}
+                </p>
               )}
               {isEditMode && (
                 <div className="mt-1">
