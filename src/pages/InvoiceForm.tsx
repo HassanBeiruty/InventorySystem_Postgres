@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, ChevronUp, ChevronDown, Package, AlertTriangle, Search, X } from "lucide-react";
-import { productsRepo, customersRepo, suppliersRepo, invoicesRepo, productPricesRepo, inventoryRepo } from "@/integrations/api/repo";
+import { productsRepo, customersRepo, suppliersRepo, invoicesRepo, productPricesRepo, inventoryRepo, packagesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { normalizeBarcodeOrSku, normalizeBarcodeOrSkuForSearch } from "@/utils/barcodeSkuUtils";
@@ -64,6 +64,8 @@ const InvoiceForm = () => {
     }, 50);
   }, [location.pathname, isEditMode]);
   const [products, setProducts] = useState<any[]>([]);
+  // Map of package product id -> ordered list of component product ids
+  const [packagesMap, setPackagesMap] = useState<Map<string, string[]>>(new Map());
   const [latestPrices, setLatestPrices] = useState<Record<string, { wholesale_price: number | null; retail_price: number | null }>>({});
   const [customers, setCustomers] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
@@ -86,6 +88,7 @@ const InvoiceForm = () => {
   const [selectedEntity, setSelectedEntity] = useState("");
   const [dueDate, setDueDate] = useState<string>("");
   const [paidDirectly, setPaidDirectly] = useState<boolean>(true);
+  const [partialPaidAmount, setPartialPaidAmount] = useState<number>(0);
   const [barcodeInput, setBarcodeInput] = useState("");
   const [activeItemIndex, setActiveItemIndex] = useState<number>(0);
   const [productSearchQuery, setProductSearchQuery] = useState<Record<number, string>>({});
@@ -108,14 +111,21 @@ const InvoiceForm = () => {
     
     const initializeData = async () => {
       try {
-        const [prodsResponse, custs, supps, latest, stockData] = await Promise.all([
+        const [prodsResponse, custs, supps, latest, stockData, pkgs] = await Promise.all([
           productsRepo.list({ limit: 1000 }),
           customersRepo.list(),
           suppliersRepo.list(),
           productPricesRepo.latestAll(),
           invoiceType === 'sell' ? inventoryRepo.today() : Promise.resolve([]),
+          packagesRepo.list().catch(() => []),
         ]);
         const prods = Array.isArray(prodsResponse) ? prodsResponse : prodsResponse.data;
+
+        // Build package map: package product id -> component product ids
+        const pkgMap = new Map<string, string[]>();
+        (pkgs || []).forEach((pkg: any) => {
+          pkgMap.set(String(pkg.package_product_id), (pkg.components || []).map((c: any) => String(c.component_product_id)));
+        });
         
                 // Don't update state if component unmounted
         if (cancelled) return;
@@ -154,6 +164,7 @@ const InvoiceForm = () => {
         }
 
         setProducts(prods || []);
+        setPackagesMap(pkgMap);
         setCustomers(customersList);
         setSuppliers(supps || []);
         
@@ -345,6 +356,48 @@ const InvoiceForm = () => {
     }
   };
 
+  // Build a fresh invoice item row for a product, applying default pricing
+  // exactly like a manual product selection (retail price for sell, 0 for buy).
+  const buildRowForProduct = (productId: string): InvoiceItem => {
+    let unitPrice = 0;
+    const priceType: 'retail' | 'wholesale' = invoiceType === 'sell' ? 'retail' : 'wholesale';
+    if (invoiceType === 'sell') {
+      const lp = latestPrices[productId];
+      unitPrice = lp?.retail_price != null ? Number(lp.retail_price) : 0;
+    }
+    return {
+      product_id: productId,
+      quantity: 1,
+      unit_price: unitPrice,
+      price_type: priceType,
+      total_price: unitPrice,
+      is_private_price: false,
+      private_price_amount: 0,
+      private_price_note: "",
+      barcode: "",
+    };
+  };
+
+  // Given a package product id, return new rows for each component product that
+  // isn't already present in the provided items list (avoids duplicate rows).
+  const getPackageComponentRows = (packageProductId: string, existingItems: InvoiceItem[]): InvoiceItem[] => {
+    // Packages only expand on SELL invoices (you sell a package = sell its components).
+    // On BUY invoices you purchase individual products, so no expansion.
+    if (invoiceType !== 'sell') return [];
+    const componentIds = packagesMap.get(String(packageProductId));
+    if (!componentIds || componentIds.length === 0) return [];
+    const presentIds = new Set(
+      existingItems.filter(i => i.product_id).map(i => String(i.product_id))
+    );
+    const rows: InvoiceItem[] = [];
+    for (const cid of componentIds) {
+      if (presentIds.has(String(cid))) continue;
+      presentIds.add(String(cid));
+      rows.push(buildRowForProduct(String(cid)));
+    }
+    return rows;
+  };
+
   const handleProductChange = (index: number, productId: string) => {
     const product = products.find(p => String(p.id) === productId || p.id === productId);
     if (product) {
@@ -393,7 +446,17 @@ const InvoiceForm = () => {
         ? newItems[index].private_price_amount 
         : newItems[index].unit_price;
       newItems[index].total_price = effectivePrice * newItems[index].quantity;
-      setItems(newItems);
+
+      // If the selected product is a package, append a row for each component product
+      const componentRows = getPackageComponentRows(productId, newItems);
+      setItems([...newItems, ...componentRows]);
+
+      if (componentRows.length > 0) {
+        toast({
+          title: "Package added",
+          description: `Added ${componentRows.length} component product(s) from "${product.name}".`,
+        });
+      }
     }
   };
 
@@ -484,10 +547,14 @@ const InvoiceForm = () => {
       }
     }
 
+    // Pre-compute package component rows for the toast message
+    const packageComponentCount = getPackageComponentRows(productIdStr, items).length;
+
     setItems(prevItems => {
       // Find first empty line (where product_id is empty)
       const emptyIndex = prevItems.findIndex(item => !item.product_id);
-      
+
+      let base: InvoiceItem[];
       if (emptyIndex >= 0) {
         // Use existing empty line
         const updated = [...prevItems];
@@ -504,7 +571,7 @@ const InvoiceForm = () => {
           barcode: "",
         };
         setActiveItemIndex(emptyIndex);
-        return updated;
+        base = updated;
       } else {
         // No empty line - create new one at top
         const newItem: InvoiceItem = {
@@ -519,9 +586,20 @@ const InvoiceForm = () => {
           barcode: "",
         };
         setActiveItemIndex(0);
-        return [newItem, ...prevItems];
+        base = [newItem, ...prevItems];
       }
+
+      // If the scanned product is a package, append a row for each component product
+      const componentRows = getPackageComponentRows(productIdStr, base);
+      return [...base, ...componentRows];
     });
+
+    if (packageComponentCount > 0) {
+      toast({
+        title: "Package added",
+        description: `Added ${packageComponentCount} component product(s) from "${product.name}".`,
+      });
+    }
     setBarcodeInput("");
     setTimeout(() => {
       barcodeInputRef.current?.focus();
@@ -785,6 +863,27 @@ const InvoiceForm = () => {
       }
     }
 
+    // Validate partial payment amount (only for new invoices that are not paid directly)
+    if (!isEditMode && !paidDirectly && partialPaidAmount > 0) {
+      const totalAmount = calculateTotal();
+      if (partialPaidAmount < 0) {
+        toast({
+          title: "Invalid Partial Payment",
+          description: "Partial paid amount cannot be negative.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (partialPaidAmount >= totalAmount) {
+        toast({
+          title: "Invalid Partial Payment",
+          description: `Partial paid amount must be less than the total amount ($${totalAmount.toFixed(2)}). To fully pay the invoice, use "Mark as paid directly".`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
@@ -795,6 +894,8 @@ const InvoiceForm = () => {
         total_amount: calculateTotal(),
         due_date: dueDate || null,
         paid_directly: !isEditMode ? paidDirectly : false, // Only apply to new invoices
+        // Partial payment only applies to new invoices that are not paid directly
+        partial_paid_amount: !isEditMode && !paidDirectly ? partialPaidAmount : 0,
         items: validItems.map((item) => ({
           product_id: item.product_id,
           quantity: item.quantity,
@@ -965,7 +1066,10 @@ const InvoiceForm = () => {
                   type="checkbox"
                   id="paid-directly"
                   checked={paidDirectly}
-                  onChange={(e) => setPaidDirectly(e.target.checked)}
+                  onChange={(e) => {
+                    setPaidDirectly(e.target.checked);
+                    if (e.target.checked) setPartialPaidAmount(0);
+                  }}
                   className="rounded border-input w-4 h-4"
                   disabled={isEditMode}
                 />
@@ -973,6 +1077,31 @@ const InvoiceForm = () => {
                   💰 Mark as paid directly (invoice will be fully paid on creation)
                 </Label>
               </div>
+              {!isEditMode && !paidDirectly && (
+                <div className="mt-2 pl-6 space-y-1">
+                  <Label htmlFor="partial-paid-amount" className="text-[10px] sm:text-xs font-medium">
+                    Partial paid amount (USD)
+                  </Label>
+                  <Input
+                    id="partial-paid-amount"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    max={calculateTotal()}
+                    value={partialPaidAmount === 0 ? "" : partialPaidAmount}
+                    onChange={(e) => setPartialPaidAmount(parseFloat(e.target.value) || 0)}
+                    placeholder="0.00"
+                    className="w-full h-8 text-xs"
+                  />
+                  <p className="text-[9px] text-muted-foreground">
+                    {partialPaidAmount > 0
+                      ? partialPaidAmount >= calculateTotal()
+                        ? `⚠️ Must be less than the total ($${calculateTotal().toFixed(2)})`
+                        : `🟡 Invoice will be marked partially paid ($${partialPaidAmount.toFixed(2)} of $${calculateTotal().toFixed(2)})`
+                      : "Leave as 0 for an unpaid (pending) invoice"}
+                  </p>
+                </div>
+              )}
               {isEditMode && (
                 <div className="mt-1">
                   <p className="text-[9px] text-muted-foreground">
@@ -1119,15 +1248,25 @@ const InvoiceForm = () => {
                                 // Always return JSX (SelectItem components), never raw product objects
                                 return filteredProducts.map((product) => {
                                   const identifier = product.barcode || product.sku || null;
+                                  // Packages only matter on SELL invoices
+                                  const isPackage = invoiceType === 'sell' && packagesMap.has(String(product.id));
                                   return (
                                     <SelectItem key={product.id} value={String(product.id)}>
-                                      <ProductNameWithCode 
-                                        product={product}
-                                        showId={true}
-                                        id={product.id}
-                                        nameClassName=""
-                                        codeClassName="text-muted-foreground text-xs ml-2"
-                                      />
+                                      <span className="flex items-center gap-1.5">
+                                        <ProductNameWithCode
+                                          product={product}
+                                          showId={true}
+                                          id={product.id}
+                                          nameClassName=""
+                                          codeClassName="text-muted-foreground text-xs ml-2"
+                                        />
+                                        {isPackage && (
+                                          <span className="inline-flex items-center gap-0.5 rounded bg-primary/15 px-1 py-0.5 text-[9px] font-semibold text-primary">
+                                            <Package className="w-2.5 h-2.5" />
+                                            Package
+                                          </span>
+                                        )}
+                                      </span>
                                     </SelectItem>
                                   );
                                 });

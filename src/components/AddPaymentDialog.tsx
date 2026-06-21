@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -58,6 +58,18 @@ export default function AddPaymentDialog({ open, onOpenChange, invoices, onPayme
   const [fetchingRate, setFetchingRate] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("");
   const [notes, setNotes] = useState("");
+
+  // Exclude fully paid invoices — they have no remaining balance to pay.
+  const unpaidInvoices = useMemo(
+    () =>
+      (invoices || []).filter((inv) => {
+        if (inv?.payment_status === "paid") return false;
+        const remaining =
+          parseFloat(String(inv?.total_amount || 0)) - parseFloat(String(inv?.amount_paid || 0));
+        return remaining > 0;
+      }),
+    [invoices],
+  );
 
   useEffect(() => {
     if (!open) {
@@ -259,7 +271,7 @@ export default function AddPaymentDialog({ open, onOpenChange, invoices, onPayme
           <div className="space-y-1.5">
             <Label htmlFor="invoice_select" className="text-xs">Select Invoice *</Label>
             <InvoiceCombobox
-              invoices={invoices}
+              invoices={unpaidInvoices}
               value={selectedInvoiceId}
               onValueChange={setSelectedInvoiceId}
               placeholder="Select an invoice"

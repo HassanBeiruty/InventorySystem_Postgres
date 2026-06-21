@@ -276,6 +276,41 @@ export const productsRepo = {
   },
 };
 
+export interface PackageComponent {
+  component_product_id: number;
+  name: string;
+  barcode: string | null;
+  sku: string | null;
+}
+
+export interface PackageEntity {
+  package_product_id: number;
+  package_name: string;
+  package_barcode: string | null;
+  package_sku: string | null;
+  components: PackageComponent[];
+}
+
+export const packagesRepo = {
+  async list(): Promise<PackageEntity[]> {
+    return fetchJson<PackageEntity[]>(`/api/packages`);
+  },
+  async get(productId: string | number): Promise<{ package_product_id: number; components: PackageComponent[] }> {
+    return fetchJson(`/api/packages/${productId}`);
+  },
+  async save(productId: string | number, componentProductIds: Array<string | number>): Promise<{ package_product_id: number; component_count: number }> {
+    return fetchJson(`/api/packages/${productId}`, {
+      method: "PUT",
+      body: JSON.stringify({ components: componentProductIds.map((id) => ({ component_product_id: Number(id) })) }),
+    });
+  },
+  async delete(productId: string | number): Promise<{ success: boolean; package_product_id: number }> {
+    return fetchJson(`/api/packages/${productId}`, {
+      method: "DELETE",
+    });
+  },
+};
+
 export type InvoiceCreateItem = {
   product_id: string;
   quantity: number;
@@ -308,6 +343,8 @@ export const invoicesRepo = {
     total_amount: number;
     due_date?: string | null;
     items: InvoiceCreateItem[];
+    paid_directly?: boolean;
+    partial_paid_amount?: number;
   }) {
     return fetchJson<{ id: string; invoice_date: string }>(`/api/invoices`, {
       method: "POST",

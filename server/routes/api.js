@@ -986,6 +986,162 @@ router.delete('/products/:id', [
 	}
 });
 
+// ===== PACKAGES =====
+// A "package" is any product that has one or more component products defined in
+// product_package_items. When a package product is added to an invoice, the UI
+// automatically appends a row for each component product.
+
+// List all packages with their component products
+router.get('/packages', async (req, res) => {
+	try {
+		const result = await query(
+			`SELECT
+				ppi.package_product_id,
+				pp.name AS package_name,
+				pp.barcode AS package_barcode,
+				pp.sku AS package_sku,
+				ppi.component_product_id,
+				cp.name AS component_name,
+				cp.barcode AS component_barcode,
+				cp.sku AS component_sku
+			FROM product_package_items ppi
+			JOIN products pp ON pp.id = ppi.package_product_id
+			JOIN products cp ON cp.id = ppi.component_product_id
+			ORDER BY pp.name ASC, ppi.id ASC`,
+			[]
+		);
+
+		// Group rows by package
+		const packagesMap = new Map();
+		for (const row of result.recordset) {
+			const pid = row.package_product_id;
+			if (!packagesMap.has(pid)) {
+				packagesMap.set(pid, {
+					package_product_id: pid,
+					package_name: row.package_name,
+					package_barcode: row.package_barcode,
+					package_sku: row.package_sku,
+					components: [],
+				});
+			}
+			packagesMap.get(pid).components.push({
+				component_product_id: row.component_product_id,
+				name: row.component_name,
+				barcode: row.component_barcode,
+				sku: row.component_sku,
+			});
+		}
+
+		res.json(Array.from(packagesMap.values()));
+	} catch (err) {
+		console.error('List packages error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Get a single package's component products
+router.get('/packages/:productId', [
+	param('productId').isInt().withMessage('Invalid product ID'),
+], handleValidationErrors, async (req, res) => {
+	try {
+		const packageProductId = parseInt(req.params.productId);
+		const result = await query(
+			`SELECT
+				ppi.component_product_id,
+				cp.name AS component_name,
+				cp.barcode AS component_barcode,
+				cp.sku AS component_sku
+			FROM product_package_items ppi
+			JOIN products cp ON cp.id = ppi.component_product_id
+			WHERE ppi.package_product_id = $1
+			ORDER BY ppi.id ASC`,
+			[packageProductId]
+		);
+		res.json({
+			package_product_id: packageProductId,
+			components: result.recordset.map((row) => ({
+				component_product_id: row.component_product_id,
+				name: row.component_name,
+				barcode: row.component_barcode,
+				sku: row.component_sku,
+			})),
+		});
+	} catch (err) {
+		console.error('Get package error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Create or replace a package's component products
+router.put('/packages/:productId', [
+	param('productId').isInt().withMessage('Invalid product ID'),
+	body('components').isArray().withMessage('components must be an array'),
+], handleValidationErrors, async (req, res) => {
+	const pool = getPool();
+	const client = await pool.connect();
+	try {
+		const packageProductId = parseInt(req.params.productId);
+		const rawComponents = Array.isArray(req.body.components) ? req.body.components : [];
+
+		// Normalize to a unique list of integer component ids, excluding the package itself
+		const componentIds = [...new Set(
+			rawComponents
+				.map((c) => parseInt(typeof c === 'object' && c !== null ? c.component_product_id : c))
+				.filter((id) => Number.isInteger(id) && id !== packageProductId)
+		)];
+
+		// Validate the package product exists
+		const pkgCheck = await client.query('SELECT id FROM products WHERE id = $1', [packageProductId]);
+		if (pkgCheck.rows.length === 0) {
+			return res.status(404).json({ error: 'Package product not found' });
+		}
+
+		// Validate component products exist
+		if (componentIds.length > 0) {
+			const existing = await client.query(
+				'SELECT id FROM products WHERE id = ANY($1::int[])',
+				[componentIds]
+			);
+			if (existing.rows.length !== componentIds.length) {
+				return res.status(400).json({ error: 'One or more component products do not exist' });
+			}
+		}
+
+		await client.query('BEGIN');
+		// Replace existing definition
+		await client.query('DELETE FROM product_package_items WHERE package_product_id = $1', [packageProductId]);
+		for (const componentId of componentIds) {
+			await client.query(
+				'INSERT INTO product_package_items (package_product_id, component_product_id) VALUES ($1, $2)',
+				[packageProductId, componentId]
+			);
+		}
+		await client.query('COMMIT');
+
+		res.json({ package_product_id: packageProductId, component_count: componentIds.length });
+	} catch (err) {
+		try { await client.query('ROLLBACK'); } catch (e) {}
+		console.error('Save package error:', err);
+		res.status(500).json({ error: err.message });
+	} finally {
+		client.release();
+	}
+});
+
+// Delete a package definition (removes all its component links)
+router.delete('/packages/:productId', [
+	param('productId').isInt().withMessage('Invalid product ID'),
+], handleValidationErrors, async (req, res) => {
+	try {
+		const packageProductId = parseInt(req.params.productId);
+		await query('DELETE FROM product_package_items WHERE package_product_id = $1', [packageProductId]);
+		res.json({ success: true, package_product_id: packageProductId });
+	} catch (err) {
+		console.error('Delete package error:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
 // ===== INVOICES =====
 router.get('/invoices', async (req, res) => {
 	try {
@@ -1547,7 +1703,7 @@ router.post('/invoices', [
 	try {
 		await client.query('BEGIN');
 		
-		const { invoice_type, customer_id, supplier_id, total_amount, due_date, items, paid_directly } = req.body;
+		const { invoice_type, customer_id, supplier_id, total_amount, due_date, items, paid_directly, partial_paid_amount } = req.body;
 		const today = getTodayLocal();
 		const invoiceTimestamp = nowIso();
 		
@@ -1697,8 +1853,41 @@ router.post('/invoices', [
 					[totalAmountNum, 'paid', invoiceId]
 				);
 			}
+		} else {
+			// Not paid directly: if a partial amount is provided, record a partial payment
+			const totalAmountNum = parseFloat(String(total_amount));
+			const partialAmountNum = parseFloat(String(partial_paid_amount || 0));
+			if (partialAmountNum > 0) {
+				// Guard: partial payment must be a positive amount strictly less than the total
+				if (partialAmountNum >= totalAmountNum) {
+					throw new Error(`Partial paid amount (${partialAmountNum.toFixed(2)}) must be less than the total amount (${totalAmountNum.toFixed(2)})`);
+				}
+
+				// Create partial payment record in USD
+				await client.query(
+					`INSERT INTO invoice_payments (invoice_id, paid_amount, currency_code, exchange_rate_on_payment, usd_equivalent_amount, payment_date, payment_method, notes, created_at)
+					 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+					[
+						invoiceId,
+						partialAmountNum, // paid_amount in USD
+						'USD', // currency_code
+						1.0, // exchange_rate_on_payment (1 USD = 1 USD)
+						partialAmountNum, // usd_equivalent_amount
+						invoiceTimestamp, // payment_date (same as invoice creation)
+						'direct', // payment_method
+						'Partial payment on invoice creation', // notes
+						invoiceTimestamp // created_at
+					]
+				);
+
+				// Update invoice payment status to 'partial'
+				await client.query(
+					'UPDATE invoices SET amount_paid = $1, payment_status = $2 WHERE id = $3',
+					[partialAmountNum, 'partial', invoiceId]
+				);
+			}
 		}
-		
+
 		await client.query('COMMIT');
 		res.json({ id: invoiceId, invoice_date });
 	} catch (err) {

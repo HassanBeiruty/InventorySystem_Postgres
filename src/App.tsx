@@ -13,6 +13,7 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Products = lazy(() => import("./pages/Products"));
 const QuickAddProducts = lazy(() => import("./pages/QuickAddProducts"));
 const Categories = lazy(() => import("./pages/Categories"));
+const Packages = lazy(() => import("./pages/Packages"));
 const Customers = lazy(() => import("./pages/Customers"));
 const Suppliers = lazy(() => import("./pages/Suppliers"));
 const InvoicesList = lazy(() => import("./pages/InvoicesList"));
@@ -65,6 +66,7 @@ const App = () => (
             <Route path="/products" element={<Products />} />
             <Route path="/products/quick-add" element={<QuickAddProducts />} />
             <Route path="/categories" element={<Categories />} />
+            <Route path="/packages" element={<Packages />} />
             <Route path="/customers" element={<Customers />} />
             <Route path="/suppliers" element={<Suppliers />} />
             <Route path="/invoices" element={<InvoicesList />} />

@@ -375,6 +375,24 @@ BEGIN
 END $$;`
 	},
 	{
+		name: 'product_package_items',
+		sql: `CREATE TABLE IF NOT EXISTS product_package_items (
+	id SERIAL PRIMARY KEY,
+	package_product_id INT NOT NULL,
+	component_product_id INT NOT NULL,
+	created_at TIMESTAMP NOT NULL DEFAULT now(),
+	CONSTRAINT FK_ppi_package FOREIGN KEY (package_product_id) REFERENCES products(id) ON DELETE CASCADE,
+	CONSTRAINT FK_ppi_component FOREIGN KEY (component_product_id) REFERENCES products(id) ON DELETE CASCADE,
+	CONSTRAINT UQ_ppi_package_component UNIQUE (package_product_id, component_product_id),
+	CONSTRAINT CK_ppi_not_self CHECK (package_product_id <> component_product_id)
+);
+
+CREATE INDEX IF NOT EXISTS IX_ppi_package ON product_package_items(package_product_id);
+CREATE INDEX IF NOT EXISTS IX_ppi_component ON product_package_items(component_product_id);
+
+ALTER TABLE product_package_items ENABLE ROW LEVEL SECURITY;`
+	},
+	{
 		name: 'function_recalculate_stock_after_invoice',
 		sql: `-- Function: RecalculateStockAfterInvoice
 -- Handles recalculation of stock movements and daily stock after editing or deleting invoice products
