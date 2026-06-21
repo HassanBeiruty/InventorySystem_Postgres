@@ -924,8 +924,11 @@ END $$;`
 	{
 		name: 'function_get_net_profit',
 		sql: `-- Function: get_net_profit
--- Calculates net profit for sell invoices within a date range
--- Uses daily_stock to get cost at invoice date for accurate profit calculation
+-- Calculates net profit for sell invoices within a date range.
+-- Uses stock_movements.avg_cost_after as the cost per item — this value is written
+-- at the moment the invoice is saved (= prevAvgCost for sells, since sells do not
+-- change the running average), so it correctly reflects the cost at the exact time
+-- of sale regardless of same-day buy/sell ordering.
 -- Drop existing function first (if it exists) to allow return type changes
 DROP FUNCTION IF EXISTS get_net_profit(DATE, DATE);
 
@@ -937,37 +940,37 @@ RETURNS TABLE (
     net_profit NUMERIC,
     total_revenue NUMERIC,
     total_cost NUMERIC
-) 
+)
 LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN QUERY
-    SELECT 
+    SELECT
         SUM(item.quantity * (
-            CASE 
-                WHEN item.private_price_amount IS NOT NULL THEN item.private_price_amount 
-                ELSE item.unit_price 
-            END - COALESCE(d.avg_cost, 0)
+            CASE
+                WHEN item.private_price_amount IS NOT NULL THEN item.private_price_amount
+                ELSE item.unit_price
+            END - COALESCE(sm.avg_cost_after, 0)
         ))::NUMERIC AS net_profit,
-        SUM(item.quantity * 
-            CASE 
-                WHEN item.private_price_amount IS NOT NULL THEN item.private_price_amount 
-                ELSE item.unit_price 
+        SUM(item.quantity *
+            CASE
+                WHEN item.private_price_amount IS NOT NULL THEN item.private_price_amount
+                ELSE item.unit_price
             END
         )::NUMERIC AS total_revenue,
-        SUM(item.quantity * COALESCE(d.avg_cost, 0))::NUMERIC AS total_cost
+        SUM(item.quantity * COALESCE(sm.avg_cost_after, 0))::NUMERIC AS total_cost
     FROM invoices i
     INNER JOIN invoice_items item ON item.invoice_id = i.id
     LEFT JOIN LATERAL (
-        SELECT avg_cost
-        FROM daily_stock
-        WHERE product_id = item.product_id 
-          AND date <= CAST(i.invoice_date AS DATE)
-        ORDER BY date DESC, updated_at DESC
+        SELECT avg_cost_after
+        FROM stock_movements
+        WHERE invoice_id = i.id
+          AND product_id = item.product_id
+        ORDER BY id ASC
         LIMIT 1
-    ) d ON true
-    WHERE CAST(i.invoice_date AS DATE) >= p_startdate 
-      AND CAST(i.invoice_date AS DATE) <= p_enddate 
+    ) sm ON true
+    WHERE CAST(i.invoice_date AS DATE) >= p_startdate
+      AND CAST(i.invoice_date AS DATE) <= p_enddate
       AND i.invoice_type = 'sell';
 END;
 $$;`
