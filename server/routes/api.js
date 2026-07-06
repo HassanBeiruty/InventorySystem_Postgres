@@ -1489,105 +1489,135 @@ router.get('/invoices/stats', async (req, res) => {
 
 // Update invoice - MUST come before GET /invoices/:id to avoid route conflicts
 router.put('/invoices/:id', async (req, res) => {
+	const pool = getPool();
+	const client = await pool.connect();
+
 	try {
 		const id = parseInt(req.params.id);
-		
+
 		if (isNaN(id) || id <= 0) {
 			return res.status(400).json({ error: `Invalid invoice ID: ${req.params.id}` });
 		}
-		
-		const { invoice_type, customer_id, supplier_id, total_amount, due_date, items } = req.body;
-		const today = getTodayLocal();
 
-		// Get existing invoice with its date - using plain array params
-		const existingInvoice = await query('SELECT * FROM invoices WHERE id = $1', [id]);
-		
-		if (existingInvoice.recordset.length === 0) {
+		const { invoice_type, customer_id, supplier_id, total_amount, due_date, items } = req.body;
+
+		if (!Array.isArray(items) || items.length === 0) {
+			return res.status(400).json({ error: 'At least one item is required' });
+		}
+
+		// Same rule the UI enforces: a product can appear only once per invoice
+		// (duplicate lines would both map onto the same stock movement)
+		const newProductIdList = items.map(item => parseInt(item.product_id));
+		if (new Set(newProductIdList).size !== newProductIdList.length) {
+			return res.status(400).json({ error: 'The same product cannot be added more than once to an invoice' });
+		}
+
+		await client.query('BEGIN');
+
+		// Lock the invoice row so concurrent edits of the same invoice cannot interleave
+		const existingInvoice = await client.query('SELECT * FROM invoices WHERE id = $1 FOR UPDATE', [id]);
+
+		if (existingInvoice.rows.length === 0) {
+			await client.query('ROLLBACK');
 			return res.status(404).json({ error: `Invoice not found with id: ${id}` });
 		}
-		const oldInvoice = existingInvoice.recordset[0];
-		// Get the original invoice date (might be in the past) - convert to local timezone
-		const invoiceDate = oldInvoice.invoice_date ? toLocalDateString(oldInvoice.invoice_date) : today;
+		const oldInvoice = existingInvoice.rows[0];
 
-		// Get existing invoice items - using plain array params
-		const oldItemsResult = await query('SELECT * FROM invoice_items WHERE invoice_id = $1', [id]);
-		const oldItems = oldItemsResult.recordset;
+		// Get existing invoice items
+		const oldItemsResult = await client.query('SELECT * FROM invoice_items WHERE invoice_id = $1', [id]);
+		const oldItems = oldItemsResult.rows;
 
-		// Collect all affected products (from both old and new items)
-		const affectedProducts = new Set();
-		oldItems.forEach(item => affectedProducts.add(item.product_id));
-		items.forEach(item => affectedProducts.add(parseInt(item.product_id)));
+		// Editing can only change or remove existing lines, never add products: every product
+		// on the edited invoice must already have a stock movement for this invoice. A product
+		// without one is either new to the invoice (unsupported on edit) or a sign the ledger
+		// is inconsistent - in both cases nothing may be written, so fail before any change.
+		const movementProductsResult = await client.query(
+			'SELECT DISTINCT product_id FROM stock_movements WHERE invoice_id = $1',
+			[id]
+		);
+		const movementProductIds = new Set(movementProductsResult.rows.map(row => row.product_id));
+		const oldProductIds = new Set(oldItems.map(item => item.product_id));
+		for (const productId of newProductIdList) {
+			if (!movementProductIds.has(productId)) {
+				await client.query('ROLLBACK');
+				if (oldProductIds.has(productId)) {
+					return res.status(409).json({
+						error: `Stock movement record is missing for product ${productId} on this invoice. The stock ledger is inconsistent - run "Recompute Positions" from the admin page or contact the administrator before editing this invoice.`
+					});
+				}
+				return res.status(400).json({
+					error: `Product ${productId} is not part of this invoice. Adding new products while editing is not supported - create a new invoice for the additional products instead.`
+				});
+			}
+		}
 
-		// Delete old invoice items (stock movements will be updated by the function, not deleted) - using plain array params
-		await query('DELETE FROM invoice_items WHERE invoice_id = $1', [id]);
+		// Delete old invoice items (stock movements will be updated by the function, not deleted)
+		await client.query('DELETE FROM invoice_items WHERE invoice_id = $1', [id]);
 
-		// Update invoice - using plain array params
-		await query(
+		// Update invoice
+		await client.query(
 			'UPDATE invoices SET invoice_type = $1, customer_id = $2, supplier_id = $3, total_amount = $4, due_date = $5 WHERE id = $6',
-			[invoice_type, customer_id ? parseInt(customer_id) : null, supplier_id ? parseInt(supplier_id) : null, 
+			[invoice_type, customer_id ? parseInt(customer_id) : null, supplier_id ? parseInt(supplier_id) : null,
 			 total_amount, due_date || null, id]
 		);
 
 		// Batch insert new invoice items for better performance
-		if (items.length > 0) {
-			const itemValues = [];
-			const itemParams = [];
-			let paramIndex = 1;
-			
-			for (const item of items) {
-				itemValues.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8})`);
-				itemParams.push(
-					id, parseInt(item.product_id), item.quantity, item.unit_price, item.total_price,
-					item.price_type, item.is_private_price ? 1 : 0,
-					item.is_private_price ? item.private_price_amount : null,
-					item.is_private_price ? item.private_price_note : null
-				);
-				paramIndex += 9;
-			}
-			
-			await query(
-				`INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) 
-				 VALUES ${itemValues.join(', ')}`,
-				itemParams
+		const itemValues = [];
+		const itemParams = [];
+		let paramIndex = 1;
+
+		for (const item of items) {
+			itemValues.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8})`);
+			itemParams.push(
+				id, parseInt(item.product_id), item.quantity, item.unit_price, item.total_price,
+				item.price_type, item.is_private_price ? 1 : 0,
+				item.is_private_price ? item.private_price_amount : null,
+				item.is_private_price ? item.private_price_note : null
+			);
+			paramIndex += 9;
+		}
+
+		await client.query(
+			`INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note)
+			 VALUES ${itemValues.join(', ')}`,
+			itemParams
+		);
+
+		// Recalculate stock for each affected product. The function updates the invoice's
+		// existing movements and replays all later movements; if any call fails, the whole
+		// edit (items, invoice header and earlier recalculations) is rolled back together.
+
+		// First, handle deleted items (products in oldItems but not in new items)
+		const newProductIds = new Set(newProductIdList);
+		const removedProductIds = new Set(oldItems.map(item => item.product_id).filter(productId => !newProductIds.has(productId)));
+		for (const productId of removedProductIds) {
+			// This product was deleted from the invoice - call with DELETE action
+			await client.query(
+				'SELECT recalculate_stock_after_invoice($1, $2, $3, NULL, NULL)',
+				[id, productId, 'DELETE']
 			);
 		}
 
-		// Call the function to recalculate stock for each affected product
-		// The function will update existing stock movements and recalculate all later movements
-		
-		// First, handle deleted items (products in oldItems but not in new items)
-		const newProductIds = new Set(items.map(item => parseInt(item.product_id)));
-		for (const oldItem of oldItems) {
-			const productId = oldItem.product_id;
-			if (!newProductIds.has(productId)) {
-				// This product was deleted from the invoice - call with DELETE action
-				await query(
-					'SELECT recalculate_stock_after_invoice($1, $2, $3, NULL, NULL)',
-					[id, productId, 'DELETE']
-				);
-			}
-		}
-		
-		// Then, handle items that exist in new items (either new or edited)
-		for (const productId of affectedProducts) {
-			const item = items.find(item => parseInt(item.product_id) === productId);
-			if (item) {
-				const change = invoice_type === 'sell' ? -item.quantity : item.quantity;
-				// Record the effective sold price (private price overrides base unit_price); buys are never private
-				const unitCost = parseFloat(item.is_private_price ? item.private_price_amount : item.unit_price);
+		// Then, recalculate every product still on the invoice
+		for (const item of items) {
+			const change = invoice_type === 'sell' ? -item.quantity : item.quantity;
+			// Record the effective sold price (private price overrides base unit_price); buys are never private
+			const unitCost = parseFloat(item.is_private_price ? item.private_price_amount : item.unit_price);
 
-				// Call the stored procedure to recalculate - using plain array params
-				await query(
-					'SELECT recalculate_stock_after_invoice($1, $2, $3, $4, $5)',
-					[id, productId, 'EDIT', change, unitCost]
-				);
-			}
+			await client.query(
+				'SELECT recalculate_stock_after_invoice($1, $2, $3, $4, $5)',
+				[id, parseInt(item.product_id), 'EDIT', change, unitCost]
+			);
 		}
 
+		await client.query('COMMIT');
 		res.json({ id: String(id), invoice_date: oldInvoice.invoice_date });
 	} catch (err) {
+		try { await client.query('ROLLBACK'); } catch (rollbackErr) {}
 		console.error('Update invoice error:', err);
 		res.status(500).json({ error: err.message });
+	} finally {
+		client.release();
 	}
 });
 
@@ -1706,6 +1736,14 @@ router.post('/invoices', [
 		const { invoice_type, customer_id, supplier_id, total_amount, due_date, items, paid_directly, partial_paid_amount } = req.body;
 		const today = getTodayLocal();
 		const invoiceTimestamp = nowIso();
+
+		// Same rule the UI enforces: a product can appear only once per invoice
+		// (duplicate lines would both map onto the same stock movement)
+		const uniqueProductIds = new Set(items.map(item => parseInt(item.product_id)));
+		if (uniqueProductIds.size !== items.length) {
+			await client.query('ROLLBACK');
+			return res.status(400).json({ error: 'The same product cannot be added more than once to an invoice' });
+		}
 		
 		// Create invoice - using plain array params
 		const invoiceResult = await client.query(
