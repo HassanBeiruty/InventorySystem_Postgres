@@ -54,8 +54,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     <div className="min-h-screen bg-background">
       {/* Top Navigation */}
       <header className="sticky top-0 z-50 border-b-2 border-border/50 glass shadow-elegant backdrop-blur-xl">
-        <div className="container mx-auto px-2 sm:px-3 py-1.5 sm:py-0 sm:h-12 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
-          <div className="flex items-center gap-1.5 sm:gap-3 w-full sm:w-auto">
+        <div className="container mx-auto px-2 sm:px-3 py-1.5 sm:py-0 sm:h-12 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1.5 sm:gap-3">
+          <div className="flex items-center gap-2 min-w-0 sm:flex-1">
             <div className="relative w-8 h-8 sm:w-10 sm:h-10 gradient-primary rounded-xl flex items-center justify-center shadow-glow animate-float flex-shrink-0">
               <Receipt className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
               <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent rounded-xl" />
@@ -67,7 +67,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               <p className="text-[10px] sm:text-xs text-muted-foreground font-medium truncate">{user.email}</p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end">
+          <div className="flex items-center gap-1.5 shrink-0 justify-end">
             <LiveClock />
             <ThemeToggle />
             <LanguageSwitcher />
@@ -75,7 +75,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               variant="outline" 
               size="sm" 
               onClick={handleSignOut}
-              className="hover:scale-105 transition-all duration-300 hover:shadow-md border-2 hover:border-primary/30 font-semibold text-[10px] sm:text-xs h-7"
+              className="hover:scale-105 transition-all duration-300 hover:shadow-md border-2 hover:border-primary/30 font-semibold text-[10px] sm:text-xs h-9 w-9 p-0 sm:h-7 sm:w-auto sm:px-3 shrink-0"
             >
               <LogOut className="w-3 h-3 sm:w-3.5 sm:h-3.5 sm:mr-1.5" />
               <span className="hidden sm:inline">{t('common.signOut')}</span>
@@ -87,13 +87,13 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       {/* Navigation Menu */}
       <nav className="border-b-2 border-border/50 glass backdrop-blur-md relative z-10">
         <div className="container mx-auto px-2 sm:px-3 py-1.5 sm:py-2">
-          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide items-center -mx-2 sm:mx-0 px-2 sm:px-0">
+          <div className="flex flex-wrap sm:flex-nowrap gap-1 sm:gap-1.5 sm:overflow-x-auto pb-0.5 sm:pb-1 scrollbar-hide items-center snap-x">
             {/* Dashboard */}
-            <Link to="/" className="no-underline inline-block">
+            <Link to="/" className="no-underline shrink-0 snap-start">
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className={`gap-1 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-lg font-semibold pointer-events-auto text-[10px] sm:text-xs h-7 whitespace-nowrap ${
+                className={`shrink-0 snap-start gap-1 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-lg font-semibold pointer-events-auto text-[11px] sm:text-xs h-8 sm:h-7 px-2.5 sm:px-3 whitespace-nowrap ${
                   location.pathname === "/" 
                     ? "text-primary [&_svg]:text-primary dark:text-primary dark:[&_svg]:text-primary system:text-primary system:[&_svg]:text-primary" 
                     : "text-foreground [&_svg]:text-foreground dark:text-white dark:[&_svg]:text-white hover:bg-primary/20 hover:text-foreground"
@@ -110,7 +110,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className={`gap-1 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-lg font-semibold pointer-events-auto text-[10px] sm:text-xs h-7 whitespace-nowrap ${
+                  className={`shrink-0 snap-start gap-1 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-lg font-semibold pointer-events-auto text-[11px] sm:text-xs h-8 sm:h-7 px-2.5 sm:px-3 whitespace-nowrap ${
                     location.pathname.startsWith("/products") ||
                     location.pathname.startsWith("/categories") ||
                     location.pathname.startsWith("/packages")
@@ -157,7 +157,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className={`gap-1 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-lg font-semibold pointer-events-auto text-[10px] sm:text-xs h-7 whitespace-nowrap ${
+                  className={`shrink-0 snap-start gap-1 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-lg font-semibold pointer-events-auto text-[11px] sm:text-xs h-8 sm:h-7 px-2.5 sm:px-3 whitespace-nowrap ${
                     location.pathname.startsWith("/customers") || 
                     location.pathname.startsWith("/suppliers")
                       ? "text-primary [&_svg]:text-primary dark:text-primary dark:[&_svg]:text-primary system:text-primary system:[&_svg]:text-primary" 
@@ -191,7 +191,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className={`gap-1 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-lg font-semibold pointer-events-auto text-[10px] sm:text-xs h-7 whitespace-nowrap ${
+                  className={`shrink-0 snap-start gap-1 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-lg font-semibold pointer-events-auto text-[11px] sm:text-xs h-8 sm:h-7 px-2.5 sm:px-3 whitespace-nowrap ${
                     location.pathname.startsWith("/invoices") 
                       ? "text-primary [&_svg]:text-primary dark:text-primary dark:[&_svg]:text-primary system:text-primary system:[&_svg]:text-primary" 
                       : "text-foreground [&_svg]:text-foreground dark:text-white dark:[&_svg]:text-white system:text-foreground system:[&_svg]:text-foreground hover:bg-success/20 hover:text-foreground"
@@ -244,7 +244,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className={`gap-1 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-lg font-semibold pointer-events-auto text-[10px] sm:text-xs h-7 whitespace-nowrap ${
+                  className={`shrink-0 snap-start gap-1 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-lg font-semibold pointer-events-auto text-[11px] sm:text-xs h-8 sm:h-7 px-2.5 sm:px-3 whitespace-nowrap ${
                     location.pathname.startsWith("/inventory") || 
                     location.pathname.startsWith("/daily-stocks") || 
                     location.pathname.startsWith("/stock-movements") || 
@@ -287,11 +287,11 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             </DropdownMenu>
 
             {/* Reports */}
-            <Link to="/reports" className="no-underline inline-block">
+            <Link to="/reports" className="no-underline shrink-0 snap-start">
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className={`gap-1 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-lg font-semibold pointer-events-auto text-[10px] sm:text-xs h-7 whitespace-nowrap ${
+                className={`shrink-0 snap-start gap-1 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-lg font-semibold pointer-events-auto text-[11px] sm:text-xs h-8 sm:h-7 px-2.5 sm:px-3 whitespace-nowrap ${
                   location.pathname === "/reports" 
                     ? "text-primary [&_svg]:text-primary dark:text-primary dark:[&_svg]:text-primary system:text-primary system:[&_svg]:text-primary" 
                     : "text-foreground [&_svg]:text-foreground dark:text-white dark:[&_svg]:text-white system:text-foreground system:[&_svg]:text-foreground hover:bg-accent/20 hover:text-foreground"
@@ -308,7 +308,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className={`gap-1 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-lg font-semibold pointer-events-auto text-[10px] sm:text-xs h-7 whitespace-nowrap ${
+                  className={`shrink-0 snap-start gap-1 hover:scale-105 transition-all duration-300 hover:shadow-md rounded-lg font-semibold pointer-events-auto text-[11px] sm:text-xs h-8 sm:h-7 px-2.5 sm:px-3 whitespace-nowrap ${
                     location.pathname.startsWith("/settings") || 
                     location.pathname.startsWith("/exchange-rates") ||
                     location.pathname.startsWith("/product-costs") ||
@@ -362,7 +362,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       </nav>
 
       {/* Main Content */}
-      <main className="container mx-auto px-3 sm:px-4 py-3 sm:py-4">
+      <main className="container mx-auto w-full max-w-full px-3 sm:px-4 py-3 sm:py-4">
         {children}
       </main>
     </div>

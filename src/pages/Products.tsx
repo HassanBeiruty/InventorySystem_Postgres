@@ -742,7 +742,7 @@ const Products = () => {
         {/* Main Content with Side Panel */}
         <div className="flex gap-2">
           {/* Products Table Section */}
-          <div className={`flex-1 transition-all duration-300 ${sidePanelOpen ? 'lg:mr-[420px]' : ''}`}>
+          <div className={`flex-1 min-w-0 transition-all duration-300 ${sidePanelOpen ? 'lg:mr-[420px]' : ''}`}>
             <Card className="border-2 shadow-card hover:shadow-elegant transition-all duration-300">
               <CardHeader className="border-b bg-gradient-to-br from-primary/5 via-transparent to-accent/5 pb-2 pt-2">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">

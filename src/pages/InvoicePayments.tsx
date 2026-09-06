@@ -334,7 +334,7 @@ const InvoicePayments = () => {
         {/* Main Content with Side Panel */}
         <div className="flex gap-4">
           {/* Table Section */}
-          <div className={`flex-1 transition-all duration-300 ${sidePanelOpen ? 'lg:mr-[420px]' : ''}`}>
+          <div className={`flex-1 min-w-0 transition-all duration-300 ${sidePanelOpen ? 'lg:mr-[420px]' : ''}`}>
             <div className="border rounded overflow-hidden bg-background">
               <div className="overflow-x-auto">
                 <Table>

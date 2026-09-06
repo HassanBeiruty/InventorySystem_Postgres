@@ -423,21 +423,21 @@ const InvoicesList = () => {
       <div className="space-y-1.5 sm:space-y-2">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10">
-              <FileText className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-1.5 sm:p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 shrink-0">
+              <FileText className="w-5 h-5 sm:w-8 sm:h-8 text-primary" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h1 className="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
                 {t('invoices.title')}
               </h1>
               <p className="text-muted-foreground text-[10px] sm:text-xs">{t('invoices.subtitle')}</p>
             </div>
           </div>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1 w-full sm:w-auto">
+          <div className="flex flex-row items-center gap-1.5 sm:gap-1 w-full sm:w-auto">
              <Button
                onClick={() => navigate("/invoices/new/buy")}
-               className="gap-1 bg-gradient-success text-white hover:shadow-lg hover:shadow-success/50 transition-all duration-300 hover:scale-105 border-0 text-[10px] sm:text-xs h-7 flex-1 sm:flex-initial dark:text-white [&_svg]:text-white"
+               className="gap-1 bg-gradient-success text-white hover:shadow-lg hover:shadow-success/50 transition-all duration-300 hover:scale-105 border-0 text-[11px] sm:text-xs h-9 sm:h-7 flex-1 sm:flex-initial dark:text-white [&_svg]:text-white"
              >
                <Plus className="w-3 h-3" />
                <span className="hidden sm:inline">{t('invoices.newBuyInvoice')}</span>
@@ -445,7 +445,7 @@ const InvoicesList = () => {
              </Button>
             <Button
               onClick={() => navigate("/invoices/new/sell")}
-              className="gap-1 gradient-primary hover:shadow-glow transition-all duration-300 hover:scale-105 text-[10px] sm:text-xs h-7 flex-1 sm:flex-initial"
+              className="gap-1 gradient-primary hover:shadow-glow transition-all duration-300 hover:scale-105 text-[11px] sm:text-xs h-9 sm:h-7 flex-1 sm:flex-initial"
             >
               <Plus className="w-3 h-3" />
               <span className="hidden sm:inline">{t('invoices.newSellInvoice')}</span>
@@ -456,7 +456,7 @@ const InvoicesList = () => {
                 <Button
                   variant="outline"
                   disabled={importLoading}
-                  className="gap-1 hover:scale-105 transition-all duration-300 text-[10px] sm:text-xs h-7 flex-1 sm:flex-initial"
+                  className="gap-1 hover:scale-105 transition-all duration-300 text-[11px] sm:text-xs h-9 sm:h-7 flex-1 sm:flex-initial"
                 >
                   <FileSpreadsheet className="w-3 h-3" />
                   <span className="hidden sm:inline">{importLoading ? (t('invoices.importing') || 'Importing...') : (t('invoices.importExport') || 'Import/Export')}</span>
@@ -486,15 +486,15 @@ const InvoicesList = () => {
         </div>
 
         {/* Search and Date Filters */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-1">
           <div className="relative w-full sm:w-auto sm:min-w-[200px]">
-            <Search className="absolute left-1.5 top-1/2 transform -translate-y-1/2 w-2.5 h-2.5 text-muted-foreground" />
+            <Search className="absolute left-2 sm:left-1.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 sm:w-2.5 sm:h-2.5 text-muted-foreground pointer-events-none" />
             <Input
               type="text"
-              placeholder="Search invoices (ID, customer, supplier, amount, items)..."
+              placeholder={t('invoices.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-6 pr-6 h-6 text-[10px]"
+              className="w-full pl-8 sm:pl-6 pr-8 sm:pr-6 h-9 sm:h-6 text-[10px]"
               autoFocus
             />
             {searchQuery && (
@@ -502,56 +502,58 @@ const InvoicesList = () => {
                 variant="ghost"
                 size="sm"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-0.5 top-1/2 transform -translate-y-1/2 h-4 w-4 p-0"
+                className="absolute right-1 sm:right-0.5 top-1/2 transform -translate-y-1/2 h-6 w-6 sm:h-4 sm:w-4 p-0"
               >
-                <X className="w-2 h-2" />
+                <X className="w-3 h-3 sm:w-2 sm:h-2" />
               </Button>
             )}
           </div>
-          <div className="flex items-center gap-1">
-            <Label htmlFor="start-date-invoice" className="text-[9px] whitespace-nowrap">
-              <Calendar className="w-2.5 h-2.5 inline mr-0.5" />
-              From:
-            </Label>
-            <Input
-              id="start-date-invoice"
-              type="date"
-              value={startDate}
-              onChange={(e) => {
-                const newStartDate = e.target.value;
-                setStartDate(newStartDate);
-                // If end date is before new start date, update end date
-                if (endDate && newStartDate > endDate) {
-                  setEndDate(newStartDate);
-                }
-              }}
-              max={endDate || getTodayLebanon()}
-              className="h-6 text-[10px] w-28"
-            />
-          </div>
-          <div className="flex items-center gap-1">
-            <Label htmlFor="end-date-invoice" className="text-[9px] whitespace-nowrap">
-              To:
-            </Label>
-            <Input
-              id="end-date-invoice"
-              type="date"
-              value={endDate}
-              onChange={(e) => {
-                const newEndDate = e.target.value;
-                if (!startDate || newEndDate >= startDate) {
-                  setEndDate(newEndDate);
-                }
-              }}
-              min={startDate}
-              max={getTodayLebanon()}
-              className="h-6 text-[10px] w-28"
-            />
+          <div className="flex items-center gap-1.5 sm:gap-1">
+            <div className="flex flex-1 sm:flex-initial items-center gap-1">
+              <Label htmlFor="start-date-invoice" className="text-[10px] sm:text-[9px] whitespace-nowrap">
+                <Calendar className="w-2.5 h-2.5 inline mr-0.5" />
+                From:
+              </Label>
+              <Input
+                id="start-date-invoice"
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  const newStartDate = e.target.value;
+                  setStartDate(newStartDate);
+                  // If end date is before new start date, update end date
+                  if (endDate && newStartDate > endDate) {
+                    setEndDate(newStartDate);
+                  }
+                }}
+                max={endDate || getTodayLebanon()}
+                className="h-9 sm:h-6 text-[10px] w-full sm:w-28"
+              />
+            </div>
+            <div className="flex flex-1 sm:flex-initial items-center gap-1">
+              <Label htmlFor="end-date-invoice" className="text-[10px] sm:text-[9px] whitespace-nowrap">
+                To:
+              </Label>
+              <Input
+                id="end-date-invoice"
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  const newEndDate = e.target.value;
+                  if (!startDate || newEndDate >= startDate) {
+                    setEndDate(newEndDate);
+                  }
+                }}
+                min={startDate}
+                max={getTodayLebanon()}
+                className="h-9 sm:h-6 text-[10px] w-full sm:w-28"
+              />
+            </div>
           </div>
         </div>
 
         {/* Summary Stats */}
-        <div className="grid gap-1.5 grid-cols-2 sm:grid-cols-4 md:grid-cols-8">
+        <div className="grid gap-1.5 grid-cols-2 sm:grid-cols-4 xl:grid-cols-8">
           <div className="border rounded-lg p-1.5">
             <div className="flex items-center gap-1 mb-1">
               <FileText className="w-3 h-3 text-primary flex-shrink-0" />
@@ -618,9 +620,9 @@ const InvoicesList = () => {
         {/* Main Content with Side Panel */}
         <div className="flex gap-4">
           {/* Table Section */}
-          <div className={`flex-1 transition-all duration-300 ${sidePanelOpen ? 'lg:mr-[420px]' : ''}`}>
-            <div className="border-2 rounded-lg overflow-hidden bg-background">
-              <div className="overflow-x-auto">
+          <div className={`flex-1 min-w-0 transition-all duration-300 ${sidePanelOpen ? 'lg:mr-[420px]' : ''}`}>
+            <div className="hidden md:block border-2 rounded-lg overflow-hidden bg-background">
+              <div className="scroll-x">
                 <Table>
                     <TableHeader>
                       <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5">
@@ -800,6 +802,160 @@ const InvoicesList = () => {
                   </TableBody>
                 </Table>
               </div>
+            </div>
+
+            {/* Phone / small-tablet view: the 8-column table cannot fit under
+                768px without cutting off, so the same rows render as cards. */}
+            <div className="md:hidden space-y-2">
+              {loading ? (
+                Array(6).fill(0).map((_, i) => (
+                  <div key={i} className="border-2 rounded-lg p-2.5 space-y-2 bg-background">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-1.5 flex-1">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-3 w-32" />
+                      </div>
+                      <Skeleton className="h-5 w-16" />
+                    </div>
+                    <Skeleton className="h-8 w-full" />
+                  </div>
+                ))
+              ) : filteredInvoices.length === 0 ? (
+                <div className="border-2 rounded-lg py-12 text-center text-muted-foreground text-xs bg-background">
+                  {searchQuery || startDate || endDate ? t('invoices.noInvoicesMatch') : t('invoices.noInvoices')}
+                </div>
+              ) : (
+                filteredInvoices.map((invoice) => {
+                  const isSelected = selectedInvoiceId === String(invoice.id);
+                  const items = invoice.invoice_items || [];
+                  const itemsPreview = items.slice(0, 2);
+                  const remainingCount = items.length > 2 ? items.length - 2 : 0;
+                  const isPaid = invoice.payment_status === 'paid';
+                  const hasPayments = Number(invoice.amount_paid || 0) > 0;
+
+                  return (
+                    <div
+                      key={invoice.id}
+                      onClick={() => handleRowClick(String(invoice.id))}
+                      className={`border-2 rounded-lg p-2.5 bg-background transition-colors cursor-pointer active:bg-primary/10 ${
+                        isSelected ? 'border-primary bg-primary/5' : 'hover:border-primary/40'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-primary text-xs">#{invoice.id}</span>
+                            <Badge
+                              variant={invoice.invoice_type === 'sell' ? 'default' : 'success'}
+                              className="text-[10px] px-1.5 py-0"
+                            >
+                              {invoice.invoice_type === 'sell' ? t('invoices.sell') : t('invoices.buy')}
+                            </Badge>
+                            <span className="text-[10px] text-muted-foreground">
+                              {formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}
+                            </span>
+                          </div>
+                          <p className="font-medium text-xs mt-1 truncate">
+                            {invoice.customers?.name || invoice.suppliers?.name || "N/A"}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className={`font-bold text-sm whitespace-nowrap ${
+                            isPaid ? 'text-success' : invoice.payment_status === 'partial' ? 'text-warning' : 'text-foreground'
+                          }`}>
+                            ${Number(invoice.total_amount).toFixed(2)}
+                          </p>
+                          <Badge
+                            variant={isPaid ? 'success' : invoice.payment_status === 'partial' ? 'warning' : 'secondary'}
+                            className="text-[10px] px-1.5 py-0 mt-0.5"
+                          >
+                            {isPaid ? t('invoices.paid') :
+                             invoice.payment_status === 'partial' ? t('invoices.partial') :
+                             t('invoices.pending')}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      {items.length > 0 && (
+                        <div className="mt-2 space-y-0.5">
+                          {itemsPreview.map((item: any, itemIdx: number) => {
+                            const displayUnitPrice = item.is_private_price && item.private_price_amount
+                              ? item.private_price_amount
+                              : item.unit_price || 0;
+
+                            return (
+                              <div key={itemIdx} className="text-[10px] bg-muted/30 rounded px-1.5 py-1 flex items-center justify-between gap-2">
+                                <div className="min-w-0 truncate">
+                                  <ProductNameWithCode
+                                    product={item}
+                                    nameClassName="font-semibold"
+                                    codeClassName="text-[9px] text-muted-foreground font-mono ml-1"
+                                  />
+                                </div>
+                                <span className="text-muted-foreground text-[9px] font-mono whitespace-nowrap shrink-0">
+                                  {item.quantity} x ${Number(displayUnitPrice).toFixed(2)}
+                                </span>
+                              </div>
+                            );
+                          })}
+                          {remainingCount > 0 && (
+                            <div className="text-[9px] text-muted-foreground italic px-1">
+                              +{remainingCount} more item{remainingCount !== 1 ? 's' : ''}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-end gap-1 mt-2 pt-1.5 border-t" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => handleViewDetails(String(invoice.id), e)}
+                          className="h-8 px-2 text-[11px] gap-1"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          {t('invoices.view')}
+                        </Button>
+                        {!isPaid && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/invoices/edit/${invoice.id}`);
+                            }}
+                            className="h-8 px-2 text-[11px] gap-1"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            {t('invoices.edit')}
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteInvoice(String(invoice.id));
+                          }}
+                          disabled={hasPayments}
+                          className={`h-8 w-8 p-0 ${
+                            hasPayments
+                              ? 'text-warning cursor-not-allowed opacity-60'
+                              : 'text-destructive hover:text-destructive hover:bg-destructive/10'
+                          }`}
+                          title={
+                            hasPayments
+                              ? "Cannot delete invoice with payments. Remove all payments first."
+                              : "Delete"
+                          }
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
 

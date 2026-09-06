@@ -648,22 +648,26 @@ All colors MUST be HSL.
     color: white;
   }
 
-  /* Mobile-specific utilities */
+  /* ------------------------------------------------------------------ */
+  /* Mobile-specific utilities                                           */
+  /* NOTE: keep these rules additive. Blanket overrides (e.g. forcing    */
+  /* every .grid to a single column, or turning <table> into a block)    */
+  /* fight the per-component responsive classes and break the layout.    */
+  /* ------------------------------------------------------------------ */
   @media (max-width: 640px) {
     .container {
       padding-left: 0.75rem;
       padding-right: 0.75rem;
     }
 
-    /* Ensure touch-friendly button sizes (minimum 44x44px) */
-    button,
-    [role="button"],
-    a[role="button"] {
-      min-height: 44px;
-      min-width: 44px;
-    }
+    /* Touch targets: the base Button sizes are already >= 36px tall, and
+       dense toolbars opt into h-7/h-8 deliberately. A blanket min-width
+       here is what used to squash the nav items into each other, so the
+       sizing stays with the components instead. */
 
-    /* Improve input touch targets on mobile */
+    /* Prevent iOS from zooming the viewport when a small input is focused
+       (any focused input under 16px triggers the zoom and never resets), and
+       keep the field tall enough for that 16px text to be a real tap target. */
     input[type="text"],
     input[type="number"],
     input[type="date"],
@@ -671,49 +675,18 @@ All colors MUST be HSL.
     input[type="password"],
     select,
     textarea {
-      min-height: 44px;
+      font-size: 16px;
+      min-height: 2.25rem;
     }
 
-    /* Prevent iOS zoom on small inputs - only apply to text-xs and smaller */
-    input[type="text"].text-xs,
-    input[type="number"].text-xs,
-    input[type="date"].text-xs,
-    select.text-xs {
-      font-size: 16px; /* Prevents zoom on iOS */
-    }
+    /* Dialog / alert-dialog sizing lives in the components themselves
+       (see ui/dialog.tsx + ui/alert-dialog.tsx "max-sm:" classes). Avoid
+       100vw overrides here: they overflow when a scrollbar is present. */
 
-    /* Make tables horizontally scrollable on mobile */
-    table {
-      display: block;
-      width: 100%;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    /* Improve card spacing on mobile */
-    .card,
-    [class*="Card"] {
-      margin-bottom: 1rem;
-    }
-
-    /* Better spacing for form elements */
-    form > * {
-      margin-bottom: 1rem;
-    }
-
-    /* Improve dialog/modal on mobile */
-    [role="dialog"],
-    [data-radix-dialog-content] {
-      width: 100vw !important;
-      max-width: 100vw !important;
-      margin: 0 !important;
-      border-radius: 0 !important;
-      max-height: 100vh !important;
-    }
-
-    /* Improve dropdown menus on mobile */
-    [data-radix-dropdown-menu-content] {
-      max-width: calc(100vw - 2rem);
+    /* Keep dropdown menus inside the viewport */
+    [data-radix-dropdown-menu-content],
+    [data-radix-popper-content-wrapper] > * {
+      max-width: calc(100vw - 1.5rem);
     }
 
     /* Better text readability on mobile */
@@ -722,35 +695,25 @@ All colors MUST be HSL.
       text-size-adjust: 100%;
     }
 
-    /* Prevent horizontal scroll */
-    body,
-    html {
-      overflow-x: hidden;
-      width: 100%;
-    }
-
-    /* Improve navigation scroll on mobile */
+    /* Momentum scrolling for the horizontal nav strip */
     nav {
       -webkit-overflow-scrolling: touch;
     }
   }
 
-  /* Tablet and mobile improvements */
-  @media (max-width: 768px) {
-    /* Make grid layouts stack on mobile */
-    .grid {
-      grid-template-columns: 1fr !important;
-    }
+  /* Safety net: nothing should ever push the page sideways. Individual
+     wide blocks (tables, chart rows) scroll inside their own container.
+     Only on <html>: its value is what gets propagated to the viewport. Adding
+     it to <body> as well makes the body a scroll container of its own, which
+     stops the sticky header from sticking. */
+  html {
+    overflow-x: hidden;
+  }
 
-    /* Improve spacing in cards */
-    [class*="CardContent"] {
-      padding: 1rem;
-    }
-
-    /* Better button spacing */
-    .flex.gap-1,
-    .flex.gap-2 {
-      flex-wrap: wrap;
-    }
+  /* Horizontally scrollable region helper */
+  .scroll-x {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
   }
 }

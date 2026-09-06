@@ -104,11 +104,11 @@ const Dashboard = () => {
     <DashboardLayout>
       <div className="space-y-2 sm:space-y-3 animate-fade-in">
         <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10">
-              <Receipt className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-1.5 sm:p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 shrink-0">
+              <Receipt className="w-5 h-5 sm:w-8 sm:h-8 text-primary" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h2 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
                 {t('dashboard.title')}
               </h2>
@@ -117,13 +117,13 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-2 sm:gap-3 grid-cols-2 lg:grid-cols-3">
           {loading ? (
             Array(5).fill(0).map((_, i) => (
               <Card key={i} className="animate-pulse border-2">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-2 px-2">
-                  <div className="h-3.5 w-24 bg-muted rounded"></div>
-                  <div className="h-4 w-4 bg-muted rounded"></div>
+                <CardHeader className="flex flex-row items-start justify-between gap-1 space-y-0 pb-1.5 pt-2 px-2">
+                  <div className="h-3.5 w-full max-w-[6rem] bg-muted rounded"></div>
+                  <div className="h-4 w-4 bg-muted rounded shrink-0"></div>
                 </CardHeader>
                 <CardContent className="px-2 pb-2">
                   <div className="h-5 w-20 bg-muted rounded mb-1"></div>
@@ -146,19 +146,19 @@ const Dashboard = () => {
                 }}
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-2 px-2">
-                  <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+                <CardHeader className="flex flex-row items-start justify-between gap-1 space-y-0 pb-1.5 pt-2 px-2">
+                  <CardTitle className="text-[11px] leading-tight sm:text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors min-w-0 break-words">
                     {stat.title}
                   </CardTitle>
-                  <div className={`p-1.5 rounded-lg bg-gradient-to-br from-primary/10 to-accent/10 group-hover:scale-110 transition-transform duration-300`}>
-                    <stat.icon className={`h-4 w-4 sm:h-4 sm:w-4 ${stat.color}`} />
+                  <div className="p-1 sm:p-1.5 rounded-lg bg-gradient-to-br from-primary/10 to-accent/10 group-hover:scale-110 transition-transform duration-300 shrink-0">
+                    <stat.icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${stat.color}`} />
                   </div>
                 </CardHeader>
                 <CardContent className="px-2 pb-2">
-                  <div className="text-base sm:text-lg font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
+                  <div className="text-base sm:text-lg font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent truncate">
                     {stat.value}
                   </div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">{stat.description}</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 line-clamp-2">{stat.description}</p>
                 </CardContent>
               </Card>
             ))
@@ -178,45 +178,60 @@ const Dashboard = () => {
             <CardContent className="relative pt-1.5 px-2 pb-2">
               {recentInvoices.length > 0 ? (
                 <div className="space-y-1.5">
-                  {recentInvoices.map((invoice, idx) => (
-                    <div 
-                      key={invoice.id} 
-                      className="grid grid-cols-1 sm:grid-cols-3 items-center gap-1.5 p-2 rounded-lg hover:bg-muted/50 transition-colors border-b last:border-0 animate-fade-in"
-                      style={{ animationDelay: `${idx * 0.1}s` }}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm text-foreground truncate">
-                          {invoice.invoice_type === 'sell' ? invoice.customers?.name : invoice.suppliers?.name}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                          <span className="w-1 h-1 rounded-full bg-muted-foreground" />
-                          {formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}
-                        </p>
-                      </div>
-                      <div className="flex items-center justify-center gap-1.5 px-2 py-1 rounded-md bg-primary/5 dark:bg-primary/10 border border-primary/20 self-center mx-auto">
+                  {recentInvoices.map((invoice, idx) => {
+                    const typeChip = (
+                      <>
                         {invoice.invoice_type === 'buy' ? (
-                          <TrendingUp className="w-3.5 h-3.5 text-success" />
+                          <TrendingUp className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-success shrink-0" />
                         ) : (
-                          <TrendingDown className="w-3.5 h-3.5 text-primary" />
+                          <TrendingDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary shrink-0" />
                         )}
                         <span className="text-[10px] font-medium text-foreground whitespace-nowrap">
                           {invoice.invoice_type === 'sell' ? t('invoices.sell') : t('invoices.buy')}
                         </span>
+                      </>
+                    );
+
+                    return (
+                      <div
+                        key={invoice.id}
+                        className="flex items-center justify-between gap-2 sm:grid sm:grid-cols-3 sm:items-center p-2 rounded-lg hover:bg-muted/50 transition-colors border-b last:border-0 animate-fade-in"
+                        style={{ animationDelay: `${idx * 0.1}s` }}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-xs sm:text-sm text-foreground truncate">
+                            {invoice.invoice_type === 'sell' ? invoice.customers?.name : invoice.suppliers?.name}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <p className="text-[10px] text-muted-foreground flex items-center gap-1 whitespace-nowrap">
+                              <span className="w-1 h-1 rounded-full bg-muted-foreground" />
+                              {formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}
+                            </p>
+                            {/* On phones the type sits inline with the date instead of
+                                taking a row of its own. */}
+                            <span className="sm:hidden flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-primary/5 dark:bg-primary/10 border border-primary/20">
+                              {typeChip}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="hidden sm:flex items-center justify-center gap-1.5 px-2 py-1 rounded-md bg-primary/5 dark:bg-primary/10 border border-primary/20 self-center mx-auto">
+                          {typeChip}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-bold text-sm sm:text-base whitespace-nowrap">${Number(invoice.total_amount).toFixed(2)}</p>
+                          <p className={`text-[10px] px-1.5 py-0.5 rounded-full inline-block font-medium whitespace-nowrap ${
+                            invoice.payment_status === 'paid' 
+                              ? 'bg-success/10 text-success dark:bg-success/20 dark:text-success' 
+                              : invoice.payment_status === 'partial' 
+                              ? 'bg-warning/10 text-warning dark:bg-warning/20 dark:text-warning' 
+                              : 'bg-pending-light text-pending dark:bg-pending-light dark:text-pending border border-pending/30 dark:border-pending/40'
+                          }`}>
+                            {invoice.payment_status === 'paid' ? `✓ ${t('dashboard.paid')}` : invoice.payment_status === 'partial' ? `◐ ${t('dashboard.partial')}` : `○ ${t('dashboard.pending')}`}
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-left sm:text-right w-full sm:w-auto">
-                        <p className="font-bold text-sm sm:text-base">${Number(invoice.total_amount).toFixed(2)}</p>
-                        <p className={`text-[10px] px-1.5 py-0.5 rounded-full inline-block font-medium ${
-                          invoice.payment_status === 'paid' 
-                            ? 'bg-success/10 text-success dark:bg-success/20 dark:text-success' 
-                            : invoice.payment_status === 'partial' 
-                            ? 'bg-warning/10 text-warning dark:bg-warning/20 dark:text-warning' 
-                            : 'bg-pending-light text-pending dark:bg-pending-light dark:text-pending border border-pending/30 dark:border-pending/40'
-                        }`}>
-                          {invoice.payment_status === 'paid' ? `✓ ${t('dashboard.paid')}` : invoice.payment_status === 'partial' ? `◐ ${t('dashboard.partial')}` : `○ ${t('dashboard.pending')}`}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-10 text-muted-foreground">

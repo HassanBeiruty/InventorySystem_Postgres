@@ -245,12 +245,12 @@ export default function InvoicePaymentsSidePanel({ open, onOpenChange, invoiceId
     <>
       {/* Backdrop - Only on mobile/tablet */}
       <div
-        className="fixed inset-0 bg-black/50 z-40 transition-opacity lg:hidden"
+        className="fixed inset-0 bg-black/50 z-[55] transition-opacity lg:hidden"
         onClick={() => onOpenChange(false)}
       />
       
       {/* Side Panel */}
-      <div className="h-full bg-background border rounded-lg shadow-xl flex flex-col overflow-hidden">
+      <div className="fixed right-0 top-0 h-full w-full sm:w-[500px] lg:relative lg:h-full lg:w-full bg-background border-l lg:border lg:rounded-lg shadow-xl z-[60] lg:z-auto flex flex-col overflow-hidden">
         {/* Header */}
         <div className="border-b p-3 flex items-center justify-between bg-gradient-to-r from-primary/5 to-accent/5 flex-shrink-0">
           <div className="flex-1 min-w-0">
