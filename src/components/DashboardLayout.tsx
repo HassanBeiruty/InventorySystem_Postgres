@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Receipt, Package, Users, UserPlus, FileText, TrendingUp, TrendingDown, Home, History, Warehouse, ChevronDown, BarChart3, Calendar, DollarSign, AlertTriangle, FolderTree, AlertCircle, Settings, Scan, CreditCard, Boxes } from "lucide-react";
+import { LogOut, Receipt, Package, Users, UserPlus, FileText, TrendingUp, TrendingDown, Home, History, Warehouse, ChevronDown, BarChart3, Calendar, DollarSign, AlertTriangle, FolderTree, AlertCircle, Settings, Scan, CreditCard, Boxes, Calculator } from "lucide-react";
 import { toast } from "sonner";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -353,6 +353,12 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                   <Link to="/barcode-generator" className="cursor-pointer flex items-center gap-1.5">
                     <Scan className="w-3 h-3" />
                     <span className="font-medium">Barcode Generator</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="px-1.5 py-1 text-xs">
+                  <Link to="/landed-cost" className="cursor-pointer flex items-center gap-1.5">
+                    <Calculator className="w-3 h-3" />
+                    <span className="font-medium">Landed Cost (Tax)</span>
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>

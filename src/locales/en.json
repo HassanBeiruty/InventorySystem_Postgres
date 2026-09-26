@@ -458,6 +458,11 @@
     "exchangeRateUpdated": "Exchange rate updated successfully",
     "exchangeRateDeactivated": "Exchange rate deactivated successfully"
   },
+  "landedCost": {
+    "title": "Landed Cost",
+    "subtitle": "Convert a supplier invoice to USD and spread the total tax across items by value. Produces a file you can import on the Invoices page.",
+    "inputs": "Invoice & rates"
+  },
   "notFound": {
     "title": "404",
     "message": "Oops! Page not found",

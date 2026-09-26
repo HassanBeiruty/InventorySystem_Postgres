@@ -30,6 +30,7 @@ const ExchangeRates = lazy(() => import("./pages/ExchangeRates"));
 const LowStock = lazy(() => import("./pages/LowStock"));
 const Settings = lazy(() => import("./pages/Settings"));
 const BarcodeGenerator = lazy(() => import("./pages/BarcodeGenerator"));
+const LandedCost = lazy(() => import("./pages/LandedCost"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Configure React Query with performance optimizations
@@ -85,6 +86,7 @@ const App = () => (
             <Route path="/low-stock" element={<LowStock />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/barcode-generator" element={<BarcodeGenerator />} />
+            <Route path="/landed-cost" element={<LandedCost />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
