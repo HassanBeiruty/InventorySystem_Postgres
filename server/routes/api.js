@@ -6,6 +6,7 @@ const { body, param, query: queryValidator, validationResult } = require('expres
 const multer = require('multer');
 const XLSX = require('xlsx');
 const { parse } = require('csv-parse/sync');
+const landedCost = require('../utils/landedCost');
 
 // Import security middleware
 const {
@@ -5996,6 +5997,89 @@ router.post('/invoices/import-excel',
 		client.release();
 	}
 });
+
+// ===== LANDED COST (distribute a lump-sum tax across invoice lines) =====
+// Takes a supplier invoice priced in a foreign currency plus one total tax amount, and
+// returns the same invoice with unit_price converted to USD and carrying that line's
+// pro-rata share of the tax. The generated file is importable as-is on the Invoices page.
+//
+// Admin only, matching the invoice import routes it feeds.
+router.post('/tools/landed-cost',
+	authenticateToken,
+	requireAdmin,
+	fileUploadLimiter,
+	upload.single('file'),
+	validateFileUpload,
+	sanitizeInput,
+	(req, res) => {
+		try {
+			if (!req.file) {
+				return res.status(400).json({ error: 'No file uploaded' });
+			}
+
+			// cellDates + raw:true keeps numbers as numbers and dates as Dates. The invoice
+			// importer uses raw:false, which hands back the *formatted* cell text, so a
+			// currency-formatted price arrives as '¥113.00' and fails parseFloat.
+			const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
+			const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+			const data = XLSX.utils.sheet_to_json(worksheet, { raw: true, defval: '' });
+
+			if (!data || data.length === 0) {
+				return res.status(400).json({ error: 'Excel file is empty or has no data' });
+			}
+
+			const { columnMap, available, missing } = landedCost.detectColumns(data[0]);
+			if (missing.length > 0) {
+				return res.status(400).json({
+					error: `Missing required column(s): ${missing.join(', ')}`,
+					requiredColumns: missing,
+					availableColumns: available,
+					detectedColumns: columnMap
+				});
+			}
+
+			const result = landedCost.computeLandedCost({
+				rows: data,
+				columnMap,
+				rate: req.body.rate,
+				taxAmount: req.body.tax,
+				taxInSourceCurrency: req.body.taxInSourceCurrency === 'true'
+					|| req.body.taxInSourceCurrency === true
+			});
+
+			if (req.body.format === 'xlsx') {
+				const buffer = landedCost.buildWorkbook({
+					lines: result.lines,
+					summary: result.summary,
+					columnMap
+				});
+
+				const stamp = new Date().toISOString().split('T')[0];
+				res.setHeader('Content-Type',
+					'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+				res.setHeader('Content-Disposition',
+					`attachment; filename="invoice_landed_cost_${stamp}.xlsx"`);
+				return res.send(buffer);
+			}
+
+			// Preview: drop the raw sheet row, it is only needed when writing the workbook.
+			return res.json({
+				lines: result.lines.map(({ raw, ...line }) => line),
+				errors: result.errors,
+				summary: result.summary
+			});
+		} catch (err) {
+			const status = err.statusCode || 500;
+			if (status === 500) {
+				console.error('[Landed cost] error:', err);
+			}
+			return res.status(status).json({
+				error: status === 500 ? 'Failed to calculate landed cost' : err.message,
+				...(err.details ? { details: err.details } : {})
+			});
+		}
+	}
+);
 
 // Download import templates
 const fs = require('fs');
