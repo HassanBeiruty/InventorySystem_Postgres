@@ -3,7 +3,6 @@ const slowDown = require('express-slow-down');
 const helmet = require('helmet');
 const hpp = require('hpp');
 const xss = require('xss');
-const validator = require('validator');
 
 /**
  * Enhanced Security Middleware
@@ -136,23 +135,11 @@ const sanitizeInput = (req, res, next) => {
 		});
 	}
 
-	// Sanitize body parameters (except for specific fields that need HTML)
-	if (req.body) {
-		const sanitizeObject = (obj) => {
-			Object.keys(obj).forEach(key => {
-				if (typeof obj[key] === 'string') {
-					// Skip sanitization for fields that might legitimately contain special characters
-					// but sanitize potential XSS
-					if (!['password', 'token', 'description', 'notes'].includes(key)) {
-						obj[key] = validator.escape(obj[key]);
-					}
-				} else if (typeof obj[key] === 'object' && obj[key] !== null) {
-					sanitizeObject(obj[key]);
-				}
-			});
-		};
-		sanitizeObject(req.body);
-	}
+	// Body text is stored exactly as typed. HTML-escaping it here saved names like
+	// "Cable 1/2 & more" as "Cable 1&#x2F;2 &amp; more", which the UI then showed verbatim and
+	// re-escaped on every save. XSS is prevented where text becomes HTML instead: React escapes
+	// everything it renders, and the print views escape values with escapeHtml().
+	// Queries use parameters, so SQL safety does not depend on the text either.
 
 	next();
 };

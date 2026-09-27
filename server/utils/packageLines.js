@@ -81,8 +81,8 @@ function validatePackageLines(invoiceType, items) {
 
 /**
  * The authoritative name for every package on the invoice: the invoice's own earlier snapshot
- * when editing, otherwise the packages table. Names come back from the database already
- * escaped, so re-using them avoids escaping a client echo of the name a second time.
+ * when editing, otherwise the packages table. The client's copy of the name is never trusted
+ * for the saved snapshot.
  *
  * @param {{ query: Function }} db  A pg client or pool.
  * @param {object[]} items          Invoice lines as sent by the client.

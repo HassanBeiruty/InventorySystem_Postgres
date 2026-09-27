@@ -8,6 +8,7 @@ import { Scan, Download, Image as ImageIcon, Printer } from "lucide-react";
 import { useTranslation } from "react-i18next";
 // @ts-ignore - jsbarcode doesn't have TypeScript definitions
 import JsBarcode from "jsbarcode";
+import { escapeHtml } from "@/utils/escapeHtml";
 
 const BarcodeGenerator = () => {
   const { t } = useTranslation();
@@ -122,7 +123,7 @@ const BarcodeGenerator = () => {
         <!DOCTYPE html>
         <html>
           <head>
-            <title>Barcode Print - ${textData.trim()}</title>
+            <title>Barcode Print - ${escapeHtml(textData.trim())}</title>
             <style>
               * {
                 margin: 0;
@@ -179,7 +180,7 @@ const BarcodeGenerator = () => {
             </style>
           </head>
           <body>
-            <img src="${dataUrl}" alt="Barcode ${textData.trim()}" />
+            <img src="${dataUrl}" alt="Barcode ${escapeHtml(textData.trim())}" />
             <script>
               window.onload = function() {
                 window.print();

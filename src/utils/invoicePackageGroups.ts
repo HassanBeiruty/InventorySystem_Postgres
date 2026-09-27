@@ -3,6 +3,8 @@
  * ordinary lines pass through unchanged. Used by the invoice views, print and PDF.
  */
 
+import { escapeHtml } from "./escapeHtml";
+
 export interface SavedInvoiceLine {
   total_price?: number | string | null;
   package_id?: number | string | null;
@@ -74,7 +76,7 @@ export function packageHeaderLabel(row: PackageHeaderRow): string {
 
 /** Package header as a table row for the printable invoice HTML. */
 export function packageHeaderHtml(row: PackageHeaderRow, colSpan: number): string {
-  return `<tr class="package-row"><td colspan="${colSpan}" style="background:#f5efff;font-weight:700;color:#6b21a8;">${packageHeaderLabel(row)}</td></tr>`;
+  return `<tr class="package-row"><td colspan="${colSpan}" style="background:#f5efff;font-weight:700;color:#6b21a8;">${escapeHtml(packageHeaderLabel(row))}</td></tr>`;
 }
 
 /** Package header as a jspdf-autotable body row spanning the whole table. */

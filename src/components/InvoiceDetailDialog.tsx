@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { invoicesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
+import { escapeHtml } from "@/utils/escapeHtml";
 import { Printer, Download } from "lucide-react";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
 import { PackageHeaderRow } from "@/components/invoice/PackageHeaderRow";
@@ -246,9 +247,9 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
 
           <div class="entity-details">
             <h3>${invoice.invoice_type === 'sell' ? 'Customer' : 'Supplier'} Details</h3>
-            <strong>Name:</strong> ${entityName}<br>
-            <strong>Phone:</strong> ${entityPhone}<br>
-            <strong>Address:</strong> ${entityAddress}
+            <strong>Name:</strong> ${escapeHtml(entityName)}<br>
+            <strong>Phone:</strong> ${escapeHtml(entityPhone)}<br>
+            <strong>Address:</strong> ${escapeHtml(entityAddress)}
           </div>
 
           <table>
@@ -271,10 +272,10 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                   : item.unit_price || 0;
                 return `
                 <tr>
-                  <td>#${item.product_id} ${item.product_name || 'Product'}${item.product_barcode || item.product_sku ? ` - ${item.product_barcode || item.product_sku}` : ''}</td>
+                  <td>#${item.product_id} ${escapeHtml(item.product_name || 'Product')}${item.product_barcode || item.product_sku ? ` - ${escapeHtml(item.product_barcode || item.product_sku)}` : ''}</td>
                   <td>${item.quantity}</td>
                   <td>$${Number(displayUnitPrice).toFixed(2)}</td>
-                  <td>${item.price_type}</td>
+                  <td>${escapeHtml(item.price_type)}</td>
                   <td style="text-align: right;">$${Number(item.total_price || 0).toFixed(2)}</td>
                 </tr>
               `;

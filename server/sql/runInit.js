@@ -1074,6 +1074,93 @@ BEGIN
       AND i.invoice_type = 'sell';
 END;
 $$;`
+	},
+	// One-time data fix: text used to be HTML-escaped on the way in (validator.escape), so stored
+	// values read "Cable 1&#x2F;2 &amp; more" and gained another layer on every re-save. Text is now
+	// stored as typed; this decodes what is already stored, repeating up to 5 times for values
+	// escaped more than once (barcodes/SKUs were upper-cased after escaping, hence case-insensitive).
+	// Recorded in app_data_migrations so it runs only once; every original value it changes is kept
+	// in app_data_migration_backup (tbl, col, row_id, original). Columns that were never escaped
+	// (description, notes) and fixed-value columns are left alone. A column whose decoding would
+	// duplicate a unique value is skipped with a notice instead of failing the whole fix.
+	{
+		name: 'unescape_html_entities_v1',
+		sql: `DO $$
+DECLARE
+	target RECORD;
+	pass INT;
+	changed INT;
+BEGIN
+	CREATE TABLE IF NOT EXISTS app_data_migrations (
+		name VARCHAR(100) PRIMARY KEY,
+		applied_at TIMESTAMP NOT NULL DEFAULT now()
+	);
+	IF EXISTS (SELECT 1 FROM app_data_migrations WHERE name = 'unescape_html_entities_v1') THEN
+		RETURN;
+	END IF;
+	-- Every value this fix changes is kept here first, so it can be restored if ever needed
+	CREATE TABLE IF NOT EXISTS app_data_migration_backup (
+		migration VARCHAR(100) NOT NULL,
+		tbl VARCHAR(63) NOT NULL,
+		col VARCHAR(63) NOT NULL,
+		row_id INT NOT NULL,
+		original TEXT,
+		saved_at TIMESTAMP NOT NULL DEFAULT now()
+	);
+
+	FOR target IN
+		SELECT * FROM (VALUES
+			('categories', 'name'),
+			('customers', 'name'), ('customers', 'phone'), ('customers', 'address'),
+			('suppliers', 'name'), ('suppliers', 'phone'), ('suppliers', 'address'),
+			('products', 'name'), ('products', 'barcode'), ('products', 'sku'), ('products', 'shelf'),
+			('invoice_items', 'private_price_note'), ('invoice_items', 'package_name'),
+			('invoice_payments', 'payment_method'),
+			('packages', 'name'),
+			('users', 'email')
+		) AS t(tbl, col)
+	LOOP
+		IF NOT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_schema = 'public' AND table_name = target.tbl AND column_name = target.col
+		) THEN
+			CONTINUE;
+		END IF;
+		BEGIN
+			EXECUTE format(
+				$q$INSERT INTO app_data_migration_backup (migration, tbl, col, row_id, original)
+					SELECT 'unescape_html_entities_v1', %1$L, %2$L, id, %2$I FROM %1$I
+					WHERE %2$I ~* '&(amp|lt|gt|quot|#x27|#x2f|#x5c|#96);'$q$,
+				target.tbl, target.col
+			);
+			FOR pass IN 1..5 LOOP
+				EXECUTE format(
+					$q$UPDATE %1$I SET %2$I =
+						regexp_replace(regexp_replace(regexp_replace(regexp_replace(regexp_replace(regexp_replace(
+						replace(replace(%2$I, '&#x5C;', chr(92)), '&#X5C;', chr(92)),
+						'&#x2F;', '/', 'gi'), '&#96;', chr(96), 'g'), '&quot;', '"', 'gi'),
+						'&#x27;', '''', 'gi'), '&lt;', '<', 'gi'), '&gt;', '>', 'gi')
+					WHERE %2$I ~* '&(lt|gt|quot|#x27|#x2f|#x5c|#96);'$q$,
+					target.tbl, target.col
+				);
+				-- &amp; last, so "&amp;#x27;" (escaped twice) becomes "&#x27;" for the next pass
+				EXECUTE format(
+					$q$UPDATE %1$I SET %2$I = regexp_replace(%2$I, '&amp;', '&', 'gi') WHERE %2$I ~* '&amp;'$q$,
+					target.tbl, target.col
+				);
+				EXECUTE format(
+					$q$SELECT count(*) FROM %1$I WHERE %2$I ~* '&(amp|lt|gt|quot|#x27|#x2f|#x5c|#96);'$q$,
+					target.tbl, target.col
+				) INTO changed;
+				EXIT WHEN changed = 0;
+			END LOOP;
+		EXCEPTION WHEN unique_violation THEN
+			RAISE NOTICE 'unescape_html_entities_v1: skipped %.% (would duplicate a unique value)', target.tbl, target.col;
+		END;
+	END LOOP;
+
+	INSERT INTO app_data_migrations (name) VALUES ('unescape_html_entities_v1');
+END $$;`
 	}
 ];
 
