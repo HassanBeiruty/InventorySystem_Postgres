@@ -1185,6 +1185,33 @@ router.delete('/packages/:id', [
 });
 
 // ===== INVOICES =====
+
+// Invoice lines (with product name/barcode/SKU) for the given invoices, grouped by invoice id
+async function loadInvoiceItemsByInvoice(invoiceIds) {
+	const idToItems = new Map();
+	if (invoiceIds.length === 0) return idToItems;
+	const placeholders = invoiceIds.map((_, i) => `$${i + 1}`).join(',');
+	const result = await query(
+		`SELECT 
+			ii.*,
+			p.name as product_name,
+			p.barcode as product_barcode,
+			p.sku as product_sku
+		FROM invoice_items ii
+		LEFT JOIN products p ON ii.product_id = p.id
+		WHERE ii.invoice_id IN (${placeholders})
+		ORDER BY ii.invoice_id, ii.id`,
+		invoiceIds
+	);
+	result.recordset.forEach(item => {
+		if (!idToItems.has(item.invoice_id)) {
+			idToItems.set(item.invoice_id, []);
+		}
+		idToItems.get(item.invoice_id).push(item);
+	});
+	return idToItems;
+}
+
 router.get('/invoices', async (req, res) => {
 	try {
 		const { start_date, end_date } = req.query;
@@ -1237,31 +1264,7 @@ router.get('/invoices', async (req, res) => {
 		
 		// Only fetch invoice items for the invoices we're returning (much faster)
 		const invoiceIds = invoicesResult.recordset.map(inv => inv.id);
-		let invoiceItemsResult = { recordset: [] };
-		if (invoiceIds.length > 0) {
-			const placeholders = invoiceIds.map((_, i) => `$${i + 1}`).join(',');
-			invoiceItemsResult = await query(
-				`SELECT 
-					ii.*,
-					p.name as product_name,
-					p.barcode as product_barcode,
-					p.sku as product_sku
-				FROM invoice_items ii
-				LEFT JOIN products p ON ii.product_id = p.id
-				WHERE ii.invoice_id IN (${placeholders})
-				ORDER BY ii.invoice_id, ii.id`,
-				invoiceIds
-			);
-		}
-		
-		// Group invoice items by invoice_id
-		const idToItems = new Map();
-		invoiceItemsResult.recordset.forEach(item => {
-			if (!idToItems.has(item.invoice_id)) {
-				idToItems.set(item.invoice_id, []);
-			}
-			idToItems.get(item.invoice_id).push(item);
-		});
+		const idToItems = await loadInvoiceItemsByInvoice(invoiceIds);
 		
 		// Fetch payments for all invoices to calculate amount_paid accurately
 		let paymentsResult = { recordset: [] };
@@ -1752,6 +1755,9 @@ router.get('/invoices/overdue', async (req, res) => {
 			[today]
 		);
 		
+		// The overdue list shows each invoice's lines too
+		const idToItems = await loadInvoiceItemsByInvoice(invoices.recordset.map(inv => inv.id));
+
 		// Format the response to match frontend expectations
 		const result = invoices.recordset.map(inv => {
 			// Calculate remaining balance: total_amount - amount_paid
@@ -1764,6 +1770,7 @@ router.get('/invoices/overdue', async (req, res) => {
 				customers: inv.customer_id ? { name: inv.customer_name, phone: inv.customer_phone } : undefined,
 				suppliers: inv.supplier_id ? { name: inv.supplier_name, phone: inv.supplier_phone } : undefined,
 				remaining_balance: remainingBalance,
+				invoice_items: idToItems.get(inv.id) || [],
 			};
 		});
 		

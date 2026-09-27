@@ -50,8 +50,11 @@ const InvoicesList = () => {
   const importInProgressRef = useRef(false);
   const idempotencyKeyRef = useRef<string | null>(null);
 
-  const fetchData = useCallback(async (sd?: string, ed?: string) => {
-    setLoading(true);
+  // A background refresh keeps the current rows on screen until the new data arrives. Swapping
+  // them for skeletons made a click that also re-focused the window land on a skeleton, so
+  // "View details" / row clicks did nothing.
+  const fetchData = useCallback(async (sd?: string, ed?: string, background = false) => {
+    if (!background) setLoading(true);
     try {
       const invoicesData = await invoicesRepo.listWithRelations(sd, ed);
       const invoices = invoicesData || [];
@@ -63,7 +66,7 @@ const InvoicesList = () => {
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   }, [toast]);
 
@@ -78,7 +81,7 @@ const InvoicesList = () => {
       const lastFetch = (window as any).__lastInvoiceFetch || 0;
       const now = Date.now();
       if (now - lastFetch > 1000) {
-        fetchData(startDate, endDate);
+        fetchData(startDate, endDate, true);
         (window as any).__lastInvoiceFetch = now;
       }
     };

@@ -206,7 +206,7 @@ const OverdueInvoices = () => {
                         {invoice.customers?.name || invoice.suppliers?.name || "N/A"}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {invoice.invoice_items?.length || 0} items
+                        {invoice.invoice_items?.length || 0} {(invoice.invoice_items?.length || 0) === 1 ? 'item' : 'items'}
                       </TableCell>
                       <TableCell className="text-right font-bold text-base tabular-nums text-warning-strong">
                         ${Number(invoice.total_amount).toFixed(2)}
