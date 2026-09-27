@@ -710,6 +710,16 @@ All colors MUST be HSL.
     overflow-x: hidden;
   }
 
+  /* Radix menus/dialogs/selects lock scrolling by putting overflow:hidden and
+     a scrollbar-width margin-right on <body> (react-remove-scroll-bar). That
+     only works when <body>'s overflow reaches the viewport, which the rule
+     above blocks: the scrollbar stayed visible, the page shifted sideways by
+     half its width, and the sticky header scrolled away. Hand the viewport
+     back to <body> while a lock is active. */
+  html:has(body[data-scroll-locked]) {
+    overflow-x: visible;
+  }
+
   /* Horizontally scrollable region helper */
   .scroll-x {
     overflow-x: auto;
