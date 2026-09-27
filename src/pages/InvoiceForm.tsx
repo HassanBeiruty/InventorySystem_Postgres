@@ -119,12 +119,11 @@ const InvoiceForm = () => {
     
     const initializeData = async () => {
       try {
-        const [prodsResponse, custs, supps, latest, stockData, pkgs] = await Promise.all([
+        const [prodsResponse, custs, supps, latest, pkgs] = await Promise.all([
           productsRepo.list({ limit: 1000 }),
           customersRepo.list(),
           suppliersRepo.list(),
           productPricesRepo.latestAll(),
-          invoiceType === 'sell' ? inventoryRepo.today() : Promise.resolve([]),
           packagesRepo.list().catch(() => [] as PackageEntity[]),
         ]);
         const prods = Array.isArray(prodsResponse) ? prodsResponse : prodsResponse.data;
@@ -170,16 +169,6 @@ const InvoiceForm = () => {
         setCustomers(customersList);
         setSuppliers(supps || []);
         
-        // Map available stock by product_id
-        if (invoiceType === 'sell' && stockData) {
-          const stockMap = new Map<string, number>();
-          (stockData as any[]).forEach((item: any) => {
-            const productId = String(item.product_id);
-            stockMap.set(productId, Number(item.available_qty) || 0);
-          });
-          setAvailableStock(stockMap);
-        }
-        
         // Data loaded successfully
         
         const lp: Record<string, { wholesale_price: number | null; retail_price: number | null }> = {};
@@ -196,18 +185,6 @@ const InvoiceForm = () => {
         // Now load invoice data if in edit mode, with the fresh data
         if (isEditMode && id && !cancelled) {
           await loadInvoiceData(id, prods || [], custs || [], supps || []);
-          // Reload stock data if it's a sell invoice
-          if (invoiceType === 'sell') {
-            const editStockData = await inventoryRepo.today();
-            if (editStockData && !cancelled) {
-              const stockMap = new Map<string, number>();
-              (editStockData as any[]).forEach((item: any) => {
-                const productId = String(item.product_id);
-                stockMap.set(productId, Number(item.available_qty) || 0);
-              });
-              setAvailableStock(stockMap);
-            }
-          }
         }
         
         if (cancelled) return;
@@ -232,6 +209,33 @@ const InvoiceForm = () => {
     };
   }, [isEditMode, id]);
   
+  // Available stock (sell invoices only). Loaded whenever the form is, or becomes, a sell
+  // invoice: the same form instance is reused when navigating from a buy or edit invoice to a
+  // new sell invoice, so loading it once on mount left every product at 0 available.
+  useEffect(() => {
+    if (invoiceType !== 'sell') {
+      setAvailableStock(new Map());
+      return;
+    }
+    let cancelled = false;
+    inventoryRepo.today()
+      .then((rows) => {
+        if (cancelled) return;
+        const stockMap = new Map<string, number>();
+        (rows || []).forEach((row: any) => {
+          stockMap.set(String(row.product_id), Number(row.available_qty) || 0);
+        });
+        setAvailableStock(stockMap);
+      })
+      .catch((error: any) => {
+        if (cancelled) return;
+        toast({ title: "Error", description: `Failed to load stock. ${error.message}`, variant: "destructive" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [invoiceType, id, toast]);
+
   // Reset hasPayments when creating a new invoice
   useEffect(() => {
     if (!isEditMode) {
