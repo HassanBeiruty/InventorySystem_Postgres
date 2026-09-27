@@ -6,25 +6,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, ChevronUp, ChevronDown, Package, AlertTriangle, Search, X } from "lucide-react";
-import { productsRepo, customersRepo, suppliersRepo, invoicesRepo, productPricesRepo, inventoryRepo, packagesRepo } from "@/integrations/api/repo";
+import { productsRepo, customersRepo, suppliersRepo, invoicesRepo, productPricesRepo, inventoryRepo, packagesRepo, type PackageEntity } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { normalizeBarcodeOrSku, normalizeBarcodeOrSkuForSearch } from "@/utils/barcodeSkuUtils";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
+import type { InvoiceFormItem } from "@/components/invoice/types";
+import { PackageLineGroup } from "@/components/invoice/PackageLineGroup";
+import {
+  applyPackage,
+  collectPackageGroups,
+  createPackageLines,
+  findPackageConflicts,
+  findPackageStockShortages,
+  regroupLoadedLines,
+  removePackage,
+} from "@/utils/invoicePackageLines";
 
-interface InvoiceItem {
-  product_id: string;
-  quantity: number;
-  unit_price: number;
-  price_type: 'retail' | 'wholesale';
-  total_price: number;
-  is_private_price: boolean;
-  private_price_amount: number;
-  private_price_note: string;
-  barcode?: string;
-}
+type InvoiceItem = InvoiceFormItem;
+
+// Product dropdown values for packages are "pkg:<id>"; product ids are numeric, so they never collide
+const PACKAGE_OPTION_PREFIX = "pkg:";
 
 const InvoiceForm = () => {
   const { t } = useTranslation();
@@ -64,8 +68,8 @@ const InvoiceForm = () => {
     }, 50);
   }, [location.pathname, isEditMode]);
   const [products, setProducts] = useState<any[]>([]);
-  // Map of package product id -> ordered list of component product ids
-  const [packagesMap, setPackagesMap] = useState<Map<string, string[]>>(new Map());
+  // Named packages; offered in the product search on SELL invoices only
+  const [packages, setPackages] = useState<PackageEntity[]>([]);
   const [latestPrices, setLatestPrices] = useState<Record<string, { wholesale_price: number | null; retail_price: number | null }>>({});
   const [customers, setCustomers] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
@@ -117,16 +121,10 @@ const InvoiceForm = () => {
           suppliersRepo.list(),
           productPricesRepo.latestAll(),
           invoiceType === 'sell' ? inventoryRepo.today() : Promise.resolve([]),
-          packagesRepo.list().catch(() => []),
+          packagesRepo.list().catch(() => [] as PackageEntity[]),
         ]);
         const prods = Array.isArray(prodsResponse) ? prodsResponse : prodsResponse.data;
 
-        // Build package map: package product id -> component product ids
-        const pkgMap = new Map<string, string[]>();
-        (pkgs || []).forEach((pkg: any) => {
-          pkgMap.set(String(pkg.package_product_id), (pkg.components || []).map((c: any) => String(c.component_product_id)));
-        });
-        
                 // Don't update state if component unmounted
         if (cancelled) return;
 
@@ -164,7 +162,7 @@ const InvoiceForm = () => {
         }
 
         setProducts(prods || []);
-        setPackagesMap(pkgMap);
+        setPackages(pkgs || []);
         setCustomers(customersList);
         setSuppliers(supps || []);
         
@@ -336,10 +334,16 @@ const InvoiceForm = () => {
             private_price_amount: Number(item.private_price_amount) || 0,
             private_price_note: item.private_price_note || "",
             barcode: loadedProduct?.barcode || "",
+            ...(item.package_id != null ? {
+              package_id: String(item.package_id),
+              package_name: item.package_name || "",
+              package_qty: Number(item.package_qty) || 1,
+              package_price: Number(item.package_price) || 0,
+            } : {}),
           };
         });
-        // Items loaded successfully
-        setItems(loadedItems);
+        // Package lines are shown together under their package
+        setItems(regroupLoadedLines(loadedItems));
       } else {
         // No invoice items found
       }
@@ -378,27 +382,108 @@ const InvoiceForm = () => {
     };
   };
 
-  // Given a package product id, return new rows for each component product that
-  // isn't already present in the provided items list (avoids duplicate rows).
-  const getPackageComponentRows = (packageProductId: string, existingItems: InvoiceItem[]): InvoiceItem[] => {
-    // Packages only expand on SELL invoices (you sell a package = sell its components).
-    // On BUY invoices you purchase individual products, so no expansion.
-    if (invoiceType !== 'sell') return [];
-    const componentIds = packagesMap.get(String(packageProductId));
-    if (!componentIds || componentIds.length === 0) return [];
-    const presentIds = new Set(
-      existingItems.filter(i => i.product_id).map(i => String(i.product_id))
-    );
-    const rows: InvoiceItem[] = [];
-    for (const cid of componentIds) {
-      if (presentIds.has(String(cid))) continue;
-      presentIds.add(String(cid));
-      rows.push(buildRowForProduct(String(cid)));
+  // ----- Packages (SELL only) -----
+  // A package is a run of ordinary private-price lines sharing a package_id. The user changes
+  // only the package qty and price; the lines' quantities and private prices follow.
+  const packageGroups = useMemo(() => collectPackageGroups(items), [items]);
+  const productsById = useMemo(() => new Map(products.map((p) => [String(p.id), p])), [products]);
+  const productName = (productId: string) => productsById.get(String(productId))?.name || `Product #${productId}`;
+
+  const warnPackageShortages = (shortages: Array<{ productId: string; requested: number; available: number }>) => {
+    toast({
+      title: "Insufficient Stock",
+      description: shortages
+        .map((s) => `${productName(s.productId)}: ${s.requested} needed, only ${s.available} available`)
+        .join('\n'),
+      variant: "destructive",
+    });
+  };
+
+  const addPackage = (index: number, packageId: string) => {
+    const pkg = packages.find((p) => String(p.id) === packageId);
+    if (!pkg) return;
+
+    // Already on the invoice: sell one more package instead of adding its products twice
+    const existing = packageGroups.get(packageId);
+    if (existing) {
+      const qty = existing.qty + 1;
+      const shortages = findPackageStockShortages(items, packageId, qty, (pid, i) => getEffectiveAvailableStock(pid, i));
+      if (shortages.length > 0) {
+        warnPackageShortages(shortages);
+        return;
+      }
+      const next = applyPackage(items, packageId, { qty });
+      if (!items[index]?.product_id) next.splice(index, 1); // drop the empty row it was picked from
+      setItems(next);
+      toast({ title: "Package already on the invoice", description: `"${pkg.name}" quantity increased to ${qty}.` });
+      return;
     }
-    return rows;
+
+    // One product per invoice: a package can't reuse a product that is already on it
+    const conflicts = findPackageConflicts(items, pkg, index);
+    if (conflicts.length > 0) {
+      toast({
+        title: `Can't add "${pkg.name}"`,
+        description: conflicts
+          .map((c) => `${productName(c.productId)} is already on this invoice${c.inPackage !== null ? ` in package "${c.inPackage}"` : ''}`)
+          .join('. ') + '. Each product can appear only once per invoice.',
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const next = [...items];
+    next.splice(index, 1, ...createPackageLines(pkg, buildRowForProduct));
+    setItems(next);
+    setActiveItemIndex(index);
+
+    const shortages = findPackageStockShortages(next, packageId, 1, (pid, i) => getEffectiveAvailableStock(pid, i, next));
+    if (shortages.length > 0) {
+      warnPackageShortages(shortages);
+    } else {
+      toast({
+        title: "Package added",
+        description: `"${pkg.name}" added at $${Number(pkg.default_price).toFixed(2)}. Change the package qty or price to update its lines.`,
+      });
+    }
+  };
+
+  const handlePackageQtyChange = (packageId: string, qty: number) => {
+    const shortages = findPackageStockShortages(items, packageId, qty, (pid, i) => getEffectiveAvailableStock(pid, i));
+    if (shortages.length > 0) {
+      warnPackageShortages(shortages);
+      return; // Don't update quantity
+    }
+    setItems(applyPackage(items, packageId, { qty }));
+  };
+
+  const handlePackagePriceChange = (packageId: string, price: number) => {
+    setItems(applyPackage(items, packageId, { price }));
+  };
+
+  const handleRemovePackage = (packageId: string) => {
+    if (hasPayments) {
+      return; // Same rule as removeItem
+    }
+    const next = removePackage(items, packageId);
+    setItems(next.length > 0 ? next : [{
+      product_id: "",
+      quantity: 1,
+      unit_price: 0,
+      price_type: 'retail',
+      total_price: 0,
+      is_private_price: false,
+      private_price_amount: 0,
+      private_price_note: "",
+      barcode: "",
+    }]);
   };
 
   const handleProductChange = (index: number, productId: string) => {
+    if (productId.startsWith(PACKAGE_OPTION_PREFIX)) {
+      addPackage(index, productId.slice(PACKAGE_OPTION_PREFIX.length));
+      return;
+    }
     const product = products.find(p => String(p.id) === productId || p.id === productId);
     if (product) {
       // Check if this product is already in another item
@@ -446,17 +531,7 @@ const InvoiceForm = () => {
         ? newItems[index].private_price_amount 
         : newItems[index].unit_price;
       newItems[index].total_price = effectivePrice * newItems[index].quantity;
-
-      // If the selected product is a package, append a row for each component product
-      const componentRows = getPackageComponentRows(productId, newItems);
-      setItems([...newItems, ...componentRows]);
-
-      if (componentRows.length > 0) {
-        toast({
-          title: "Package added",
-          description: `Added ${componentRows.length} component product(s) from "${product.name}".`,
-        });
-      }
+      setItems(newItems);
     }
   };
 
@@ -547,14 +622,10 @@ const InvoiceForm = () => {
       }
     }
 
-    // Pre-compute package component rows for the toast message
-    const packageComponentCount = getPackageComponentRows(productIdStr, items).length;
-
     setItems(prevItems => {
       // Find first empty line (where product_id is empty)
       const emptyIndex = prevItems.findIndex(item => !item.product_id);
 
-      let base: InvoiceItem[];
       if (emptyIndex >= 0) {
         // Use existing empty line
         const updated = [...prevItems];
@@ -571,7 +642,7 @@ const InvoiceForm = () => {
           barcode: "",
         };
         setActiveItemIndex(emptyIndex);
-        base = updated;
+        return updated;
       } else {
         // No empty line - create new one at top
         const newItem: InvoiceItem = {
@@ -586,20 +657,10 @@ const InvoiceForm = () => {
           barcode: "",
         };
         setActiveItemIndex(0);
-        base = [newItem, ...prevItems];
+        return [newItem, ...prevItems];
       }
-
-      // If the scanned product is a package, append a row for each component product
-      const componentRows = getPackageComponentRows(productIdStr, base);
-      return [...base, ...componentRows];
     });
 
-    if (packageComponentCount > 0) {
-      toast({
-        title: "Package added",
-        description: `Added ${packageComponentCount} component product(s) from "${product.name}".`,
-      });
-    }
     setBarcodeInput("");
     setTimeout(() => {
       barcodeInputRef.current?.focus();
@@ -716,12 +777,12 @@ const InvoiceForm = () => {
   };
 
   // Calculate effective available stock for a product (base stock minus what's already in invoice)
-  const getEffectiveAvailableStock = (productId: string, excludeIndex?: number) => {
+  const getEffectiveAvailableStock = (productId: string, excludeIndex?: number, list: InvoiceItem[] = items) => {
     if (invoiceType !== 'sell' || !productId) return null;
     const baseAvailable = availableStock.get(String(productId)) || 0;
-    
+
     // Calculate total quantity of this product already in invoice items (excluding current item)
-    const totalInInvoice = items.reduce((sum, item, idx) => {
+    const totalInInvoice = list.reduce((sum, item, idx) => {
       if (idx === excludeIndex) return sum; // Exclude current item being edited
       if (String(item.product_id) === String(productId)) {
         return sum + item.quantity;
@@ -820,8 +881,21 @@ const InvoiceForm = () => {
 
     // For sell invoices, validate that products have prices set (not 0)
     if (invoiceType === 'sell') {
+      // Package lines are priced by their package: a line may get $0 (e.g. a free accessory),
+      // but the package itself must have a price
+      const unpricedPackages = [...packageGroups.values()].filter((group) => !(group.price > 0));
+      if (unpricedPackages.length > 0) {
+        toast({
+          title: "Package Price Required",
+          description: `Enter a price above 0 for: ${unpricedPackages.map((group) => group.name).join(', ')}.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
       const itemsWithoutPrice: string[] = [];
       validItems.forEach((item) => {
+        if (item.package_id) return;
         const effectivePrice = item.is_private_price ? item.private_price_amount : item.unit_price;
         if (!effectivePrice || effectivePrice <= 0) {
           const product = products.find(p => String(p.id) === String(item.product_id));
@@ -842,10 +916,11 @@ const InvoiceForm = () => {
     // Validate stock availability for sell invoices
     if (invoiceType === 'sell') {
       const stockErrors: string[] = [];
-      validItems.forEach((item, index) => {
+      validItems.forEach((item) => {
         if (!item.product_id) return;
         const productId = String(item.product_id);
-        const effectiveAvailable = getEffectiveAvailableStock(productId, index);
+        // Exclude the line itself by its position in `items` (validItems skips empty rows)
+        const effectiveAvailable = getEffectiveAvailableStock(productId, items.indexOf(item));
         
         if (effectiveAvailable !== null && item.quantity > effectiveAvailable) {
           const product = products.find(p => String(p.id) === productId);
@@ -905,6 +980,12 @@ const InvoiceForm = () => {
           is_private_price: item.is_private_price,
           private_price_amount: item.is_private_price ? item.private_price_amount : null,
           private_price_note: item.is_private_price ? item.private_price_note : null,
+          ...(item.package_id ? {
+            package_id: Number(item.package_id),
+            package_name: item.package_name,
+            package_qty: item.package_qty,
+            package_price: item.package_price,
+          } : {}),
         })),
       };
 
@@ -1130,6 +1211,26 @@ const InvoiceForm = () => {
             </CardHeader>
             <CardContent className="space-y-1.5 pt-1.5 px-2.5 pb-2">
               {items.map((item, index) => {
+                // A package renders once, at its first line, as one group
+                if (item.package_id) {
+                  const group = packageGroups.get(item.package_id);
+                  if (!group || group.indexes[0] !== index) return null;
+                  const pkg = packages.find((p) => String(p.id) === group.packageId);
+                  return (
+                    <PackageLineGroup
+                      key={`package-${group.packageId}`}
+                      group={group}
+                      defaultPrice={pkg ? Number(pkg.default_price) : null}
+                      productsById={productsById}
+                      getAvailable={(productId, lineIndex) => getEffectiveAvailableStock(productId, lineIndex)}
+                      canRemove={!hasPayments}
+                      onQtyChange={(qty) => handlePackageQtyChange(group.packageId, qty)}
+                      onPriceChange={(price) => handlePackagePriceChange(group.packageId, price)}
+                      onRemove={() => handleRemovePackage(group.packageId)}
+                    />
+                  );
+                }
+
                 const availableQty = getEffectiveAvailableStock(String(item.product_id), index);
                 const isLowStock = availableQty !== null && availableQty < 10;
                 const isOutOfStock = availableQty !== null && availableQty === 0;
@@ -1241,39 +1342,69 @@ const InvoiceForm = () => {
                                     })()
                                   : products; // Return all products if no search query
                                 
-                                if (filteredProducts.length === 0) {
+                                // Packages are offered on SELL invoices only, matched by name
+                                const filteredPackages = invoiceType === 'sell'
+                                  ? packages.filter((pkg) => !searchQueryRaw || pkg.name.toLowerCase().includes(searchQueryRaw.toLowerCase()))
+                                  : [];
+
+                                if (filteredProducts.length === 0 && filteredPackages.length === 0) {
                                   return (
                                     <div className="px-2 py-6 text-center text-sm text-muted-foreground">
                                       No products found matching "{productSearchQuery[index]}"
                                     </div>
                                   );
                                 }
-                                
+
                                 // Always return JSX (SelectItem components), never raw product objects
-                                return filteredProducts.map((product) => {
-                                  const identifier = product.barcode || product.sku || null;
-                                  // Packages only matter on SELL invoices
-                                  const isPackage = invoiceType === 'sell' && packagesMap.has(String(product.id));
-                                  return (
-                                    <SelectItem key={product.id} value={String(product.id)}>
-                                      <span className="flex items-center gap-1.5">
-                                        <ProductNameWithCode
-                                          product={product}
-                                          showId={true}
-                                          id={product.id}
-                                          nameClassName=""
-                                          codeClassName="text-muted-foreground text-xs ml-2"
-                                        />
-                                        {isPackage && (
-                                          <span className="inline-flex items-center gap-0.5 rounded bg-primary/15 px-1 py-0.5 text-[9px] font-semibold text-primary">
-                                            <Package className="w-2.5 h-2.5" />
-                                            Package
-                                          </span>
+                                return (
+                                  <>
+                                    {filteredPackages.length > 0 && (
+                                      <SelectGroup>
+                                        <SelectLabel className="px-2 pb-0.5 pt-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                          {t('packages.searchHeading', 'Packages')}
+                                        </SelectLabel>
+                                        {filteredPackages.map((pkg) => (
+                                          <SelectItem
+                                            key={`package-${pkg.id}`}
+                                            value={`${PACKAGE_OPTION_PREFIX}${pkg.id}`}
+                                            className="bg-primary-light/70 focus:bg-primary-light"
+                                          >
+                                            <span className="flex items-center gap-1.5">
+                                              <Package className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+                                              <span className="font-medium">{pkg.name}</span>
+                                              <span className="rounded-md border border-primary/30 bg-primary-light px-1 py-px text-[10px] font-bold text-primary">
+                                                {t('packages.badge', 'Package')}
+                                              </span>
+                                              <span className="ms-1 text-xs tabular-nums text-muted-foreground">
+                                                {t('packages.productsCount', '{{count}} products', { count: pkg.items.length })} · ${Number(pkg.default_price).toFixed(2)}
+                                              </span>
+                                            </span>
+                                          </SelectItem>
+                                        ))}
+                                      </SelectGroup>
+                                    )}
+                                    {filteredProducts.length > 0 && (
+                                      <SelectGroup>
+                                        {filteredPackages.length > 0 && (
+                                          <SelectLabel className="px-2 pb-0.5 pt-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                            {t('packages.productsHeading', 'Products')}
+                                          </SelectLabel>
                                         )}
-                                      </span>
-                                    </SelectItem>
-                                  );
-                                });
+                                        {filteredProducts.map((product) => (
+                                          <SelectItem key={product.id} value={String(product.id)}>
+                                            <ProductNameWithCode
+                                              product={product}
+                                              showId={true}
+                                              id={product.id}
+                                              nameClassName=""
+                                              codeClassName="text-muted-foreground text-xs ml-2"
+                                            />
+                                          </SelectItem>
+                                        ))}
+                                      </SelectGroup>
+                                    )}
+                                  </>
+                                );
                               })()}
                             </div>
                           </SelectContent>

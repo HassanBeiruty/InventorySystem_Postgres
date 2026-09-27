@@ -15,6 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
 import { Printer, Download } from "lucide-react";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
+import { PackageHeaderRow } from "@/components/invoice/PackageHeaderRow";
+import { groupInvoiceItems, packageHeaderHtml, packageHeaderPdfRow } from "@/utils/invoicePackageGroups";
 
 interface InvoiceItem {
   id: number;
@@ -29,6 +31,10 @@ interface InvoiceItem {
   product_name?: string;
   product_barcode?: string;
   product_sku?: string;
+  package_id?: number | null;
+  package_name?: string | null;
+  package_qty?: number | null;
+  package_price?: number | string | null;
 }
 
 interface InvoiceDetails {
@@ -255,7 +261,9 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
               </tr>
             </thead>
             <tbody>
-              ${invoice.invoice_items.map((item: InvoiceItem) => {
+              ${groupInvoiceItems(invoice.invoice_items).map((row) => {
+                if (row.kind === 'package') return packageHeaderHtml(row, 5);
+                const item: InvoiceItem = row.item;
                 // Use private_price_amount if it's a private price, otherwise use unit_price
                 const displayUnitPrice = item.is_private_price && item.private_price_amount 
                   ? item.private_price_amount 
@@ -347,7 +355,9 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
     doc.text(`Address: ${entityAddress}`, 14, 86);
     
     // Table data
-    const tableData = invoice.invoice_items.map((item: InvoiceItem) => {
+    const tableData = groupInvoiceItems(invoice.invoice_items).map((row) => {
+      if (row.kind === 'package') return packageHeaderPdfRow(row, 5);
+      const item: InvoiceItem = row.item;
       // Use private_price_amount if it's a private price, otherwise use unit_price
       const displayUnitPrice = item.is_private_price && item.private_price_amount 
         ? item.private_price_amount 
@@ -608,9 +618,14 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {invoice.invoice_items.map((item) => (
+                            {groupInvoiceItems(invoice.invoice_items).map((row) => {
+                              if (row.kind === 'package') {
+                                return <PackageHeaderRow key={`package-${row.key}`} row={row} colSpan={5} />;
+                              }
+                              const item = row.item;
+                              return (
                               <TableRow key={item.id}>
-                                <TableCell>
+                                <TableCell className={row.inPackage ? "border-s-2 border-primary/40 ps-5" : undefined}>
                                   <ProductNameWithCode 
                                     product={item}
                                     showId={true}
@@ -633,7 +648,8 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                                 </TableCell>
                                 <TableCell className="text-right font-bold">${Number(item.total_price || 0).toFixed(2)}</TableCell>
                               </TableRow>
-                            ))}
+                              );
+                            })}
                           </TableBody>
                         </Table>
                       ) : (

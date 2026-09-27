@@ -168,20 +168,41 @@ daily_stock (                           -- the SNAPSHOT: one row per product per
 ### 2.4 Packages (bundles)
 
 ```sql
-product_package_items (
-  id                   SERIAL PRIMARY KEY,
-  package_product_id   INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-  component_product_id INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-  UNIQUE (package_product_id, component_product_id),
-  CHECK (package_product_id <> component_product_id)
+packages (
+  id             SERIAL PRIMARY KEY,
+  name           VARCHAR(150) NOT NULL,          -- unique, case-insensitive
+  default_price  DECIMAL(18,2) NOT NULL CHECK (default_price > 0)
 )
+
+package_items (
+  id          SERIAL PRIMARY KEY,
+  package_id  INT NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
+  product_id  INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  quantity    INT NOT NULL DEFAULT 1 CHECK (quantity > 0),   -- units in ONE package
+  UNIQUE (package_id, product_id)
+)
+
+-- snapshot on each sell line that came from a package (no FK: history survives edits/deletes)
+invoice_items.package_id / package_name / package_qty / package_price
 ```
 
-A "package" is a normal product that has component rows. **Expansion happens in the UI at
-sell time only**: when a package product is added to a *sell* invoice, one extra line is
-appended per component product. The package and its components then flow through the
-system as ordinary invoice lines (each gets its own stock movement). Buy invoices never
-expand packages. There is no quantity-per-component (1 each) and no server-side expansion.
+A package is a named, hand-picked set of products with a default price. **Sell invoices
+only**; buy invoices always use each item's own cost.
+
+- Choosing a package on a sell invoice adds its products as **ordinary invoice lines**:
+  line qty = qty per package x package qty.
+- The user edits only the **package price** (per package, defaults to `default_price`) and
+  the **package qty**. The price is split across the lines in proportion to each product's
+  retail value in the package (retail x qty per package), in whole cents (largest remainder,
+  then +/-1 cent nudges), so the lines add up to exactly package price x package qty.
+- Each line stores its share as a normal private price (`is_private_price = true`,
+  `private_price_amount`, note `Package: <name>`), so stock movements (`unit_cost` = private
+  price), average cost, profit and payments work exactly as for any private-price sale.
+- The server re-checks each package on create/edit (`server/utils/packageLines.js`): sell only,
+  consistent name/qty/price across its lines, private price on every line, line qty a multiple
+  of the package qty, and lines summing to package price x package qty.
+- A product still appears at most once per invoice, so a package can't be added when one of
+  its products is already on the invoice (adding the same package again raises its qty).
 
 ---
 
@@ -445,7 +466,7 @@ WHERE i.invoice_date::date BETWEEN start_date AND end_date
 7. An invoice with payments cannot be deleted.
 8. Every `invoice_items` row has exactly one matching `stock_movements` row (per product per
    invoice); a product appears at most once per invoice.
-9. All multi-statement mutations (create/edit/delete invoice, package replace) run in a single
+9. All multi-statement mutations (create/edit/delete invoice, package create/update) run in a single
    DB transaction with rollback on error. Edit additionally locks the invoice row (`FOR UPDATE`).
 10. An edit never adds a product to an invoice; a missing movement for an edited line is a
     hard error (409), never silently repaired.
@@ -464,7 +485,9 @@ WHERE i.invoice_date::date BETWEEN start_date AND end_date
   (Invoice *edit* is already protected: it locks the invoice row with `FOR UPDATE`.)
 - One `daily_stock` row per (product, date) means intra-day history lives only in
   `stock_movements`.
-- Package expansion is client-side and sell-only; components are fixed at qty 1 each.
+- Package pricing is computed client-side (the server validates the result) and is sell-only.
+  The split follows retail prices at the time of sale; changing a product's retail price later
+  does not re-price packages already sold.
 
 ## 11. Porting Checklist
 

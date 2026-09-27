@@ -276,36 +276,50 @@ export const productsRepo = {
   },
 };
 
-export interface PackageComponent {
-  component_product_id: number;
+export interface PackageItem {
+  product_id: number;
+  quantity: number;
   name: string;
   barcode: string | null;
   sku: string | null;
 }
 
 export interface PackageEntity {
-  package_product_id: number;
-  package_name: string;
-  package_barcode: string | null;
-  package_sku: string | null;
-  components: PackageComponent[];
+  id: number;
+  name: string;
+  default_price: number;
+  items: PackageItem[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface PackageInput {
+  name: string;
+  default_price: number;
+  items: Array<{ product_id: number; quantity: number }>;
 }
 
 export const packagesRepo = {
   async list(): Promise<PackageEntity[]> {
     return fetchJson<PackageEntity[]>(`/api/packages`);
   },
-  async get(productId: string | number): Promise<{ package_product_id: number; components: PackageComponent[] }> {
-    return fetchJson(`/api/packages/${productId}`);
+  async get(id: string | number): Promise<PackageEntity> {
+    return fetchJson<PackageEntity>(`/api/packages/${id}`);
   },
-  async save(productId: string | number, componentProductIds: Array<string | number>): Promise<{ package_product_id: number; component_count: number }> {
-    return fetchJson(`/api/packages/${productId}`, {
-      method: "PUT",
-      body: JSON.stringify({ components: componentProductIds.map((id) => ({ component_product_id: Number(id) })) }),
+  async create(input: PackageInput): Promise<PackageEntity> {
+    return fetchJson<PackageEntity>(`/api/packages`, {
+      method: "POST",
+      body: JSON.stringify(input),
     });
   },
-  async delete(productId: string | number): Promise<{ success: boolean; package_product_id: number }> {
-    return fetchJson(`/api/packages/${productId}`, {
+  async update(id: string | number, input: PackageInput): Promise<PackageEntity> {
+    return fetchJson<PackageEntity>(`/api/packages/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
+  },
+  async delete(id: string | number): Promise<{ success: boolean; id: number }> {
+    return fetchJson(`/api/packages/${id}`, {
       method: "DELETE",
     });
   },
@@ -320,6 +334,11 @@ export type InvoiceCreateItem = {
   is_private_price: boolean;
   private_price_amount: number | null;
   private_price_note: string | null;
+  /** Set only on sell lines that came from a package (snapshot of that package). */
+  package_id?: number | null;
+  package_name?: string | null;
+  package_qty?: number | null;
+  package_price?: number | null;
 };
 
 export const invoicesRepo = {

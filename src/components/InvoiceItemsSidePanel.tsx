@@ -8,6 +8,8 @@ import { useToast } from "@/hooks/use-toast";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
 import { Printer, X, Download } from "lucide-react";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
+import { PackageHeaderLine } from "@/components/invoice/PackageHeaderRow";
+import { groupInvoiceItems, packageHeaderHtml, packageHeaderPdfRow } from "@/utils/invoicePackageGroups";
 
 interface InvoiceItem {
   id: number;
@@ -22,6 +24,10 @@ interface InvoiceItem {
   product_name?: string;
   product_barcode?: string;
   product_sku?: string;
+  package_id?: number | null;
+  package_name?: string | null;
+  package_qty?: number | null;
+  package_price?: number | string | null;
 }
 
 interface InvoiceDetails {
@@ -248,7 +254,9 @@ export default function InvoiceItemsSidePanel({ open, onOpenChange, invoiceId }:
               </tr>
             </thead>
             <tbody>
-              ${invoice.invoice_items.map((item: InvoiceItem) => {
+              ${groupInvoiceItems(invoice.invoice_items).map((row) => {
+                if (row.kind === 'package') return packageHeaderHtml(row, 5);
+                const item: InvoiceItem = row.item;
                 // Use private_price_amount if it's a private price, otherwise use unit_price
                 const displayUnitPrice = item.is_private_price && item.private_price_amount 
                   ? item.private_price_amount 
@@ -340,7 +348,9 @@ export default function InvoiceItemsSidePanel({ open, onOpenChange, invoiceId }:
       doc.text(`Address: ${entityAddress}`, 14, 86);
       
       // Table data
-      const tableData = invoice.invoice_items.map((item: InvoiceItem) => {
+      const tableData = groupInvoiceItems(invoice.invoice_items).map((row) => {
+        if (row.kind === 'package') return packageHeaderPdfRow(row, 5);
+        const item: InvoiceItem = row.item;
         // Use private_price_amount if it's a private price, otherwise use unit_price
         const displayUnitPrice = item.is_private_price && item.private_price_amount 
           ? item.private_price_amount 
@@ -572,8 +582,17 @@ export default function InvoiceItemsSidePanel({ open, onOpenChange, invoiceId }:
                 <div className="border rounded-lg overflow-hidden">
                   {invoice.invoice_items && invoice.invoice_items.length > 0 ? (
                     <div className="divide-y">
-                      {invoice.invoice_items.map((item) => (
-                        <div key={item.id} className="p-2 hover:bg-muted/30 transition-colors">
+                      {groupInvoiceItems(invoice.invoice_items).map((row) => {
+                        if (row.kind === 'package') {
+                          return (
+                            <div key={`package-${row.key}`} className="bg-primary-light px-2 py-1.5">
+                              <PackageHeaderLine row={row} />
+                            </div>
+                          );
+                        }
+                        const item = row.item;
+                        return (
+                        <div key={item.id} className={`p-2 hover:bg-muted/30 transition-colors${row.inPackage ? " border-s-2 border-primary/40 ps-4" : ""}`}>
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">
                               <ProductNameWithCode 
@@ -600,7 +619,8 @@ export default function InvoiceItemsSidePanel({ open, onOpenChange, invoiceId }:
                             </div>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="p-4 text-center text-muted-foreground text-sm">

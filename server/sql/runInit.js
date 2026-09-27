@@ -374,23 +374,52 @@ BEGIN
 	END IF;
 END $$;`
 	},
+	// Named packages (sell only): a hand-picked set of products with a quantity each and a default
+	// price. Choosing one on a sell invoice adds its products as ordinary lines and splits the
+	// package price into their private prices. Replaces the earlier product-based
+	// product_package_items model (never used in production).
+	// The invoice_items package_* columns are a snapshot with no FK on purpose, so an invoice keeps
+	// its history even if the package is later edited or deleted.
+	// No SQL comments in this block: runInit splits on ';' and skips statements starting with '--'.
 	{
-		name: 'product_package_items',
-		sql: `CREATE TABLE IF NOT EXISTS product_package_items (
+		name: 'packages',
+		sql: `DROP TABLE IF EXISTS product_package_items;
+
+CREATE TABLE IF NOT EXISTS packages (
 	id SERIAL PRIMARY KEY,
-	package_product_id INT NOT NULL,
-	component_product_id INT NOT NULL,
+	name VARCHAR(150) NOT NULL,
+	default_price DECIMAL(18,2) NOT NULL,
 	created_at TIMESTAMP NOT NULL DEFAULT now(),
-	CONSTRAINT FK_ppi_package FOREIGN KEY (package_product_id) REFERENCES products(id) ON DELETE CASCADE,
-	CONSTRAINT FK_ppi_component FOREIGN KEY (component_product_id) REFERENCES products(id) ON DELETE CASCADE,
-	CONSTRAINT UQ_ppi_package_component UNIQUE (package_product_id, component_product_id),
-	CONSTRAINT CK_ppi_not_self CHECK (package_product_id <> component_product_id)
+	updated_at TIMESTAMP NOT NULL DEFAULT now(),
+	CONSTRAINT CK_packages_default_price CHECK (default_price > 0)
 );
 
-CREATE INDEX IF NOT EXISTS IX_ppi_package ON product_package_items(package_product_id);
-CREATE INDEX IF NOT EXISTS IX_ppi_component ON product_package_items(component_product_id);
+CREATE UNIQUE INDEX IF NOT EXISTS UQ_packages_name ON packages (LOWER(name));
 
-ALTER TABLE product_package_items ENABLE ROW LEVEL SECURITY;`
+CREATE TABLE IF NOT EXISTS package_items (
+	id SERIAL PRIMARY KEY,
+	package_id INT NOT NULL,
+	product_id INT NOT NULL,
+	quantity INT NOT NULL DEFAULT 1,
+	sort_order INT NOT NULL DEFAULT 0,
+	CONSTRAINT FK_package_items_package FOREIGN KEY (package_id) REFERENCES packages(id) ON DELETE CASCADE,
+	CONSTRAINT FK_package_items_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+	CONSTRAINT UQ_package_items_package_product UNIQUE (package_id, product_id),
+	CONSTRAINT CK_package_items_quantity CHECK (quantity > 0)
+);
+
+CREATE INDEX IF NOT EXISTS IX_package_items_package ON package_items(package_id);
+CREATE INDEX IF NOT EXISTS IX_package_items_product ON package_items(product_id);
+
+ALTER TABLE packages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE package_items ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS package_id INT NULL;
+ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS package_name VARCHAR(150) NULL;
+ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS package_qty INT NULL;
+ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS package_price DECIMAL(18,2) NULL;
+
+CREATE INDEX IF NOT EXISTS IX_invoice_items_package ON invoice_items(package_id) WHERE package_id IS NOT NULL;`
 	},
 	{
 		name: 'function_recalculate_stock_after_invoice',

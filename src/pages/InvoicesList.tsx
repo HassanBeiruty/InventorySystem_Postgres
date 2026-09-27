@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, TrendingUp, TrendingDown, DollarSign, Plus, Eye, Pencil, Trash2, Calendar, Search, X, FileSpreadsheet, ArrowDown, ArrowUp, ChevronDown } from "lucide-react";
+import { FileText, TrendingUp, TrendingDown, DollarSign, Plus, Eye, Pencil, Trash2, Calendar, Search, X, FileSpreadsheet, ArrowDown, ArrowUp, ChevronDown, Package } from "lucide-react";
 import { formatDateTimeLebanon, getTodayLebanon, getNDaysAgoLebanon } from "@/utils/dateUtils";
 import { invoicesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
+import { summarizeInvoiceItems } from "@/utils/invoicePackageGroups";
 import { useDebounce } from "@/hooks/useDebounce";
 
 const InvoicesList = () => {
@@ -319,9 +320,11 @@ const InvoicesList = () => {
           const productName = (item.product_name || "").toLowerCase();
           const productBarcode = (item.product_barcode || "").toLowerCase();
           const productSku = (item.product_sku || "").toLowerCase();
+          const packageName = (item.package_name || "").toLowerCase();
           return productName.includes(searchLower) || 
                  productBarcode.includes(searchLower) || 
-                 productSku.includes(searchLower);
+                 productSku.includes(searchLower) ||
+                 packageName.includes(searchLower);
         });
         
         return matchesItem;
@@ -660,8 +663,9 @@ const InvoicesList = () => {
                       filteredInvoices.map((invoice, idx) => {
                         const isSelected = selectedInvoiceId === String(invoice.id);
                         const items = invoice.invoice_items || [];
-                        const itemsPreview = items.slice(0, 2);
-                        const remainingCount = items.length > 2 ? items.length - 2 : 0;
+                        const entries = summarizeInvoiceItems(items);
+                        const itemsPreview = entries.slice(0, 2);
+                        const remainingCount = entries.length > 2 ? entries.length - 2 : 0;
                         
                         return (
                           <TableRow 
@@ -689,7 +693,21 @@ const InvoicesList = () => {
                             <TableCell className="p-1 pl-0.5 pr-0.5">
                               {items.length > 0 ? (
                                 <div className="space-y-0.5">
-                                  {itemsPreview.map((item: any, itemIdx: number) => {
+                                  {itemsPreview.map((entry, itemIdx: number) => {
+                                    if (entry.kind === 'package') {
+                                      return (
+                                        <div key={`package-${entry.key}`} className="text-[10px] bg-primary/10 rounded px-1 py-0.5">
+                                          <div className="font-semibold text-xs truncate text-primary flex items-center gap-1">
+                                            <Package className="w-3 h-3 shrink-0" aria-hidden="true" />
+                                            {entry.name}
+                                          </div>
+                                          <div className="text-muted-foreground text-[9px] font-mono truncate">
+                                            Qty: {entry.qty} × ${entry.price.toFixed(2)} · {entry.lineCount} products
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                    const item: any = entry.item;
                                     // Use private_price_amount if it's a private price, otherwise use unit_price
                                     const displayUnitPrice = item.is_private_price && item.private_price_amount 
                                       ? item.private_price_amount 
@@ -828,8 +846,9 @@ const InvoicesList = () => {
                 filteredInvoices.map((invoice) => {
                   const isSelected = selectedInvoiceId === String(invoice.id);
                   const items = invoice.invoice_items || [];
-                  const itemsPreview = items.slice(0, 2);
-                  const remainingCount = items.length > 2 ? items.length - 2 : 0;
+                  const entries = summarizeInvoiceItems(items);
+                  const itemsPreview = entries.slice(0, 2);
+                  const remainingCount = entries.length > 2 ? entries.length - 2 : 0;
                   const isPaid = invoice.payment_status === 'paid';
                   const hasPayments = Number(invoice.amount_paid || 0) > 0;
 
@@ -878,7 +897,21 @@ const InvoicesList = () => {
 
                       {items.length > 0 && (
                         <div className="mt-2 space-y-0.5">
-                          {itemsPreview.map((item: any, itemIdx: number) => {
+                          {itemsPreview.map((entry, itemIdx: number) => {
+                            if (entry.kind === 'package') {
+                              return (
+                                <div key={`package-${entry.key}`} className="text-[10px] bg-primary/10 rounded px-1.5 py-1 flex items-center justify-between gap-2">
+                                  <div className="min-w-0 truncate font-semibold text-primary flex items-center gap-1">
+                                    <Package className="w-3 h-3 shrink-0" aria-hidden="true" />
+                                    {entry.name}
+                                  </div>
+                                  <span className="text-muted-foreground text-[9px] font-mono whitespace-nowrap shrink-0">
+                                    {entry.qty} x ${entry.price.toFixed(2)}
+                                  </span>
+                                </div>
+                              );
+                            }
+                            const item: any = entry.item;
                             const displayUnitPrice = item.is_private_price && item.private_price_amount
                               ? item.private_price_amount
                               : item.unit_price || 0;

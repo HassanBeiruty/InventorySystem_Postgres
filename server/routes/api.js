@@ -19,6 +19,12 @@ const {
 	validateFileUpload,
 	requestSizeLimiter,
 } = require('../middleware/security');
+const {
+	validatePackageLines,
+	resolvePackageNames,
+	normalizePackageLines,
+	packageColumnValues,
+} = require('../utils/packageLines');
 
 const router = express.Router();
 
@@ -988,155 +994,190 @@ router.delete('/products/:id', [
 });
 
 // ===== PACKAGES =====
-// A "package" is any product that has one or more component products defined in
-// product_package_items. When a package product is added to an invoice, the UI
-// automatically appends a row for each component product.
+// A package is a named, hand-picked set of products (each with a quantity) and a default
+// price. Packages are sold on SELL invoices only: the UI adds the products as ordinary lines
+// and splits the package price into their private prices. Invoice lines keep a snapshot
+// (package_id/name/qty/price), so editing or deleting a package never changes old invoices.
 
-// List all packages with their component products
-router.get('/packages', async (req, res) => {
-	try {
-		const result = await query(
-			`SELECT
-				ppi.package_product_id,
-				pp.name AS package_name,
-				pp.barcode AS package_barcode,
-				pp.sku AS package_sku,
-				ppi.component_product_id,
-				cp.name AS component_name,
-				cp.barcode AS component_barcode,
-				cp.sku AS component_sku
-			FROM product_package_items ppi
-			JOIN products pp ON pp.id = ppi.package_product_id
-			JOIN products cp ON cp.id = ppi.component_product_id
-			ORDER BY pp.name ASC, ppi.id ASC`,
-			[]
-		);
+const packageBodyValidators = [
+	body('name').isString().trim().notEmpty().withMessage('Package name is required')
+		.isLength({ max: 150 }).withMessage('Package name must be 150 characters or fewer'),
+	body('default_price').isFloat({ gt: 0 }).withMessage('Default price must be greater than 0'),
+	body('items').isArray({ min: 1 }).withMessage('A package needs at least one product'),
+	body('items.*.product_id').isInt({ min: 1 }).withMessage('Invalid product in package'),
+	body('items.*.quantity').isInt({ min: 1 }).withMessage('Each product quantity must be a whole number of at least 1'),
+];
 
-		// Group rows by package
-		const packagesMap = new Map();
-		for (const row of result.recordset) {
-			const pid = row.package_product_id;
-			if (!packagesMap.has(pid)) {
-				packagesMap.set(pid, {
-					package_product_id: pid,
-					package_name: row.package_name,
-					package_barcode: row.package_barcode,
-					package_sku: row.package_sku,
-					components: [],
-				});
-			}
-			packagesMap.get(pid).components.push({
-				component_product_id: row.component_product_id,
-				name: row.component_name,
-				barcode: row.component_barcode,
-				sku: row.component_sku,
+// Load packages with their items, in the order they were added
+async function loadPackages(db, packageId = null) {
+	const result = await db.query(
+		`SELECT
+			pk.id, pk.name, pk.default_price, pk.created_at, pk.updated_at,
+			pi.product_id, pi.quantity, pi.sort_order,
+			p.name AS product_name, p.barcode AS product_barcode, p.sku AS product_sku
+		FROM packages pk
+		LEFT JOIN package_items pi ON pi.package_id = pk.id
+		LEFT JOIN products p ON p.id = pi.product_id
+		WHERE ($1::int IS NULL OR pk.id = $1)
+		ORDER BY LOWER(pk.name) ASC, pk.id ASC, pi.sort_order ASC, pi.id ASC`,
+		[packageId]
+	);
+	const rows = result.rows || result.recordset;
+
+	const packagesMap = new Map();
+	for (const row of rows) {
+		if (!packagesMap.has(row.id)) {
+			packagesMap.set(row.id, {
+				id: row.id,
+				name: row.name,
+				default_price: parseFloat(row.default_price),
+				created_at: row.created_at,
+				updated_at: row.updated_at,
+				items: [],
 			});
 		}
+		if (row.product_id !== null) {
+			packagesMap.get(row.id).items.push({
+				product_id: row.product_id,
+				quantity: row.quantity,
+				name: row.product_name,
+				barcode: row.product_barcode,
+				sku: row.product_sku,
+			});
+		}
+	}
+	return Array.from(packagesMap.values());
+}
 
-		res.json(Array.from(packagesMap.values()));
+// Validate a package body beyond field formats: no duplicate products, and every product exists
+async function checkPackageItems(client, items) {
+	const productIds = items.map((item) => parseInt(item.product_id));
+	if (new Set(productIds).size !== productIds.length) {
+		return 'Each product can be added to a package only once. Increase its quantity instead.';
+	}
+	const existing = await client.query('SELECT id FROM products WHERE id = ANY($1::int[])', [productIds]);
+	if (existing.rows.length !== productIds.length) {
+		return 'One or more products in the package do not exist';
+	}
+	return null;
+}
+
+async function insertPackageItems(client, packageId, items) {
+	for (let i = 0; i < items.length; i++) {
+		await client.query(
+			'INSERT INTO package_items (package_id, product_id, quantity, sort_order) VALUES ($1, $2, $3, $4)',
+			[packageId, parseInt(items[i].product_id), parseInt(items[i].quantity), i]
+		);
+	}
+}
+
+function isUniqueNameViolation(err) {
+	return err && err.code === '23505' && /uq_packages_name/i.test(err.constraint || err.message || '');
+}
+
+// List all packages with their products
+router.get('/packages', async (req, res) => {
+	try {
+		res.json(await loadPackages({ query }));
 	} catch (err) {
 		console.error('List packages error:', err);
 		res.status(500).json({ error: err.message });
 	}
 });
 
-// Get a single package's component products
-router.get('/packages/:productId', [
-	param('productId').isInt().withMessage('Invalid product ID'),
+// Get one package
+router.get('/packages/:id', [
+	param('id').isInt({ min: 1 }).withMessage('Invalid package ID'),
 ], handleValidationErrors, async (req, res) => {
 	try {
-		const packageProductId = parseInt(req.params.productId);
-		const result = await query(
-			`SELECT
-				ppi.component_product_id,
-				cp.name AS component_name,
-				cp.barcode AS component_barcode,
-				cp.sku AS component_sku
-			FROM product_package_items ppi
-			JOIN products cp ON cp.id = ppi.component_product_id
-			WHERE ppi.package_product_id = $1
-			ORDER BY ppi.id ASC`,
-			[packageProductId]
-		);
-		res.json({
-			package_product_id: packageProductId,
-			components: result.recordset.map((row) => ({
-				component_product_id: row.component_product_id,
-				name: row.component_name,
-				barcode: row.component_barcode,
-				sku: row.component_sku,
-			})),
-		});
+		const [pkg] = await loadPackages({ query }, parseInt(req.params.id));
+		if (!pkg) return res.status(404).json({ error: 'Package not found' });
+		res.json(pkg);
 	} catch (err) {
 		console.error('Get package error:', err);
 		res.status(500).json({ error: err.message });
 	}
 });
 
-// Create or replace a package's component products
-router.put('/packages/:productId', [
-	param('productId').isInt().withMessage('Invalid product ID'),
-	body('components').isArray().withMessage('components must be an array'),
-], handleValidationErrors, async (req, res) => {
-	const pool = getPool();
-	const client = await pool.connect();
+// Create a package
+router.post('/packages', packageBodyValidators, handleValidationErrors, async (req, res) => {
+	const client = await getPool().connect();
 	try {
-		const packageProductId = parseInt(req.params.productId);
-		const rawComponents = Array.isArray(req.body.components) ? req.body.components : [];
-
-		// Normalize to a unique list of integer component ids, excluding the package itself
-		const componentIds = [...new Set(
-			rawComponents
-				.map((c) => parseInt(typeof c === 'object' && c !== null ? c.component_product_id : c))
-				.filter((id) => Number.isInteger(id) && id !== packageProductId)
-		)];
-
-		// Validate the package product exists
-		const pkgCheck = await client.query('SELECT id FROM products WHERE id = $1', [packageProductId]);
-		if (pkgCheck.rows.length === 0) {
-			return res.status(404).json({ error: 'Package product not found' });
-		}
-
-		// Validate component products exist
-		if (componentIds.length > 0) {
-			const existing = await client.query(
-				'SELECT id FROM products WHERE id = ANY($1::int[])',
-				[componentIds]
-			);
-			if (existing.rows.length !== componentIds.length) {
-				return res.status(400).json({ error: 'One or more component products do not exist' });
-			}
-		}
+		const { name, default_price, items } = req.body;
+		const itemsError = await checkPackageItems(client, items);
+		if (itemsError) return res.status(400).json({ error: itemsError });
 
 		await client.query('BEGIN');
-		// Replace existing definition
-		await client.query('DELETE FROM product_package_items WHERE package_product_id = $1', [packageProductId]);
-		for (const componentId of componentIds) {
-			await client.query(
-				'INSERT INTO product_package_items (package_product_id, component_product_id) VALUES ($1, $2)',
-				[packageProductId, componentId]
-			);
-		}
+		const created = await client.query(
+			'INSERT INTO packages (name, default_price) VALUES ($1, $2) RETURNING id',
+			[name.trim(), parseFloat(default_price)]
+		);
+		const packageId = created.rows[0].id;
+		await insertPackageItems(client, packageId, items);
 		await client.query('COMMIT');
 
-		res.json({ package_product_id: packageProductId, component_count: componentIds.length });
+		const [pkg] = await loadPackages(client, packageId);
+		res.status(201).json(pkg);
 	} catch (err) {
 		try { await client.query('ROLLBACK'); } catch (e) {}
-		console.error('Save package error:', err);
+		if (isUniqueNameViolation(err)) {
+			return res.status(409).json({ error: 'A package with this name already exists' });
+		}
+		console.error('Create package error:', err);
 		res.status(500).json({ error: err.message });
 	} finally {
 		client.release();
 	}
 });
 
-// Delete a package definition (removes all its component links)
-router.delete('/packages/:productId', [
-	param('productId').isInt().withMessage('Invalid product ID'),
+// Update a package (name, default price, and its full list of products)
+router.put('/packages/:id', [
+	param('id').isInt({ min: 1 }).withMessage('Invalid package ID'),
+	...packageBodyValidators,
+], handleValidationErrors, async (req, res) => {
+	const client = await getPool().connect();
+	try {
+		const packageId = parseInt(req.params.id);
+		const { name, default_price, items } = req.body;
+
+		const exists = await client.query('SELECT id FROM packages WHERE id = $1', [packageId]);
+		if (exists.rows.length === 0) return res.status(404).json({ error: 'Package not found' });
+
+		const itemsError = await checkPackageItems(client, items);
+		if (itemsError) return res.status(400).json({ error: itemsError });
+
+		await client.query('BEGIN');
+		await client.query(
+			'UPDATE packages SET name = $1, default_price = $2, updated_at = now() WHERE id = $3',
+			[name.trim(), parseFloat(default_price), packageId]
+		);
+		await client.query('DELETE FROM package_items WHERE package_id = $1', [packageId]);
+		await insertPackageItems(client, packageId, items);
+		await client.query('COMMIT');
+
+		const [pkg] = await loadPackages(client, packageId);
+		res.json(pkg);
+	} catch (err) {
+		try { await client.query('ROLLBACK'); } catch (e) {}
+		if (isUniqueNameViolation(err)) {
+			return res.status(409).json({ error: 'A package with this name already exists' });
+		}
+		console.error('Update package error:', err);
+		res.status(500).json({ error: err.message });
+	} finally {
+		client.release();
+	}
+});
+
+// Delete a package. Invoices that sold it keep their own snapshot of it.
+router.delete('/packages/:id', [
+	param('id').isInt({ min: 1 }).withMessage('Invalid package ID'),
 ], handleValidationErrors, async (req, res) => {
 	try {
-		const packageProductId = parseInt(req.params.productId);
-		await query('DELETE FROM product_package_items WHERE package_product_id = $1', [packageProductId]);
-		res.json({ success: true, package_product_id: packageProductId });
+		const packageId = parseInt(req.params.id);
+		const result = await query('DELETE FROM packages WHERE id = $1 RETURNING id', [packageId]);
+		if (result.recordset.length === 0) return res.status(404).json({ error: 'Package not found' });
+		res.json({ success: true, id: packageId });
 	} catch (err) {
 		console.error('Delete package error:', err);
 		res.status(500).json({ error: err.message });
@@ -1513,6 +1554,12 @@ router.put('/invoices/:id', async (req, res) => {
 			return res.status(400).json({ error: 'The same product cannot be added more than once to an invoice' });
 		}
 
+		// Lines sold as a package must agree with the package's price and quantity
+		const packageError = validatePackageLines(invoice_type, items);
+		if (packageError) {
+			return res.status(400).json({ error: packageError });
+		}
+
 		await client.query('BEGIN');
 
 		// Lock the invoice row so concurrent edits of the same invoice cannot interleave
@@ -1527,6 +1574,9 @@ router.put('/invoices/:id', async (req, res) => {
 		// Get existing invoice items
 		const oldItemsResult = await client.query('SELECT * FROM invoice_items WHERE invoice_id = $1', [id]);
 		const oldItems = oldItemsResult.rows;
+
+		// Package lines keep the package name already recorded on this invoice
+		normalizePackageLines(items, await resolvePackageNames(client, items, oldItems));
 
 		// Editing can only change or remove existing lines, never add products: every product
 		// on the edited invoice must already have a stock movement for this invoice. A product
@@ -1568,18 +1618,19 @@ router.put('/invoices/:id', async (req, res) => {
 		let paramIndex = 1;
 
 		for (const item of items) {
-			itemValues.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8})`);
+			itemValues.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}, $${paramIndex + 9}, $${paramIndex + 10}, $${paramIndex + 11}, $${paramIndex + 12})`);
 			itemParams.push(
 				id, parseInt(item.product_id), item.quantity, item.unit_price, item.total_price,
 				item.price_type, item.is_private_price ? 1 : 0,
 				item.is_private_price ? item.private_price_amount : null,
-				item.is_private_price ? item.private_price_note : null
+				item.is_private_price ? item.private_price_note : null,
+				...packageColumnValues(item)
 			);
-			paramIndex += 9;
+			paramIndex += 13;
 		}
 
 		await client.query(
-			`INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note)
+			`INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note, package_id, package_name, package_qty, package_price)
 			 VALUES ${itemValues.join(', ')}`,
 			itemParams
 		);
@@ -1745,7 +1796,15 @@ router.post('/invoices', [
 			await client.query('ROLLBACK');
 			return res.status(400).json({ error: 'The same product cannot be added more than once to an invoice' });
 		}
-		
+
+		// Lines sold as a package must agree with the package's price and quantity
+		const packageError = validatePackageLines(invoice_type, items);
+		if (packageError) {
+			await client.query('ROLLBACK');
+			return res.status(400).json({ error: packageError });
+		}
+		normalizePackageLines(items, await resolvePackageNames(client, items));
+
 		// Create invoice - using plain array params
 		const invoiceResult = await client.query(
 			`INSERT INTO invoices (invoice_type, customer_id, supplier_id, total_amount, invoice_date, due_date, created_at) 
@@ -1816,14 +1875,15 @@ router.post('/invoices', [
 			const unitCost = parseFloat(item.is_private_price ? item.private_price_amount : item.unit_price);
 
 			// Build invoice items batch insert
-			itemValues.push(`($${itemParamIndex}, $${itemParamIndex + 1}, $${itemParamIndex + 2}, $${itemParamIndex + 3}, $${itemParamIndex + 4}, $${itemParamIndex + 5}, $${itemParamIndex + 6}, $${itemParamIndex + 7}, $${itemParamIndex + 8})`);
+			itemValues.push(`($${itemParamIndex}, $${itemParamIndex + 1}, $${itemParamIndex + 2}, $${itemParamIndex + 3}, $${itemParamIndex + 4}, $${itemParamIndex + 5}, $${itemParamIndex + 6}, $${itemParamIndex + 7}, $${itemParamIndex + 8}, $${itemParamIndex + 9}, $${itemParamIndex + 10}, $${itemParamIndex + 11}, $${itemParamIndex + 12})`);
 			itemParams.push(
 				invoiceId, productId, item.quantity, item.unit_price, item.total_price,
 				item.price_type, item.is_private_price ? 1 : 0,
 				item.is_private_price ? item.private_price_amount : null,
-				item.is_private_price ? item.private_price_note : null
+				item.is_private_price ? item.private_price_note : null,
+				...packageColumnValues(item)
 			);
-			itemParamIndex += 9;
+			itemParamIndex += 13;
 			
 			// Build stock movements batch insert (using invoice_date subquery)
 			movementValues.push(`($${movementParamIndex}, $${movementParamIndex + 1}, (SELECT invoice_date FROM invoices WHERE id = $${movementParamIndex + 1}), $${movementParamIndex + 2}, $${movementParamIndex + 3}, $${movementParamIndex + 4}, $${movementParamIndex + 5}, $${movementParamIndex + 6}, $${movementParamIndex + 7}::timestamp)`);
@@ -1839,12 +1899,12 @@ router.post('/invoices', [
 		// Batch insert invoice items
 		if (itemValues.length > 0) {
 			await client.query(
-				`INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note) 
+				`INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, total_price, price_type, is_private_price, private_price_amount, private_price_note, package_id, package_name, package_qty, package_price)
 				 VALUES ${itemValues.join(', ')}`,
 				itemParams
 			);
 		}
-		
+
 		// Batch insert stock movements
 		if (movementValues.length > 0) {
 			await client.query(
