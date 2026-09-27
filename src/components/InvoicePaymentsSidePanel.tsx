@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { PaymentStatusPill } from "@/components/invoice/ui/StatusPill";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -297,12 +297,9 @@ export default function InvoicePaymentsSidePanel({ open, onOpenChange, invoiceId
                 <div className="mt-3 pt-3 border-t">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">Status:</span>
-                    <Badge 
-                      variant={invoice.payment_status === 'paid' ? 'success' : invoice.payment_status === 'partial' ? 'warning' : 'warning'}
-                      className="text-xs"
-                    >
+                    <PaymentStatusPill status={invoice.payment_status}>
                       {invoice.payment_status === 'paid' ? 'Paid' : invoice.payment_status === 'partial' ? 'Partial' : 'Pending'}
-                    </Badge>
+                    </PaymentStatusPill>
                   </div>
                 </div>
               </div>
@@ -316,12 +313,12 @@ export default function InvoicePaymentsSidePanel({ open, onOpenChange, invoiceId
                   {invoice.payments && invoice.payments.length > 0 ? (
                     <Table>
                       <TableHeader>
-                        <TableRow className="bg-muted/30">
-                          <TableHead className="text-xs p-2">Date</TableHead>
-                          <TableHead className="text-xs p-2">Amount</TableHead>
-                          <TableHead className="text-xs p-2">USD Eq.</TableHead>
-                          <TableHead className="text-xs p-2">Method</TableHead>
-                          <TableHead className="text-xs p-2 w-[80px]">Actions</TableHead>
+                        <TableRow className="bg-muted/60 hover:bg-muted/60">
+                          <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground p-2">Date</TableHead>
+                          <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground p-2">Amount</TableHead>
+                          <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground p-2">USD Eq.</TableHead>
+                          <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground p-2">Method</TableHead>
+                          <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground p-2 w-[80px]">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -334,7 +331,7 @@ export default function InvoicePaymentsSidePanel({ open, onOpenChange, invoiceId
                               <div className="font-medium">
                                 {parseFloat(String(payment.paid_amount || 0)).toFixed(2)} {payment.currency_code}
                               </div>
-                              <div className="text-[10px] text-muted-foreground">
+                              <div className="text-[11px] text-muted-foreground">
                                 Rate: {parseFloat(String(payment.exchange_rate_on_payment || 1)).toFixed(6)}
                               </div>
                             </TableCell>

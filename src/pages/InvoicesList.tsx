@@ -8,9 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, TrendingUp, TrendingDown, DollarSign, Plus, Eye, Pencil, Trash2, Calendar, Search, X, FileSpreadsheet, ArrowDown, ArrowUp, ChevronDown, Package } from "lucide-react";
+import { FileText, TrendingUp, TrendingDown, DollarSign, Plus, Eye, Pencil, Trash2, Calendar, Search, X, FileSpreadsheet, ArrowDown, ArrowUp, ChevronDown, Package, CheckCircle2, Clock } from "lucide-react";
 import { formatDateTimeLebanon, getTodayLebanon, getNDaysAgoLebanon } from "@/utils/dateUtils";
 import { invoicesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +18,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
 import { summarizeInvoiceItems } from "@/utils/invoicePackageGroups";
+import { InvoicePageHeader } from "@/components/invoice/ui/InvoicePageHeader";
+import { StatTile } from "@/components/invoice/ui/StatTile";
+import { StatusPill, PaymentStatusPill } from "@/components/invoice/ui/StatusPill";
 import { useDebounce } from "@/hooks/useDebounce";
 
 const InvoicesList = () => {
@@ -423,24 +425,17 @@ const InvoicesList = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-1.5 sm:space-y-2">
+      <div className="space-y-3">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 shrink-0">
-              <FileText className="w-5 h-5 sm:w-8 sm:h-8 text-primary" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-                {t('invoices.title')}
-              </h1>
-              <p className="text-muted-foreground text-[10px] sm:text-xs">{t('invoices.subtitle')}</p>
-            </div>
-          </div>
-          <div className="flex flex-row items-center gap-1.5 sm:gap-1 w-full sm:w-auto">
+        <InvoicePageHeader
+          icon={FileText}
+          title={t('invoices.title')}
+          description={t('invoices.subtitle')}
+          actions={
+          <div className="flex flex-row items-center gap-2 w-full sm:w-auto">
              <Button
                onClick={() => navigate("/invoices/new/buy")}
-               className="gap-1 bg-gradient-success text-white hover:shadow-lg hover:shadow-success/50 transition-all duration-300 hover:scale-105 border-0 text-[11px] sm:text-xs h-9 sm:h-7 flex-1 sm:flex-initial dark:text-white [&_svg]:text-white"
+               className="gap-1 bg-gradient-success text-white hover:shadow-lg hover:shadow-success/50 transition-all duration-300 hover:scale-105 border-0 text-[12px] h-9 sm:h-8 flex-1 sm:flex-initial dark:text-white [&_svg]:text-white"
              >
                <Plus className="w-3 h-3" />
                <span className="hidden sm:inline">{t('invoices.newBuyInvoice')}</span>
@@ -448,7 +443,7 @@ const InvoicesList = () => {
              </Button>
             <Button
               onClick={() => navigate("/invoices/new/sell")}
-              className="gap-1 gradient-primary hover:shadow-glow transition-all duration-300 hover:scale-105 text-[11px] sm:text-xs h-9 sm:h-7 flex-1 sm:flex-initial"
+              className="gap-1 gradient-primary hover:shadow-glow transition-all duration-300 hover:scale-105 text-[12px] h-9 sm:h-8 flex-1 sm:flex-initial"
             >
               <Plus className="w-3 h-3" />
               <span className="hidden sm:inline">{t('invoices.newSellInvoice')}</span>
@@ -459,7 +454,7 @@ const InvoicesList = () => {
                 <Button
                   variant="outline"
                   disabled={importLoading}
-                  className="gap-1 hover:scale-105 transition-all duration-300 text-[11px] sm:text-xs h-9 sm:h-7 flex-1 sm:flex-initial"
+                  className="gap-1 hover:scale-105 transition-all duration-300 text-[12px] h-9 sm:h-8 flex-1 sm:flex-initial"
                 >
                   <FileSpreadsheet className="w-3 h-3" />
                   <span className="hidden sm:inline">{importLoading ? (t('invoices.importing') || 'Importing...') : (t('invoices.importExport') || 'Import/Export')}</span>
@@ -486,18 +481,19 @@ const InvoicesList = () => {
               className="hidden"
             />
           </div>
-        </div>
+          }
+        />
 
         {/* Search and Date Filters */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-1">
-          <div className="relative w-full sm:w-auto sm:min-w-[200px]">
-            <Search className="absolute left-2 sm:left-1.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 sm:w-2.5 sm:h-2.5 text-muted-foreground pointer-events-none" />
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <div className="relative w-full sm:w-auto sm:min-w-[260px]">
+            <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
             <Input
               type="text"
               placeholder={t('invoices.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 sm:pl-6 pr-8 sm:pr-6 h-9 sm:h-6 text-[10px]"
+              className="w-full ps-8 pe-8 h-9 sm:h-8 text-[13px]"
               autoFocus
             />
             {searchQuery && (
@@ -505,16 +501,16 @@ const InvoicesList = () => {
                 variant="ghost"
                 size="sm"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-1 sm:right-0.5 top-1/2 transform -translate-y-1/2 h-6 w-6 sm:h-4 sm:w-4 p-0"
+                className="absolute end-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0"
               >
-                <X className="w-3 h-3 sm:w-2 sm:h-2" />
+                <X className="w-3 h-3" />
               </Button>
             )}
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-1">
-            <div className="flex flex-1 sm:flex-initial items-center gap-1">
-              <Label htmlFor="start-date-invoice" className="text-[10px] sm:text-[9px] whitespace-nowrap">
-                <Calendar className="w-2.5 h-2.5 inline mr-0.5" />
+          <div className="flex items-center gap-2">
+            <div className="flex flex-1 sm:flex-initial items-center gap-1.5">
+              <Label htmlFor="start-date-invoice" className="flex items-center gap-1 text-[12px] font-medium whitespace-nowrap">
+                <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
                 From:
               </Label>
               <Input
@@ -530,11 +526,11 @@ const InvoicesList = () => {
                   }
                 }}
                 max={endDate || getTodayLebanon()}
-                className="h-9 sm:h-6 text-[10px] w-full sm:w-28"
+                className="h-9 sm:h-8 text-[13px] w-full sm:w-36"
               />
             </div>
-            <div className="flex flex-1 sm:flex-initial items-center gap-1">
-              <Label htmlFor="end-date-invoice" className="text-[10px] sm:text-[9px] whitespace-nowrap">
+            <div className="flex flex-1 sm:flex-initial items-center gap-1.5">
+              <Label htmlFor="end-date-invoice" className="flex items-center gap-1 text-[12px] font-medium whitespace-nowrap">
                 To:
               </Label>
               <Input
@@ -549,94 +545,41 @@ const InvoicesList = () => {
                 }}
                 min={startDate}
                 max={getTodayLebanon()}
-                className="h-9 sm:h-6 text-[10px] w-full sm:w-28"
+                className="h-9 sm:h-8 text-[13px] w-full sm:w-36"
               />
             </div>
           </div>
         </div>
 
         {/* Summary Stats */}
-        <div className="grid gap-1.5 grid-cols-2 sm:grid-cols-4 xl:grid-cols-8">
-          <div className="border rounded-lg p-1.5">
-            <div className="flex items-center gap-1 mb-1">
-              <FileText className="w-3 h-3 text-primary flex-shrink-0" />
-              <span className="text-[10px] font-medium text-muted-foreground truncate">{t('invoices.totalInvoices')}</span>
-            </div>
-            <div className="text-sm font-bold">{stats.total}</div>
-          </div>
-
-          <div className="border rounded-lg p-1.5">
-            <div className="flex items-center gap-1 mb-1">
-              <DollarSign className="w-3 h-3 text-primary flex-shrink-0" />
-              <span className="text-[10px] font-medium text-muted-foreground truncate">{t('invoices.totalAmount')}</span>
-            </div>
-            <div className="text-xs font-bold text-primary truncate">${stats.totalAmount.toFixed(2)}</div>
-          </div>
-
-          <div className="border rounded-lg p-1.5">
-            <div className="flex items-center gap-1 mb-1">
-              <DollarSign className="w-3 h-3 text-success" />
-              <span className="text-[10px] font-medium text-muted-foreground">{t('invoices.totalPaid')}</span>
-            </div>
-            <div className="text-xs font-bold text-success">${stats.totalPaid.toFixed(2)}</div>
-          </div>
-
-          <div className="border rounded-lg p-1.5">
-            <div className="flex items-center gap-1 mb-1">
-              <DollarSign className="w-3 h-3 text-warning" />
-              <span className="text-[10px] font-medium text-muted-foreground">{t('invoices.totalOutstanding')}</span>
-            </div>
-            <div className="text-xs font-bold text-warning">${stats.totalOutstanding.toFixed(2)}</div>
-          </div>
-
-          <div className="border rounded-lg p-1.5">
-            <div className="flex items-center gap-1 mb-1">
-              <TrendingUp className="w-3 h-3 text-primary" />
-              <span className="text-[10px] font-medium text-muted-foreground">{t('invoices.sell')}</span>
-            </div>
-            <div className="text-sm font-bold text-primary">{stats.sell}</div>
-          </div>
-
-          <div className="border rounded-lg p-1.5">
-            <div className="flex items-center gap-1 mb-1">
-              <TrendingDown className="w-3 h-3 text-success" />
-              <span className="text-[10px] font-medium text-muted-foreground">{t('invoices.buy')}</span>
-            </div>
-            <div className="text-sm font-bold text-success">{stats.buy}</div>
-          </div>
-
-          <div className="border rounded-lg p-1.5">
-            <div className="flex items-center gap-1 mb-1">
-              <span className="text-[10px] font-medium text-muted-foreground">Paid</span>
-            </div>
-            <div className="text-sm font-bold text-success">{stats.paid}</div>
-          </div>
-
-          <div className="border rounded-lg p-1.5">
-            <div className="flex items-center gap-1 mb-1">
-              <span className="text-[10px] font-medium text-muted-foreground">Pending</span>
-            </div>
-            <div className="text-sm font-bold text-muted-foreground">{stats.pending}</div>
-          </div>
+        <div className="grid gap-2 grid-cols-2 sm:grid-cols-4 xl:grid-cols-8">
+          <StatTile icon={FileText} tone="primary" label={t('invoices.totalInvoices')} value={stats.total} />
+          <StatTile icon={DollarSign} tone="primary" label={t('invoices.totalAmount')} value={`$${stats.totalAmount.toFixed(2)}`} />
+          <StatTile icon={DollarSign} tone="success" label={t('invoices.totalPaid')} value={`$${stats.totalPaid.toFixed(2)}`} />
+          <StatTile icon={DollarSign} tone="warning" label={t('invoices.totalOutstanding')} value={`$${stats.totalOutstanding.toFixed(2)}`} />
+          <StatTile icon={TrendingUp} tone="primary" label={t('invoices.sell')} value={stats.sell} />
+          <StatTile icon={TrendingDown} tone="success" label={t('invoices.buy')} value={stats.buy} />
+          <StatTile icon={CheckCircle2} tone="success" label="Paid" value={stats.paid} />
+          <StatTile icon={Clock} tone="muted" label="Pending" value={stats.pending} />
         </div>
 
         {/* Main Content with Side Panel */}
         <div className="flex gap-4">
           {/* Table Section */}
           <div className={`flex-1 min-w-0 transition-all duration-300 ${sidePanelOpen ? 'lg:mr-[420px]' : ''}`}>
-            <div className="hidden md:block border-2 rounded-lg overflow-hidden bg-background">
+            <div className="hidden md:block border-2 border-border rounded-xl overflow-hidden bg-card">
               <div className="scroll-x">
                 <Table>
                     <TableHeader>
-                      <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5">
-                        <TableHead className="font-bold whitespace-nowrap p-1 pl-2 text-[10px] w-[80px]">Invoice#</TableHead>
-                        <TableHead className="font-bold whitespace-nowrap p-1 text-[10px] w-[100px]">Date</TableHead>
-                        <TableHead className="font-bold whitespace-nowrap p-1 text-[10px] w-[80px]">Type</TableHead>
-                        <TableHead className="font-bold whitespace-nowrap p-1 pr-0.5 text-[10px] w-[120px]">Entity</TableHead>
-                        <TableHead className="font-bold whitespace-nowrap p-1 pl-0.5 pr-0.5 text-[10px] w-[200px]">Items</TableHead>
-                        <TableHead className="text-right font-bold whitespace-nowrap p-1 pl-0.5 text-[10px] w-[100px]">Amount</TableHead>
-                        <TableHead className="text-center font-bold whitespace-nowrap p-1 text-[10px] w-[100px]">Status</TableHead>
-                        <TableHead className="text-center font-bold whitespace-nowrap p-1 text-[10px] w-[100px]">Actions</TableHead>
+                      <TableRow className="bg-muted/60 hover:bg-muted/60">
+                        <TableHead className="font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap px-2 py-2 pl-2 text-[10px] w-[80px]">Invoice#</TableHead>
+                        <TableHead className="font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap px-2 py-2 text-[10px] w-[100px]">Date</TableHead>
+                        <TableHead className="font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap px-2 py-2 text-[10px] w-[80px]">Type</TableHead>
+                        <TableHead className="font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap px-2 py-2 pr-0.5 text-[10px] w-[120px]">Entity</TableHead>
+                        <TableHead className="font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap px-2 py-2 pl-0.5 pr-0.5 text-[10px] w-[200px]">Items</TableHead>
+                        <TableHead className="text-right font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap px-2 py-2 pl-0.5 text-[10px] w-[100px]">Amount</TableHead>
+                        <TableHead className="text-center font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap px-2 py-2 text-[10px] w-[100px]">Status</TableHead>
+                        <TableHead className="text-center font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap px-2 py-2 text-[10px] w-[100px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                   <TableBody>
@@ -673,19 +616,16 @@ const InvoicesList = () => {
                             className={`hover:bg-primary/5 transition-colors cursor-pointer ${isSelected ? 'bg-primary/10 border-l-4 border-l-primary' : ''}`}
                             onClick={() => handleRowClick(String(invoice.id))}
                           >
-                            <TableCell className="font-bold text-primary p-1 pl-2 text-[10px]">
+                            <TableCell className="font-bold text-primary p-1 pl-2 text-[12px]">
                               #{invoice.id}
                             </TableCell>
-                            <TableCell className="p-1 text-[10px]">
+                            <TableCell className="p-1 text-[12px]">
                               {formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}
                             </TableCell>
                             <TableCell className="p-1">
-                              <Badge 
-                                variant={invoice.invoice_type === 'sell' ? 'default' : 'success'}
-                                className="text-[10px]"
-                              >
+                              <StatusPill tone={invoice.invoice_type === 'sell' ? 'sell' : 'buy'}>
                                 {invoice.invoice_type === 'sell' ? t('invoices.sell') : t('invoices.buy')}
-                              </Badge>
+                              </StatusPill>
                             </TableCell>
                             <TableCell className="font-medium p-1 pr-0.5 text-xs max-w-[120px] truncate">
                               {invoice.customers?.name || invoice.suppliers?.name || "N/A"}
@@ -696,12 +636,12 @@ const InvoicesList = () => {
                                   {itemsPreview.map((entry, itemIdx: number) => {
                                     if (entry.kind === 'package') {
                                       return (
-                                        <div key={`package-${entry.key}`} className="text-[10px] bg-primary/10 rounded px-1 py-0.5">
+                                        <div key={`package-${entry.key}`} className="text-[12px] bg-primary/10 rounded px-1 py-0.5">
                                           <div className="font-semibold text-xs truncate text-primary flex items-center gap-1">
                                             <Package className="w-3 h-3 shrink-0" aria-hidden="true" />
                                             {entry.name}
                                           </div>
-                                          <div className="text-muted-foreground text-[9px] font-mono truncate">
+                                          <div className="text-muted-foreground text-[11px] font-mono tabular-nums truncate">
                                             Qty: {entry.qty} × ${entry.price.toFixed(2)} · {entry.lineCount} products
                                           </div>
                                         </div>
@@ -714,28 +654,28 @@ const InvoicesList = () => {
                                       : item.unit_price || 0;
                                     
                                     return (
-                                      <div key={itemIdx} className="text-[10px] bg-muted/30 rounded px-1 py-0.5">
+                                      <div key={itemIdx} className="text-[12px] bg-muted/30 rounded px-1 py-0.5">
                                         <div className="font-semibold text-xs truncate">
                                           <ProductNameWithCode 
                                             product={item}
                                             nameClassName="font-semibold"
-                                            codeClassName="text-[9px] text-muted-foreground font-mono ml-1"
+                                            codeClassName="text-[11px] text-muted-foreground font-mono tabular-nums ml-1"
                                           />
                                         </div>
-                                        <div className="text-muted-foreground text-[9px] font-mono truncate">
+                                        <div className="text-muted-foreground text-[11px] font-mono tabular-nums truncate">
                                           Qty: {item.quantity} × ${Number(displayUnitPrice).toFixed(2)}
                                         </div>
                                       </div>
                                     );
                                   })}
                                   {remainingCount > 0 && (
-                                    <div className="text-[9px] text-muted-foreground italic px-1">
+                                    <div className="text-[11px] text-muted-foreground italic px-1">
                                       +{remainingCount} more item{remainingCount !== 1 ? 's' : ''}
                                     </div>
                                   )}
                                 </div>
                               ) : (
-                                <span className="text-muted-foreground text-[10px] italic">No items</span>
+                                <span className="text-muted-foreground text-[12px] italic">No items</span>
                               )}
                             </TableCell>
                             <TableCell className={`text-right font-bold p-1 pl-0.5 ${
@@ -748,20 +688,11 @@ const InvoicesList = () => {
                               <span className="text-xs">${Number(invoice.total_amount).toFixed(2)}</span>
                             </TableCell>
                             <TableCell className="text-center p-1">
-                              <Badge 
-                                variant={
-                                  invoice.payment_status === 'paid' 
-                                    ? 'success' :
-                                  invoice.payment_status === 'partial'
-                                    ? 'warning' :
-                                    'secondary'
-                                }
-                                className="text-[10px]"
-                              >
-                                {invoice.payment_status === 'paid' ? t('invoices.paid') : 
-                                 invoice.payment_status === 'partial' ? t('invoices.partial') : 
+                              <PaymentStatusPill status={invoice.payment_status}>
+                                {invoice.payment_status === 'paid' ? t('invoices.paid') :
+                                 invoice.payment_status === 'partial' ? t('invoices.partial') :
                                  t('invoices.pending')}
-                              </Badge>
+                              </PaymentStatusPill>
                             </TableCell>
                             <TableCell className="text-center p-1" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-0.5">
@@ -769,10 +700,10 @@ const InvoicesList = () => {
                                   variant="ghost"
                                   size="sm"
                                   onClick={(e) => handleViewDetails(String(invoice.id), e)}
-                                  className="h-6 w-6 p-0"
+                                  className="h-7 w-7 p-0"
                                   title="View Details"
                                 >
-                                  <Eye className="w-3 h-3" />
+                                  <Eye className="w-3.5 h-3.5" />
                                 </Button>
                                 {invoice.payment_status !== 'paid' ? (
                                   <Button
@@ -782,13 +713,13 @@ const InvoicesList = () => {
                                       e.stopPropagation();
                                       navigate(`/invoices/edit/${invoice.id}`);
                                     }}
-                                    className="h-6 w-6 p-0"
+                                    className="h-7 w-7 p-0"
                                     title="Edit"
                                   >
-                                    <Pencil className="w-3 h-3" />
+                                    <Pencil className="w-3.5 h-3.5" />
                                   </Button>
                                 ) : (
-                                  <div className="h-6 w-6" />
+                                  <div className="h-7 w-7" />
                                 )}
                                 <Button
                                   variant="ghost"
@@ -798,7 +729,7 @@ const InvoicesList = () => {
                                     handleDeleteInvoice(String(invoice.id));
                                   }}
                                   disabled={Number(invoice.amount_paid || 0) > 0}
-                                  className={`h-6 w-6 p-0 ${
+                                  className={`h-7 w-7 p-0 ${
                                     Number(invoice.amount_paid || 0) > 0
                                       ? 'text-warning hover:text-warning hover:bg-warning/10 cursor-not-allowed opacity-60'
                                       : 'text-destructive hover:text-destructive hover:bg-destructive/10'
@@ -809,7 +740,7 @@ const InvoicesList = () => {
                                       : "Delete"
                                   }
                                 >
-                                  <Trash2 className="w-3 h-3" />
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </Button>
                               </div>
                             </TableCell>
@@ -856,7 +787,7 @@ const InvoicesList = () => {
                     <div
                       key={invoice.id}
                       onClick={() => handleRowClick(String(invoice.id))}
-                      className={`border-2 rounded-lg p-2.5 bg-background transition-colors cursor-pointer active:bg-primary/10 ${
+                      className={`border-2 rounded-xl p-3 bg-card transition-colors cursor-pointer active:bg-primary/10 ${
                         isSelected ? 'border-primary bg-primary/5' : 'hover:border-primary/40'
                       }`}
                     >
@@ -864,13 +795,10 @@ const InvoicesList = () => {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-bold text-primary text-xs">#{invoice.id}</span>
-                            <Badge
-                              variant={invoice.invoice_type === 'sell' ? 'default' : 'success'}
-                              className="text-[10px] px-1.5 py-0"
-                            >
+                            <StatusPill tone={invoice.invoice_type === 'sell' ? 'sell' : 'buy'}>
                               {invoice.invoice_type === 'sell' ? t('invoices.sell') : t('invoices.buy')}
-                            </Badge>
-                            <span className="text-[10px] text-muted-foreground">
+                            </StatusPill>
+                            <span className="text-[12px] text-muted-foreground">
                               {formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}
                             </span>
                           </div>
@@ -884,14 +812,11 @@ const InvoicesList = () => {
                           }`}>
                             ${Number(invoice.total_amount).toFixed(2)}
                           </p>
-                          <Badge
-                            variant={isPaid ? 'success' : invoice.payment_status === 'partial' ? 'warning' : 'secondary'}
-                            className="text-[10px] px-1.5 py-0 mt-0.5"
-                          >
+                          <PaymentStatusPill status={invoice.payment_status} className="mt-1">
                             {isPaid ? t('invoices.paid') :
                              invoice.payment_status === 'partial' ? t('invoices.partial') :
                              t('invoices.pending')}
-                          </Badge>
+                          </PaymentStatusPill>
                         </div>
                       </div>
 
@@ -900,12 +825,12 @@ const InvoicesList = () => {
                           {itemsPreview.map((entry, itemIdx: number) => {
                             if (entry.kind === 'package') {
                               return (
-                                <div key={`package-${entry.key}`} className="text-[10px] bg-primary/10 rounded px-1.5 py-1 flex items-center justify-between gap-2">
+                                <div key={`package-${entry.key}`} className="text-[12px] bg-primary/10 rounded px-1.5 py-1 flex items-center justify-between gap-2">
                                   <div className="min-w-0 truncate font-semibold text-primary flex items-center gap-1">
                                     <Package className="w-3 h-3 shrink-0" aria-hidden="true" />
                                     {entry.name}
                                   </div>
-                                  <span className="text-muted-foreground text-[9px] font-mono whitespace-nowrap shrink-0">
+                                  <span className="text-muted-foreground text-[11px] font-mono tabular-nums whitespace-nowrap shrink-0">
                                     {entry.qty} x ${entry.price.toFixed(2)}
                                   </span>
                                 </div>
@@ -917,22 +842,22 @@ const InvoicesList = () => {
                               : item.unit_price || 0;
 
                             return (
-                              <div key={itemIdx} className="text-[10px] bg-muted/30 rounded px-1.5 py-1 flex items-center justify-between gap-2">
+                              <div key={itemIdx} className="text-[12px] bg-muted/30 rounded px-1.5 py-1 flex items-center justify-between gap-2">
                                 <div className="min-w-0 truncate">
                                   <ProductNameWithCode
                                     product={item}
                                     nameClassName="font-semibold"
-                                    codeClassName="text-[9px] text-muted-foreground font-mono ml-1"
+                                    codeClassName="text-[11px] text-muted-foreground font-mono tabular-nums ml-1"
                                   />
                                 </div>
-                                <span className="text-muted-foreground text-[9px] font-mono whitespace-nowrap shrink-0">
+                                <span className="text-muted-foreground text-[11px] font-mono tabular-nums whitespace-nowrap shrink-0">
                                   {item.quantity} x ${Number(displayUnitPrice).toFixed(2)}
                                 </span>
                               </div>
                             );
                           })}
                           {remainingCount > 0 && (
-                            <div className="text-[9px] text-muted-foreground italic px-1">
+                            <div className="text-[11px] text-muted-foreground italic px-1">
                               +{remainingCount} more item{remainingCount !== 1 ? 's' : ''}
                             </div>
                           )}
@@ -1113,9 +1038,9 @@ const InvoicesList = () => {
                             />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <Badge variant={invoice.invoice_type === 'sell' ? 'default' : 'success'} className="text-xs">
+                                <StatusPill tone={invoice.invoice_type === 'sell' ? 'sell' : 'buy'}>
                                   {invoice.invoice_type}
-                                </Badge>
+                                </StatusPill>
                                 <span className="text-sm font-medium">{invoice.entity_name}</span>
                                 <span className="text-xs text-muted-foreground">
                                   {new Date(invoice.invoice_date).toLocaleDateString()}
@@ -1134,12 +1059,12 @@ const InvoicesList = () => {
                                     ? item.private_price_amount 
                                     : item.unit_price || 0;
                                   return (
-                                    <div key={itemIdx} className="text-[10px] bg-muted/30 rounded px-1.5 py-0.5 ml-2">
+                                    <div key={itemIdx} className="text-[12px] bg-muted/30 rounded px-1.5 py-0.5 ml-2">
                                       <div className="font-medium">
                                         <ProductNameWithCode 
                                           product={item}
                                           nameClassName="font-medium"
-                                          codeClassName="text-[9px] font-mono text-muted-foreground ml-1"
+                                          codeClassName="text-[11px] font-mono tabular-nums text-muted-foreground ml-1"
                                         />
                                       </div>
                                       <div className="text-muted-foreground">
@@ -1170,7 +1095,7 @@ const InvoicesList = () => {
                         </div>
                       ))}
                       {previewData.errors.length > 20 && (
-                        <div className="text-[10px] text-red-600 dark:text-red-400 mt-1">
+                        <div className="text-[12px] text-red-600 dark:text-red-400 mt-1">
                           ... and {previewData.errors.length - 20} more errors
                         </div>
                       )}

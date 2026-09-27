@@ -6,7 +6,9 @@ import PaymentDialog from "@/components/PaymentDialog";
 import InvoiceDetailDialog from "@/components/InvoiceDetailDialog";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { InvoicePageHeader } from "@/components/invoice/ui/InvoicePageHeader";
+import { StatTile } from "@/components/invoice/ui/StatTile";
+import { StatusPill, PaymentStatusPill } from "@/components/invoice/ui/StatusPill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, DollarSign, Eye, CreditCard, Pencil, Trash2, Calendar } from "lucide-react";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
@@ -110,62 +112,37 @@ const OverdueInvoices = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4">
+      <div className="space-y-3">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-destructive via-warning to-destructive bg-clip-text text-transparent">
-              ⚠️ Overdue Invoices
-            </h1>
-            <p className="text-muted-foreground">
-              Invoices with due date past today and payment status not paid
-            </p>
-          </div>
-        </div>
+        <InvoicePageHeader
+          icon={AlertCircle}
+          title="Overdue Invoices"
+          description="Invoices with due date past today and payment status not paid"
+        />
 
         {/* Summary Stats */}
-        <div className="grid gap-3 md:grid-cols-3">
-          <div className="border rounded-lg p-3 bg-destructive/10 dark:bg-destructive/20 border-destructive/30 dark:border-destructive/40">
-            <div className="flex items-center gap-2 mb-1">
-              <AlertCircle className="w-4 h-4 text-destructive" />
-              <span className="text-xs font-medium text-destructive">Overdue Invoices</span>
-            </div>
-            <div className="text-2xl font-bold text-destructive">{stats.total}</div>
-          </div>
-
-          <div className="border rounded-lg p-3 bg-warning/10 dark:bg-warning/20 border-warning/30 dark:border-warning/40">
-            <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="w-4 h-4 text-warning" />
-              <span className="text-xs font-medium text-warning">Total Amount</span>
-            </div>
-            <div className="text-lg font-bold text-warning">${stats.totalAmount.toFixed(2)}</div>
-          </div>
-
-          <div className="border rounded-lg p-3 bg-destructive/10 dark:bg-destructive/20 border-destructive/30 dark:border-destructive/40">
-            <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="w-4 h-4 text-destructive" />
-              <span className="text-xs font-medium text-destructive">Outstanding Balance</span>
-            </div>
-            <div className="text-lg font-bold text-destructive">${stats.totalOutstanding.toFixed(2)}</div>
-          </div>
+        <div className="grid gap-2 md:grid-cols-3">
+          <StatTile icon={AlertCircle} tone="destructive" label="Overdue Invoices" value={stats.total} />
+          <StatTile icon={DollarSign} tone="warning" label="Total Amount" value={`$${stats.totalAmount.toFixed(2)}`} />
+          <StatTile icon={DollarSign} tone="destructive" label="Outstanding Balance" value={`$${stats.totalOutstanding.toFixed(2)}`} />
         </div>
 
         {/* Table */}
-        <div className="border-2 rounded-lg overflow-hidden border-destructive/30 dark:border-destructive/40">
+        <div className="overflow-x-auto rounded-xl border-2 border-destructive/30 bg-card">
           <Table>
             <TableHeader>
-              <TableRow className="bg-gradient-to-r from-destructive/10 to-warning/10 dark:from-destructive/20 dark:to-warning/20">
-                <TableHead className="font-bold">Invoice#</TableHead>
-                <TableHead className="font-bold">Date</TableHead>
-                <TableHead className="font-bold">Due Date</TableHead>
-                <TableHead className="font-bold">Days Overdue</TableHead>
-                <TableHead className="font-bold">Type</TableHead>
-                <TableHead className="font-bold">Entity</TableHead>
-                <TableHead className="font-bold">Items</TableHead>
-                <TableHead className="text-right font-bold">Amount</TableHead>
-                <TableHead className="text-right font-bold">Outstanding</TableHead>
-                <TableHead className="text-center font-bold">Status</TableHead>
-                <TableHead className="text-center font-bold">Actions</TableHead>
+              <TableRow className="bg-destructive/5 hover:bg-destructive/5">
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Invoice#</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Date</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Due Date</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Days Overdue</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Type</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Entity</TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Items</TableHead>
+                <TableHead className="text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Amount</TableHead>
+                <TableHead className="text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Outstanding</TableHead>
+                <TableHead className="text-center text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Status</TableHead>
+                <TableHead className="text-center text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -211,21 +188,19 @@ const OverdueInvoices = () => {
                         {formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}
                       </TableCell>
                       <TableCell className="text-sm">
-                        <span className="text-destructive font-semibold">
+                        <span className="text-destructive-strong font-semibold">
                           {formatDateTimeLebanon(invoice.due_date, "MMM dd, yyyy")}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="destructive" className="font-bold">
+                        <StatusPill tone="overdue">
                           {daysOverdue} {daysOverdue === 1 ? 'day' : 'days'}
-                        </Badge>
+                        </StatusPill>
                       </TableCell>
                       <TableCell>
-                        <Badge 
-                          variant={invoice.invoice_type === 'sell' ? 'default' : 'success'}
-                        >
+                        <StatusPill tone={invoice.invoice_type === 'sell' ? 'sell' : 'buy'}>
                           {invoice.invoice_type === 'sell' ? t('invoices.sell') : t('invoices.buy')}
-                        </Badge>
+                        </StatusPill>
                       </TableCell>
                       <TableCell className="font-semibold">
                         {invoice.customers?.name || invoice.suppliers?.name || "N/A"}
@@ -233,18 +208,16 @@ const OverdueInvoices = () => {
                       <TableCell className="text-muted-foreground">
                         {invoice.invoice_items?.length || 0} items
                       </TableCell>
-                      <TableCell className="text-right font-bold text-lg text-warning">
+                      <TableCell className="text-right font-bold text-base tabular-nums text-warning-strong">
                         ${Number(invoice.total_amount).toFixed(2)}
                       </TableCell>
-                      <TableCell className="text-right font-bold text-lg text-destructive">
+                      <TableCell className="text-right font-bold text-base tabular-nums text-destructive-strong">
                         ${Number(invoice.remaining_balance || 0).toFixed(2)}
                       </TableCell>
                       <TableCell className="text-center">
-                        <Badge 
-                          variant={invoice.payment_status === 'partial' ? 'warning' : 'secondary'}
-                        >
+                        <PaymentStatusPill status={invoice.payment_status}>
                           {invoice.payment_status === 'partial' ? t('invoices.partial') : t('invoices.pending')}
-                        </Badge>
+                        </PaymentStatusPill>
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-2">

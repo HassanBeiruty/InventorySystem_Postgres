@@ -7,7 +7,7 @@ export function PackageHeaderLine({ row }: { row: PackageHeader }) {
   return (
     <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px]">
       <Package className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-      <span className="font-bold text-primary">{row.name}</span>
+      <span className="font-bold text-primary-strong">{row.name}</span>
       <span className="tabular-nums text-muted-foreground">
         {row.qty} × ${row.price.toFixed(2)}
       </span>

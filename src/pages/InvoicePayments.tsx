@@ -7,7 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Filter, X, Pencil, Trash2, Eye, Plus } from "lucide-react";
+import { Filter, X, Pencil, Trash2, Eye, Plus, CreditCard, DollarSign, Coins, Hash } from "lucide-react";
+import { InvoicePageHeader } from "@/components/invoice/ui/InvoicePageHeader";
+import { StatTile } from "@/components/invoice/ui/StatTile";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
 import { paymentsRepo, invoicesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
@@ -210,20 +212,18 @@ const InvoicePayments = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-1.5 sm:space-y-2">
+      <div className="space-y-3">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
-          <div>
-            <h1 className="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              💳 Invoice Payments
-            </h1>
-            <p className="text-muted-foreground text-[10px] sm:text-xs">Manage all invoice payments</p>
-          </div>
-          <div className="flex items-center gap-1.5">
+        <InvoicePageHeader
+          icon={CreditCard}
+          title="Invoice Payments"
+          description="Manage all invoice payments"
+          actions={
+          <div className="flex items-center gap-2">
             <Button
               onClick={() => setAddPaymentDialogOpen(true)}
               size="sm"
-              className="gap-1 h-7 sm:h-8 bg-gradient-success text-white hover:shadow-lg hover:shadow-success/50 transition-all duration-300 border-0 text-xs"
+              className="gap-1 h-8 bg-gradient-success text-white hover:shadow-lg hover:shadow-success/50 transition-all duration-300 border-0 text-[12px]"
             >
               <Plus className="w-3 h-3" />
               <span className="hidden sm:inline">Add Payment</span>
@@ -233,18 +233,19 @@ const InvoicePayments = () => {
               variant="outline"
               size="sm"
               onClick={() => setShowFilters(!showFilters)}
-              className="gap-1 h-7 sm:h-8 text-xs"
+              className="gap-1 h-8 text-[12px]"
             >
               <Filter className="w-3 h-3" />
               <span className="hidden sm:inline">{showFilters ? 'Hide' : 'Filters'}</span>
               <span className="sm:hidden">Filters</span>
             </Button>
           </div>
-        </div>
+          }
+        />
 
         {/* Filters */}
         {showFilters && (
-          <div className="border rounded-lg p-2 bg-muted/20">
+          <div className="rounded-xl border-2 border-border bg-card p-3">
             <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
               <div className="space-y-2">
                 <Label>Search</Label>
@@ -302,8 +303,8 @@ const InvoicePayments = () => {
 
             {hasActiveFilters && (
               <div className="flex justify-end mt-2">
-                <Button variant="outline" size="sm" onClick={clearFilters} className="h-7 text-xs">
-                  <X className="w-3 h-3 mr-1" />
+                <Button variant="outline" size="sm" onClick={clearFilters} className="h-8 text-[12px]">
+                  <X className="w-3 h-3 me-1" />
                   Clear
                 </Button>
               </div>
@@ -312,40 +313,28 @@ const InvoicePayments = () => {
         )}
 
         {/* Summary Stats */}
-        <div className="grid gap-1.5 grid-cols-2 sm:grid-cols-4">
-          <div className="border rounded p-1.5">
-            <div className="text-[10px] font-medium text-muted-foreground">Total Payments</div>
-            <div className="text-sm font-bold">{stats.total}</div>
-          </div>
-          <div className="border rounded p-1.5">
-            <div className="text-[10px] font-medium text-muted-foreground">Total USD</div>
-            <div className="text-xs font-bold text-primary">${stats.totalUsd.toFixed(2)}</div>
-          </div>
-          <div className="border rounded p-1.5">
-            <div className="text-[10px] font-medium text-muted-foreground">LBP Payments</div>
-            <div className="text-xs font-bold">{stats.byCurrency.LBP.toFixed(2)} LBP</div>
-          </div>
-          <div className="border rounded p-1.5">
-            <div className="text-[10px] font-medium text-muted-foreground">EUR Payments</div>
-            <div className="text-xs font-bold">{stats.byCurrency.EUR.toFixed(2)} EUR</div>
-          </div>
+        <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
+          <StatTile icon={Hash} label="Total Payments" value={stats.total} />
+          <StatTile icon={DollarSign} tone="primary" label="Total USD" value={`$${stats.totalUsd.toFixed(2)}`} />
+          <StatTile icon={Coins} label="LBP Payments" value={`${stats.byCurrency.LBP.toFixed(2)} LBP`} />
+          <StatTile icon={Coins} label="EUR Payments" value={`${stats.byCurrency.EUR.toFixed(2)} EUR`} />
         </div>
 
         {/* Main Content with Side Panel */}
         <div className="flex gap-4">
           {/* Table Section */}
           <div className={`flex-1 min-w-0 transition-all duration-300 ${sidePanelOpen ? 'lg:mr-[420px]' : ''}`}>
-            <div className="border rounded overflow-hidden bg-background">
+            <div className="border-2 border-border rounded-xl overflow-hidden bg-card">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5">
-                      <TableHead className="font-bold whitespace-nowrap p-1.5 pl-2 text-[10px]">Date</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap p-1.5 text-[10px]">Invoice#</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap p-1.5 text-[10px]">Entity</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap p-1.5 text-[10px]">Amount</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap p-1.5 text-[10px]">USD Eq.</TableHead>
-                      <TableHead className="text-center font-bold whitespace-nowrap p-1.5 text-[10px] w-[100px]">Actions</TableHead>
+                    <TableRow className="bg-muted/60 hover:bg-muted/60">
+                      <TableHead className="font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap px-2 py-2 pl-2 text-[10px]">Date</TableHead>
+                      <TableHead className="font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap px-2 py-2 text-[10px]">Invoice#</TableHead>
+                      <TableHead className="font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap px-2 py-2 text-[10px]">Entity</TableHead>
+                      <TableHead className="font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap px-2 py-2 text-[10px]">Amount</TableHead>
+                      <TableHead className="font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap px-2 py-2 text-[10px]">USD Eq.</TableHead>
+                      <TableHead className="text-center font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap px-2 py-2 text-[10px] w-[100px]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -377,24 +366,24 @@ const InvoicePayments = () => {
                             className={`hover:bg-primary/5 transition-colors cursor-pointer ${isSelected ? 'bg-primary/10 border-l-4 border-l-primary' : ''}`}
                             onClick={() => handleViewPayment(payment)}
                           >
-                            <TableCell className="p-1.5 pl-2 text-[10px]">
+                            <TableCell className="p-1.5 pl-2 text-[12px]">
                               {formatDateTimeLebanon(payment.payment_date, "MMM dd, yyyy")}
                             </TableCell>
-                            <TableCell className="font-bold text-primary p-1.5 text-[10px]">
+                            <TableCell className="font-bold text-primary p-1.5 text-[12px]">
                               #{payment.invoice_id}
                             </TableCell>
                             <TableCell className="font-medium p-1.5 text-xs max-w-[120px] truncate">
                               {entityName}
                             </TableCell>
-                            <TableCell className="p-1.5 text-[10px]">
+                            <TableCell className="p-1.5 text-[12px]">
                               <div className="font-medium">
                                 {parseFloat(String(payment.paid_amount || 0)).toFixed(2)} {payment.currency_code}
                               </div>
-                              <div className="text-[9px] text-muted-foreground">
+                              <div className="text-[11px] text-muted-foreground">
                                 Rate: {parseFloat(String(payment.exchange_rate_on_payment || 1)).toFixed(6)}
                               </div>
                             </TableCell>
-                            <TableCell className="font-semibold text-success p-1.5 text-[10px]">
+                            <TableCell className="font-semibold text-success-strong tabular-nums p-1.5 text-[12px]">
                               ${parseFloat(String(payment.usd_equivalent_amount || 0)).toFixed(2)}
                             </TableCell>
                             <TableCell className="text-center p-1.5" onClick={(e) => e.stopPropagation()}>
@@ -403,7 +392,7 @@ const InvoicePayments = () => {
                                   variant="ghost"
                                   size="sm"
                                   onClick={(e) => handleViewPayment(payment, e)}
-                                  className="h-6 w-6 p-0"
+                                  className="h-7 w-7 p-0"
                                   title="View/Edit"
                                 >
                                   <Eye className="w-3 h-3" />
@@ -415,7 +404,7 @@ const InvoicePayments = () => {
                                     e.stopPropagation();
                                     handleDeletePayment(payment);
                                   }}
-                                  className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                                   title="Delete"
                                 >
                                   <Trash2 className="w-3 h-3" />

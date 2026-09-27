@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { invoicesRepo } from "@/integrations/api/repo";
@@ -9,6 +8,8 @@ import { formatDateTimeLebanon } from "@/utils/dateUtils";
 import { Printer, X, Download } from "lucide-react";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
 import { PackageHeaderLine } from "@/components/invoice/PackageHeaderRow";
+import { StatusPill, PaymentStatusPill } from "@/components/invoice/ui/StatusPill";
+import { StatTile } from "@/components/invoice/ui/StatTile";
 import { groupInvoiceItems, packageHeaderHtml, packageHeaderPdfRow } from "@/utils/invoicePackageGroups";
 
 interface InvoiceItem {
@@ -447,9 +448,9 @@ export default function InvoiceItemsSidePanel({ open, onOpenChange, invoiceId }:
       />
       
       {/* Side Panel */}
-      <div className="fixed right-0 top-0 h-full w-full sm:w-[500px] lg:relative lg:h-full lg:w-full bg-background border-l lg:border lg:rounded-lg shadow-xl z-[60] lg:z-auto flex flex-col overflow-hidden">
+      <div className="fixed right-0 top-0 h-full w-full sm:w-[500px] lg:relative lg:h-full lg:w-full bg-card border-l lg:border-2 lg:rounded-xl shadow-xl z-[60] lg:z-auto flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="border-b p-3 flex items-center justify-between bg-gradient-to-r from-primary/5 to-accent/5 flex-shrink-0">
+        <div className="border-b border-border p-3 flex items-center justify-between bg-gradient-to-r from-muted/80 to-transparent flex-shrink-0">
           <div className="flex-1 min-w-0">
             <h2 className="text-base font-bold truncate">
               {loading || !invoice ? 'Loading...' : `Invoice #${invoice.id}`}
@@ -511,43 +512,29 @@ export default function InvoiceItemsSidePanel({ open, onOpenChange, invoiceId }:
           ) : (
             <>
               {/* Invoice Summary */}
-              <div className="border rounded-lg p-3 bg-secondary/10">
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <div className="text-xs text-muted-foreground mb-1">Total Amount</div>
-                    <div className="text-sm font-bold">${Number(invoice.total_amount || 0).toFixed(2)}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-success mb-1">Amount Paid</div>
-                    <div className="text-sm font-bold text-success">${Number(invoice.amount_paid || 0).toFixed(2)}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-warning mb-1">Remaining</div>
-                    <div className="text-sm font-bold text-warning">${remainingBalance.toFixed(2)}</div>
-                  </div>
-                </div>
+              <div className="grid grid-cols-3 gap-2">
+                <StatTile tone="primary" label="Total Amount" value={`$${Number(invoice.total_amount || 0).toFixed(2)}`} />
+                <StatTile tone="success" label="Amount Paid" value={`$${Number(invoice.amount_paid || 0).toFixed(2)}`} />
+                <StatTile tone="warning" label="Remaining" value={`$${remainingBalance.toFixed(2)}`} />
               </div>
 
               {/* Invoice Info */}
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-muted-foreground">Date:</span>
-                  <span className="ml-2 font-medium">{formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}</span>
+                  <span className="ms-2 font-medium">{formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Type:</span>
-                  <Badge variant={invoice.invoice_type === 'sell' ? 'default' : 'success'} className="ml-2">
+                  <StatusPill tone={invoice.invoice_type === 'sell' ? 'sell' : 'buy'} className="ms-2">
                     {invoice.invoice_type.toUpperCase()}
-                  </Badge>
+                  </StatusPill>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Status:</span>
-                  <Badge 
-                    variant={invoice.payment_status === 'paid' ? 'success' : invoice.payment_status === 'partial' ? 'warning' : 'warning'}
-                    className="ml-2"
-                  >
+                  <PaymentStatusPill status={invoice.payment_status} className="ms-2">
                     {invoice.payment_status === 'paid' ? 'Paid' : invoice.payment_status === 'partial' ? 'Partial' : 'Pending'}
-                  </Badge>
+                  </PaymentStatusPill>
                 </div>
                 {invoice.due_date && (
                   <div>
@@ -564,8 +551,8 @@ export default function InvoiceItemsSidePanel({ open, onOpenChange, invoiceId }:
               </div>
 
               {/* Entity Info */}
-              <div className="border rounded-lg p-3">
-                <h3 className="font-semibold text-sm mb-2">
+              <div className="rounded-xl border-2 border-border p-3">
+                <h3 className="text-[13px] font-bold mb-2">
                   {invoice.invoice_type === 'sell' ? 'Customer' : 'Supplier'}
                 </h3>
                 <div className="text-sm">
@@ -578,8 +565,8 @@ export default function InvoiceItemsSidePanel({ open, onOpenChange, invoiceId }:
 
               {/* Invoice Items */}
               <div className="space-y-2">
-                <h3 className="font-semibold text-sm">Items ({invoice.invoice_items?.length || 0})</h3>
-                <div className="border rounded-lg overflow-hidden">
+                <h3 className="text-[13px] font-bold">Items ({invoice.invoice_items?.length || 0})</h3>
+                <div className="rounded-xl border-2 border-border overflow-hidden">
                   {invoice.invoice_items && invoice.invoice_items.length > 0 ? (
                     <div className="divide-y">
                       {groupInvoiceItems(invoice.invoice_items).map((row) => {
@@ -599,12 +586,12 @@ export default function InvoiceItemsSidePanel({ open, onOpenChange, invoiceId }:
                                 product={item}
                                 showId={true}
                                 product_id={item.product_id}
-                                nameClassName="font-medium text-xs"
-                                codeClassName="text-[10px] text-muted-foreground font-mono ml-1.5"
+                                nameClassName="font-medium text-[13px]"
+                                codeClassName="text-[11px] text-muted-foreground font-mono ms-1.5"
                               />
                             </div>
                             <div className="text-right flex-shrink-0">
-                              <div className="text-xs text-muted-foreground mb-1">
+                              <div className="text-[12px] text-muted-foreground tabular-nums mb-1">
                                 {(() => {
                                   // Use private_price_amount if it's a private price, otherwise use unit_price
                                   const displayUnitPrice = item.is_private_price && item.private_price_amount 
@@ -613,7 +600,7 @@ export default function InvoiceItemsSidePanel({ open, onOpenChange, invoiceId }:
                                   return `${item.quantity} × $${Number(displayUnitPrice).toFixed(2)}`;
                                 })()}
                               </div>
-                              <div className="font-bold text-xs text-primary">
+                              <div className="font-bold text-[13px] tabular-nums text-primary-strong">
                                 ${Number(item.total_price || 0).toFixed(2)}
                               </div>
                             </div>

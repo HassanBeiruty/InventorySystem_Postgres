@@ -292,7 +292,7 @@ const Packages = () => {
                               {pkg.items.map((item) => (
                                 <span
                                   key={item.product_id}
-                                  className="inline-flex items-center gap-1 rounded-md bg-primary-light px-1.5 py-0.5 text-[11px] font-medium text-primary"
+                                  className="inline-flex items-center gap-1 rounded-md bg-primary-light px-1.5 py-0.5 text-[11px] font-medium text-primary-strong"
                                 >
                                   <span className="font-bold tabular-nums">{item.quantity}×</span>
                                   {item.name}
@@ -304,7 +304,7 @@ const Packages = () => {
                           <TableCell className="p-2 text-end text-xs tabular-nums whitespace-nowrap">
                             <div>{usd(sum)}</div>
                             {saving > 0.004 && (
-                              <div className="text-[11px] font-semibold text-success">
+                              <div className="text-[11px] font-semibold text-success-strong">
                                 {t("packages.savesShort", "saves {{amount}}", { amount: usd(saving) })}
                               </div>
                             )}
@@ -387,7 +387,7 @@ const Packages = () => {
                 {t("packages.retailSumHint", "Sum of retail prices: {{sum}}", { sum: usd(draftRetailSum) })}
                 {priceText.trim() === "" && draftRetailSum > 0 && <> · {t("packages.emptyUsesSum", "left empty, the package uses this sum")}</>}
                 {effectivePrice > 0 && draftRetailSum - effectivePrice > 0.004 && (
-                  <> · <span className="font-semibold text-success">{t("packages.savesShort", "saves {{amount}}", { amount: usd(draftRetailSum - effectivePrice) })}</span></>
+                  <> · <span className="font-semibold text-success-strong">{t("packages.savesShort", "saves {{amount}}", { amount: usd(draftRetailSum - effectivePrice) })}</span></>
                 )}
               </p>
 

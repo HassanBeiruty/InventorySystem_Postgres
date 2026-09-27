@@ -2,12 +2,11 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, ChevronUp, ChevronDown, Package, AlertTriangle, Search, X } from "lucide-react";
+import { Plus, Trash2, Package, AlertTriangle, Search, X, User, Truck, CalendarDays, ScanBarcode, Wallet, TrendingUp, TrendingDown } from "lucide-react";
 import { productsRepo, customersRepo, suppliersRepo, invoicesRepo, productPricesRepo, inventoryRepo, packagesRepo, type PackageEntity } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
@@ -15,6 +14,11 @@ import { normalizeBarcodeOrSku, normalizeBarcodeOrSkuForSearch } from "@/utils/b
 import ProductNameWithCode from "@/components/ProductNameWithCode";
 import type { InvoiceFormItem } from "@/components/invoice/types";
 import { PackageLineGroup } from "@/components/invoice/PackageLineGroup";
+import { InvoicePageHeader } from "@/components/invoice/ui/InvoicePageHeader";
+import { SectionCard } from "@/components/invoice/ui/SectionCard";
+import { FieldLabel } from "@/components/invoice/ui/FieldLabel";
+import { QtyStepper } from "@/components/invoice/ui/QtyStepper";
+import { TotalSummary } from "@/components/invoice/ui/TotalSummary";
 import {
   applyPackage,
   collectPackageGroups,
@@ -1051,36 +1055,29 @@ const InvoiceForm = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-0.5">
-        <div>
-          <h2 className="text-base sm:text-lg font-bold tracking-tight">
-            {isEditMode ? (invoiceType === 'sell' ? t('invoiceForm.editSellInvoice') : t('invoiceForm.editBuyInvoice')) : (invoiceType === 'sell' ? t('invoiceForm.newSellInvoice') : t('invoiceForm.newBuyInvoice'))}
-          </h2>
-          <p className="text-muted-foreground text-[9px] sm:text-[10px]">
-            {isEditMode 
-              ? (invoiceType === 'sell' ? t('invoiceForm.editSellInvoiceDescription') : t('invoiceForm.editBuyInvoiceDescription'))
-              : (invoiceType === 'sell' ? t('invoiceForm.newSellInvoiceDescription') : t('invoiceForm.newBuyInvoiceDescription'))}
-          </p>
-        </div>
+      <div className="space-y-3">
+        <InvoicePageHeader
+          icon={invoiceType === 'sell' ? TrendingUp : TrendingDown}
+          title={isEditMode ? (invoiceType === 'sell' ? t('invoiceForm.editSellInvoice') : t('invoiceForm.editBuyInvoice')) : (invoiceType === 'sell' ? t('invoiceForm.newSellInvoice') : t('invoiceForm.newBuyInvoice'))}
+          description={isEditMode
+            ? (invoiceType === 'sell' ? t('invoiceForm.editSellInvoiceDescription') : t('invoiceForm.editBuyInvoiceDescription'))
+            : (invoiceType === 'sell' ? t('invoiceForm.newSellInvoiceDescription') : t('invoiceForm.newBuyInvoiceDescription'))}
+        />
 
-        <form onSubmit={handleSubmit} className="space-y-1.5">
-          <Card className="border-2">
-            <CardHeader className="pb-1 pt-1.5 px-2.5 bg-gradient-to-r from-muted/30 to-transparent">
-              <CardTitle className="text-xs sm:text-sm font-bold">{t('invoiceForm.invoiceDetails')}</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-1.5 px-2.5 pb-2">
-              <div className="grid gap-2 sm:grid-cols-3 items-start">
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <SectionCard title={t('invoiceForm.invoiceDetails')}>
+              <div className="grid gap-3 sm:grid-cols-3 items-start">
                 {/* Supplier */}
-                <div className="space-y-0.5">
-                  <Label htmlFor="entity-select" className="text-[10px] sm:text-xs font-medium flex items-center gap-1">
-                    {invoiceType === 'sell' ? '👤 Customer' : '📦 Supplier'}
-                  </Label>
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="entity-select" icon={invoiceType === 'sell' ? User : Truck}>
+                    {invoiceType === 'sell' ? 'Customer' : 'Supplier'}
+                  </FieldLabel>
                   <Select 
                     key={`${invoiceType}-${selectedEntity}-${(invoiceType === 'sell' ? customers : suppliers).length}`}
                     value={selectedEntity || ""} 
                     onValueChange={setSelectedEntity}
                   >
-                    <SelectTrigger id="entity-select" className="h-8 text-xs border-2 hover:border-primary/50 transition-colors">
+                    <SelectTrigger id="entity-select" className="h-8 text-[13px]">
                       <SelectValue placeholder={invoiceType === 'sell' ? t('invoiceForm.selectCustomer') : t('invoiceForm.selectSupplier')} />
                     </SelectTrigger>
                     <SelectContent side="bottom" align="start" className="max-h-[50vh] overflow-y-auto">
@@ -1101,26 +1098,28 @@ const InvoiceForm = () => {
                 </div>
                 
                 {/* Due Date */}
-                <div className="space-y-0.5">
-                  <Label htmlFor="due_date" className="text-[10px] sm:text-xs font-medium flex items-center gap-1">
-                    📅 Due Date <span className="text-muted-foreground text-[9px] font-normal">(optional)</span>
-                  </Label>
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="due_date" icon={CalendarDays} hint="(optional)">
+                    Due Date
+                  </FieldLabel>
                   <Input
                     id="due_date"
                     type="date"
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
                     placeholder={t("commonPlaceholders.selectDueDate")}
-                    className="h-8 text-xs border-2 hover:border-primary/50 transition-colors"
+                    className="h-8 text-[13px]"
                   />
                 </div>
 
                 {/* Barcode/SKU Scanner */}
-                <div className="space-y-0.5 border-2 border-primary/40 rounded-lg p-1.5 bg-gradient-to-br from-primary/10 via-primary/5 to-accent/5 shadow-sm">
-                  <Label className="text-[10px] sm:text-xs font-semibold flex items-center gap-1 text-primary">
-                    🔍 Scan Barcode/SKU
-                  </Label>
+                <div className="space-y-1 rounded-lg border-2 border-primary/30 bg-primary-light p-2">
+                  <label htmlFor="barcode-scan" className="flex items-center gap-1.5 text-[11px] font-semibold text-primary-strong">
+                    <ScanBarcode className="h-3.5 w-3.5" aria-hidden="true" />
+                    Scan Barcode/SKU
+                  </label>
                   <Input
+                    id="barcode-scan"
                     ref={barcodeInputRef}
                     placeholder="Scan or type barcode/SKU..."
                     value={barcodeInput}
@@ -1133,16 +1132,16 @@ const InvoiceForm = () => {
                         }
                       }
                     }}
-                    className="w-full h-8 text-xs border-2 border-primary/40 hover:border-primary/60 focus:border-primary bg-background/50 font-mono font-semibold transition-all"
+                    className="w-full h-8 text-[13px] border-primary/30 bg-background font-mono font-semibold"
                     disabled={isEditMode}
                   />
-                  <p className="text-[8px] sm:text-[9px] text-muted-foreground font-medium">
-                    {isEditMode ? "⚠️ Disabled in edit mode" : "Press Enter to search"}
+                  <p className="text-[11px] text-muted-foreground">
+                    {isEditMode ? "Disabled in edit mode" : "Press Enter to search"}
                   </p>
                 </div>
               </div>
               
-              <div className="flex items-center justify-between gap-2 pt-2 border-t mt-2 flex-wrap">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -1152,16 +1151,17 @@ const InvoiceForm = () => {
                       setPaidDirectly(e.target.checked);
                       if (e.target.checked) setPartialPaidAmount(0);
                     }}
-                    className="rounded border-input w-4 h-4"
+                    className="h-4 w-4 rounded border-input accent-[hsl(var(--primary))]"
                     disabled={isEditMode}
                   />
-                  <Label htmlFor="paid-directly" className="cursor-pointer text-[10px] sm:text-xs font-medium">
-                    💰 Mark as paid directly (invoice will be fully paid on creation)
+                  <Label htmlFor="paid-directly" className="flex cursor-pointer items-center gap-1.5 text-[12px] font-medium">
+                    <Wallet className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                    Mark as paid directly (invoice will be fully paid on creation)
                   </Label>
                 </div>
                 {!isEditMode && !paidDirectly && (
                   <div className="flex items-center gap-2">
-                    <Label htmlFor="partial-paid-amount" className="text-[10px] sm:text-xs font-medium whitespace-nowrap">
+                    <Label htmlFor="partial-paid-amount" className="text-[12px] font-medium whitespace-nowrap">
                       Partial paid (USD)
                     </Label>
                     <Input
@@ -1173,43 +1173,33 @@ const InvoiceForm = () => {
                       value={partialPaidAmount === 0 ? "" : partialPaidAmount}
                       onChange={(e) => setPartialPaidAmount(parseFloat(e.target.value) || 0)}
                       placeholder="0.00"
-                      className="w-28 h-8 text-xs"
+                      className="w-28 h-8 text-[13px] tabular-nums"
                     />
                   </div>
                 )}
               </div>
               {!isEditMode && !paidDirectly && (
-                <p className="mt-1 text-[9px] text-muted-foreground">
+                <p className="text-[11px] text-muted-foreground">
                   {partialPaidAmount > 0
                     ? partialPaidAmount >= calculateTotal()
-                      ? `⚠️ Must be less than the total ($${calculateTotal().toFixed(2)})`
-                      : `🟡 Invoice will be marked partially paid ($${partialPaidAmount.toFixed(2)} of $${calculateTotal().toFixed(2)})`
+                      ? `Must be less than the total ($${calculateTotal().toFixed(2)})`
+                      : `Invoice will be marked partially paid ($${partialPaidAmount.toFixed(2)} of $${calculateTotal().toFixed(2)})`
                     : "Leave as 0 for an unpaid (pending) invoice"}
                 </p>
               )}
               {isEditMode && (
-                <div className="mt-1">
-                  <p className="text-[9px] text-muted-foreground">
-                    ⚠️ Payment status cannot be changed in edit mode
-                  </p>
-                </div>
+                <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <AlertTriangle className="h-3.5 w-3.5 text-warning-strong" aria-hidden="true" />
+                  Payment status cannot be changed in edit mode
+                </p>
               )}
-            </CardContent>
-          </Card>
+          </SectionCard>
 
-          <Card className="border-2">
-            <CardHeader className="pb-1 pt-1.5 px-2.5 bg-gradient-to-r from-muted/30 to-transparent">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-xs sm:text-sm font-bold">{t('invoiceForm.items')}</CardTitle>
-                  <CardDescription className="text-[9px] sm:text-[10px]">{t('invoiceForm.addProducts')}</CardDescription>
-                </div>
-                <div className="text-[10px] text-muted-foreground">
-                  {items.length} {items.length === 1 ? 'item' : 'items'}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-1.5 pt-1.5 px-2.5 pb-2">
+          <SectionCard
+            title={t('invoiceForm.items')}
+            description={t('invoiceForm.addProducts')}
+            meta={`${items.length} ${items.length === 1 ? 'item' : 'items'}`}
+          >
               {items.map((item, index) => {
                 // A package renders once, at its first line, as one group
                 if (item.package_id) {
@@ -1236,10 +1226,10 @@ const InvoiceForm = () => {
                 const isOutOfStock = availableQty !== null && availableQty === 0;
                 
                 return (
-                  <div key={index} className="border-2 rounded-lg p-1.5 bg-gradient-to-br from-card to-muted/10 hover:shadow-md transition-all">
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-1 items-end">
-                      <div className="md:col-span-3 space-y-0.5">
-                        <Label htmlFor={`product-${index}`} className="text-[9px] sm:text-[10px]">{t('invoiceForm.product')}</Label>
+                  <div key={index} className="rounded-xl border-2 border-border bg-card p-2 transition-shadow hover:shadow-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+                      <div className="md:col-span-3 space-y-1">
+                        <Label htmlFor={`product-${index}`} className="text-[11px] font-medium">{t('invoiceForm.product')}</Label>
                         <Select
                           value={item.product_id}
                           onValueChange={(value) => {
@@ -1264,7 +1254,7 @@ const InvoiceForm = () => {
                           }}
                           disabled={isEditMode}
                         >
-                          <SelectTrigger id={`product-${index}`} className="h-7 text-xs">
+                          <SelectTrigger id={`product-${index}`} className="h-8 text-[13px]">
                             <SelectValue placeholder={t('invoiceForm.selectProduct')} />
                           </SelectTrigger>
                           <SelectContent 
@@ -1277,7 +1267,7 @@ const InvoiceForm = () => {
                           >
                             <div className="sticky top-0 z-10 bg-popover border-b p-1.5">
                               <div className="relative">
-                                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                                <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                                 <Input
                                   ref={(el) => {
                                     productSearchInputRefs.current[index] = el;
@@ -1290,7 +1280,7 @@ const InvoiceForm = () => {
                                   }}
                                   onClick={(e) => e.stopPropagation()}
                                   onKeyDown={(e) => e.stopPropagation()}
-                                  className="w-full pl-8 pr-8 h-7 text-xs"
+                                  className="w-full ps-8 pe-8 h-8 text-[13px]"
                                   autoFocus
                                 />
                                 {(productSearchQuery[index] || "").trim() && (
@@ -1301,7 +1291,7 @@ const InvoiceForm = () => {
                                       e.stopPropagation();
                                       setProductSearchQuery(prev => ({ ...prev, [index]: "" }));
                                     }}
-                                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                                    className="absolute end-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0"
                                   >
                                     <X className="w-3 h-3" />
                                   </Button>
@@ -1372,7 +1362,7 @@ const InvoiceForm = () => {
                                             <span className="flex items-center gap-1.5">
                                               <Package className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
                                               <span className="font-medium">{pkg.name}</span>
-                                              <span className="rounded-md border border-primary/30 bg-primary-light px-1 py-px text-[10px] font-bold text-primary">
+                                              <span className="rounded-md border border-primary/30 bg-primary-light px-1 py-px text-[10px] font-bold text-primary-strong">
                                                 {t('packages.badge', 'Package')}
                                               </span>
                                               <span className="ms-1 text-xs tabular-nums text-muted-foreground">
@@ -1411,82 +1401,37 @@ const InvoiceForm = () => {
                         </Select>
                       </div>
                       
-                      <div className="md:col-span-2 space-y-0.5">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-[9px] sm:text-[10px]">{t('invoiceForm.quantity')}</Label>
-                          {invoiceType === 'sell' && item.product_id && availableQty !== null && (
-                            <div className="flex items-center gap-0.5">
-                              {isOutOfStock ? (
-                                <AlertTriangle className="w-2.5 h-2.5 text-destructive" />
-                              ) : isLowStock ? (
-                                <AlertTriangle className="w-2.5 h-2.5 text-warning" />
-                              ) : (
-                                <Package className="w-2.5 h-2.5 text-muted-foreground" />
-                              )}
-                              <span className={`text-[10px] ${
-                                isOutOfStock ? "text-destructive" : 
-                                isLowStock ? "text-warning" : 
-                                "text-muted-foreground"
-                              }`}>
-                                {availableQty}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-0.5">
-                          <Input
-                            type="number"
-                            min="1"
-                            max={availableQty !== null ? availableQty : undefined}
-                            value={isNaN(item.quantity) || item.quantity === 0 ? '' : item.quantity}
-                            onChange={(e) => {
-                              const val = e.target.value === '' ? 1 : parseInt(e.target.value);
-                              handleQuantityChange(index, isNaN(val) || val < 1 ? 1 : val);
-                            }}
-                            className="flex-1 h-7 text-xs"
-                          />
-                          <div className="flex flex-col">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              className="h-3.5 w-5 rounded-b-none border-b-0 p-0"
-                              onClick={() => {
-                                const currentQty = isNaN(item.quantity) || item.quantity === 0 ? 1 : item.quantity;
-                                const maxQty = availableQty !== null ? availableQty : undefined;
-                                const newQty = maxQty !== undefined && currentQty >= maxQty ? currentQty : currentQty + 1;
-                                handleQuantityChange(index, newQty);
-                              }}
-                              disabled={availableQty !== null && item.quantity >= availableQty}
+                      <div className="md:col-span-2 space-y-1">
+                        <FieldLabel
+                          htmlFor={`qty-${index}`}
+                          trailing={invoiceType === 'sell' && item.product_id && availableQty !== null ? (
+                            <span
+                              title="Available stock"
+                              className={`flex items-center gap-1 text-[11px] tabular-nums ${isOutOfStock ? "text-destructive-strong" : isLowStock ? "text-warning-strong" : "text-muted-foreground"}`}
                             >
-                              <ChevronUp className="w-2 h-2" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              className="h-3.5 w-5 rounded-t-none p-0"
-                              onClick={() => {
-                                const currentQty = isNaN(item.quantity) || item.quantity === 0 ? 1 : item.quantity;
-                                const newQty = currentQty > 1 ? currentQty - 1 : 1;
-                                handleQuantityChange(index, newQty);
-                              }}
-                              disabled={item.quantity <= 1}
-                            >
-                              <ChevronDown className="w-2 h-2" />
-                            </Button>
-                          </div>
-                        </div>
+                              {isOutOfStock || isLowStock ? <AlertTriangle className="h-3 w-3" aria-hidden="true" /> : <Package className="h-3 w-3" aria-hidden="true" />}
+                              {availableQty}
+                            </span>
+                          ) : undefined}
+                        >
+                          {t('invoiceForm.quantity')}
+                        </FieldLabel>
+                        <QtyStepper
+                          id={`qty-${index}`}
+                          value={isNaN(item.quantity) || item.quantity < 1 ? 1 : item.quantity}
+                          max={availableQty !== null ? availableQty : undefined}
+                          onChange={(qty) => handleQuantityChange(index, qty)}
+                        />
                       </div>
                       
                       {invoiceType === 'sell' && (
-                        <div className="md:col-span-2 space-y-0.5">
-                          <Label htmlFor={`price-type-${index}`} className="text-[9px] sm:text-[10px]">{t('invoiceForm.priceType')}</Label>
+                        <div className="md:col-span-2 space-y-1">
+                          <Label htmlFor={`price-type-${index}`} className="text-[11px] font-medium">{t('invoiceForm.priceType')}</Label>
                           <Select
                             value={item.price_type}
                             onValueChange={(value: 'retail' | 'wholesale') => handlePriceTypeChange(index, value)}
                           >
-                            <SelectTrigger id={`price-type-${index}`} className="h-7 text-xs">
+                            <SelectTrigger id={`price-type-${index}`} className="h-8 text-[13px]">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent side="bottom" align="start" className="max-h-[50vh] overflow-y-auto">
@@ -1497,8 +1442,8 @@ const InvoiceForm = () => {
                         </div>
                       )}
                       
-                      <div className={`${invoiceType === 'sell' ? 'md:col-span-2' : 'md:col-span-3'} space-y-0.5`}>
-                        <Label className="text-[9px] sm:text-[10px]">{invoiceType === 'buy' ? t('invoiceForm.cost') : t('invoiceForm.unitPrice')}</Label>
+                      <div className={`${invoiceType === 'sell' ? 'md:col-span-2' : 'md:col-span-3'} space-y-1`}>
+                        <Label className="text-[11px] font-medium">{invoiceType === 'buy' ? t('invoiceForm.cost') : t('invoiceForm.unitPrice')}</Label>
                         <Input
                           type="number"
                           step="0.01"
@@ -1510,17 +1455,17 @@ const InvoiceForm = () => {
                           }}
                           disabled={invoiceType === 'sell' && !item.is_private_price}
                           placeholder={invoiceType === 'buy' ? t('invoiceForm.enterCost') : ''}
-                          className={`h-7 text-xs ${invoiceType === 'sell' && !item.is_private_price ? "bg-muted" : ""}`}
+                          className={`h-8 text-[13px] tabular-nums ${invoiceType === 'sell' && !item.is_private_price ? "bg-muted" : ""}`}
                         />
                       </div>
                       
-                      <div className="md:col-span-2 space-y-0.5">
-                        <Label className="text-[9px] sm:text-[10px]">{t('invoiceForm.total')}</Label>
+                      <div className="md:col-span-2 space-y-1">
+                        <Label className="text-[11px] font-medium">{t('invoiceForm.total')}</Label>
                         <Input
                           type="number"
                           value={isNaN(item.total_price) ? '' : item.total_price.toFixed(2)}
                           disabled
-                          className="h-7 text-xs bg-muted font-semibold cursor-default"
+                          className="h-8 text-[13px] bg-muted font-semibold tabular-nums cursor-default"
                         />
                       </div>
                       
@@ -1532,7 +1477,7 @@ const InvoiceForm = () => {
                             size="icon"
                             onClick={() => removeItem(index)}
                             disabled={hasPayments}
-                            className={`h-7 w-7 ${
+                            className={`h-8 w-8 ${
                               hasPayments
                                 ? 'opacity-60 cursor-not-allowed bg-warning/10 text-warning hover:bg-warning/20 hover:text-warning'
                                 : ''
@@ -1550,24 +1495,24 @@ const InvoiceForm = () => {
                     </div>
 
                   {invoiceType === 'sell' && (
-                    <div className="space-y-0.5 border-t pt-1 mt-1">
+                    <div className="mt-2 space-y-1.5 border-t border-border pt-2">
                       <div className="flex items-center gap-1.5">
                         <input
                           type="checkbox"
                           id={`private-${index}`}
                           checked={item.is_private_price}
                           onChange={(e) => handlePrivatePriceToggle(index, e.target.checked)}
-                          className="rounded border-input w-3.5 h-3.5"
+                          className="h-3.5 w-3.5 rounded border-input accent-[hsl(var(--primary))]"
                         />
-                        <Label htmlFor={`private-${index}`} className="cursor-pointer text-[9px] sm:text-[10px] font-medium">
+                        <Label htmlFor={`private-${index}`} className="cursor-pointer text-[12px] font-medium">
                           {t('invoiceForm.useCustomPrice')} {item.price_type === 'retail' ? t('invoiceForm.retail') : t('invoiceForm.wholesale')})
                         </Label>
                       </div>
                       
                       {item.is_private_price && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-                          <div className="space-y-0.5">
-                            <Label className="text-[9px] sm:text-[10px]">{t('invoiceForm.customPriceAmount')}</Label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-[11px] font-medium">{t('invoiceForm.customPriceAmount')}</Label>
                             <Input
                               type="number"
                               step="0.01"
@@ -1578,11 +1523,11 @@ const InvoiceForm = () => {
                                 handlePrivatePriceChange(index, isNaN(val) ? 0 : val);
                               }}
                               placeholder={t('invoiceForm.enterCustomPrice')}
-                              className="h-7 text-xs"
+                              className="h-8 text-[13px]"
                             />
                           </div>
-                          <div className="space-y-0.5">
-                            <Label className="text-[9px] sm:text-[10px]">{t('invoiceForm.reasonNote')}</Label>
+                          <div className="space-y-1">
+                            <Label className="text-[11px] font-medium">{t('invoiceForm.reasonNote')}</Label>
                             <Input
                               type="text"
                               value={item.private_price_note}
@@ -1592,7 +1537,7 @@ const InvoiceForm = () => {
                                 setItems(newItems);
                               }}
                               placeholder={t('invoiceForm.whyCustomPrice')}
-                              className="h-7 text-xs"
+                              className="h-8 text-[13px]"
                             />
                           </div>
                         </div>
@@ -1605,26 +1550,22 @@ const InvoiceForm = () => {
               
               {/* Hide Add Item button in edit mode */}
               {!isEditMode && (
-                <Button type="button" variant="outline" onClick={addItem} className="w-full h-8 text-xs border-2 border-dashed hover:border-primary hover:bg-primary/5 transition-all">
-                  <Plus className="w-3.5 h-3.5 mr-1.5" />
+                <Button type="button" variant="outline" onClick={addItem} className="w-full h-9 rounded-xl text-[13px] border-2 border-dashed hover:border-primary hover:bg-primary-light transition-colors">
+                  <Plus className="w-3.5 h-3.5 me-1.5" />
                   {t('invoiceForm.addItem')}
                 </Button>
               )}
               
-              <div className="flex justify-end pt-2 border-t-2 mt-2">
-                <div className="text-right space-y-0.5 bg-gradient-to-br from-primary/5 to-accent/5 px-4 py-2 rounded-lg border-2">
-                  <div className="text-[10px] sm:text-xs text-muted-foreground font-medium">{t('invoiceForm.totalAmount')}</div>
-                  <div className="text-lg sm:text-2xl font-bold text-primary">${calculateTotal().toFixed(2)}</div>
-                </div>
+              <div className="flex border-t border-border pt-3">
+                <TotalSummary label={t('invoiceForm.totalAmount')} amount={calculateTotal()} />
               </div>
-            </CardContent>
-          </Card>
+          </SectionCard>
 
-          <div className="flex flex-col-reverse sm:flex-row gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => navigate("/invoices")} className="w-full sm:w-auto h-9 text-xs border-2 hover:bg-muted">
+          <div className="flex flex-col-reverse sm:flex-row gap-2">
+            <Button type="button" variant="outline" onClick={() => navigate("/invoices")} className="w-full sm:w-auto h-9 px-4 text-[13px] border-2 hover:bg-muted">
               {t('invoiceForm.cancel')}
             </Button>
-            <Button type="submit" disabled={loading} className="w-full sm:w-auto h-9 text-xs font-semibold shadow-md hover:shadow-lg transition-all">
+            <Button type="submit" disabled={loading} className="w-full sm:w-auto h-9 px-5 text-[13px] font-semibold shadow-md hover:shadow-lg transition-all">
               {loading ? (isEditMode ? t('invoiceForm.updating') : t('invoiceForm.creating')) : (isEditMode ? t('invoiceForm.updateInvoice') : t('invoiceForm.createInvoice'))}
             </Button>
           </div>

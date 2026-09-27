@@ -64,7 +64,7 @@ export function PackageLineGroup({
           <div className="min-w-0">
             <div id={`${id}-name`} className="flex flex-wrap items-center gap-1.5 text-sm font-bold">
               {group.name}
-              <span className="inline-flex items-center rounded-md border border-primary/30 bg-primary-light px-1.5 py-px text-[10px] font-bold text-primary">
+              <span className="inline-flex items-center rounded-md border border-primary/30 bg-primary-light px-1.5 py-px text-[10px] font-bold text-primary-strong">
                 {t("packages.badge", "Package")}
               </span>
             </div>
@@ -111,7 +111,7 @@ export function PackageLineGroup({
             {showReset ? (
               <button
                 type="button"
-                className="font-semibold text-primary underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                className="font-semibold text-primary-strong underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 onClick={() => {
                   onPriceChange(defaultPrice as number);
                   setTypedPrice(defaultPrice as number);
@@ -135,13 +135,13 @@ export function PackageLineGroup({
             {saving > 0 && (
               <>
                 {t("packages.normally", "Normally {{price}}", { price: usd(normal) })} ·{" "}
-                <span className="font-bold text-success">{t("packages.saves", "customer saves {{amount}}", { amount: usd(saving / 100) })}</span>
+                <span className="font-bold text-success-strong">{t("packages.saves", "customer saves {{amount}}", { amount: usd(saving / 100) })}</span>
               </>
             )}
             {saving < 0 && (
               <>
                 {t("packages.normally", "Normally {{price}}", { price: usd(normal) })} ·{" "}
-                <span className="font-bold text-warning">{t("packages.aboveRetail", "{{amount}} above retail", { amount: usd(-saving / 100) })}</span>
+                <span className="font-bold text-warning-strong">{t("packages.aboveRetail", "{{amount}} above retail", { amount: usd(-saving / 100) })}</span>
               </>
             )}
             {saving === 0 && t("packages.sameAsRetail", "Same as retail {{price}}", { price: usd(normal) })}
@@ -197,11 +197,11 @@ export function PackageLineGroup({
                   </td>
                   <td className="px-2.5 py-1.5 text-end tabular-nums text-muted-foreground">×{line.package_unit_qty || 1}</td>
                   <td className="px-2.5 py-1.5 text-end font-bold tabular-nums">{line.quantity}</td>
-                  <td className={cn("px-2.5 py-1.5 text-end tabular-nums", short ? "font-bold text-destructive" : available !== null && available < 10 ? "text-warning" : "text-muted-foreground")}>
+                  <td className={cn("px-2.5 py-1.5 text-end tabular-nums", short ? "font-bold text-destructive-strong" : available !== null && available < 10 ? "text-warning-strong" : "text-muted-foreground")}>
                     {available ?? "—"}
                   </td>
                   <td className="px-2.5 py-1.5 text-end tabular-nums text-muted-foreground">{usd(line.unit_price)}</td>
-                  <td className="px-2.5 py-1.5 text-end font-bold tabular-nums text-primary">{usd(line.private_price_amount)}</td>
+                  <td className="px-2.5 py-1.5 text-end font-bold tabular-nums text-primary-strong">{usd(line.private_price_amount)}</td>
                   <td className="px-2.5 py-1.5 text-end tabular-nums">{usd(line.total_price)}</td>
                 </tr>
               );
@@ -228,7 +228,7 @@ function Notice({ tone, children }: { tone: "destructive" | "warning"; children:
       role="status"
       className={cn(
         "flex items-start gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px]",
-        tone === "destructive" ? "bg-destructive/10 text-destructive" : "bg-warning-light text-warning",
+        tone === "destructive" ? "bg-destructive/10 text-destructive-strong" : "bg-warning-light text-warning-strong",
       )}
     >
       <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />

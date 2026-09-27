@@ -7,7 +7,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { invoicesRepo } from "@/integrations/api/repo";
@@ -16,6 +15,8 @@ import { formatDateTimeLebanon } from "@/utils/dateUtils";
 import { Printer, Download } from "lucide-react";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
 import { PackageHeaderRow } from "@/components/invoice/PackageHeaderRow";
+import { StatusPill, PaymentStatusPill } from "@/components/invoice/ui/StatusPill";
+import { StatTile } from "@/components/invoice/ui/StatTile";
 import { groupInvoiceItems, packageHeaderHtml, packageHeaderPdfRow } from "@/utils/invoicePackageGroups";
 
 interface InvoiceItem {
@@ -464,7 +465,7 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                   variant="outline" 
                   size="sm"
                 >
-                  <Download className="w-4 h-4 mr-2" />
+                  <Download className="w-4 h-4 me-2" />
                   Export PDF
                 </Button>
                 <Button 
@@ -477,7 +478,7 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                   variant="outline" 
                   size="sm"
                 >
-                  <Printer className="w-4 h-4 mr-2" />
+                  <Printer className="w-4 h-4 me-2" />
                   Print
                 </Button>
               </div>
@@ -541,7 +542,7 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <span className="text-muted-foreground">Invoice Number:</span>
-                      <span className="ml-2 font-bold text-lg">#{invoice.id}</span>
+                      <span className="ms-2 font-bold text-lg tabular-nums">#{invoice.id}</span>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Date:</span>
@@ -557,7 +558,7 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                         }`}>
                           {formatDateTimeLebanon(invoice.due_date, "MMM dd, yyyy")}
                           {new Date(invoice.due_date) < new Date() && invoice.payment_status !== 'paid' && (
-                            <Badge variant="destructive" className="ml-2">Overdue</Badge>
+                            <StatusPill tone="overdue" className="ms-2">Overdue</StatusPill>
                           )}
                         </span>
                       ) : (
@@ -566,24 +567,21 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                     </div>
                     <div>
                       <span className="text-muted-foreground">Type:</span>
-                      <Badge variant={invoice.invoice_type === 'sell' ? 'default' : 'success'} className="ml-2">
+                      <StatusPill tone={invoice.invoice_type === 'sell' ? 'sell' : 'buy'} className="ms-2">
                         {invoice.invoice_type.toUpperCase()}
-                      </Badge>
+                      </StatusPill>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Status:</span>
-                      <Badge 
-                        variant={invoice.payment_status === 'paid' ? 'success' : invoice.payment_status === 'partial' ? 'warning' : 'warning'}
-                        className="ml-2"
-                      >
+                      <PaymentStatusPill status={invoice.payment_status} className="ms-2">
                         {invoice.payment_status === 'paid' ? 'Paid' : invoice.payment_status === 'partial' ? 'Partial' : 'Pending'}
-                      </Badge>
+                      </PaymentStatusPill>
                     </div>
                   </div>
 
                   {/* Entity Details */}
-                  <div className="border rounded-lg p-4">
-                    <h3 className="font-semibold mb-3">
+                  <div className="rounded-xl border-2 border-border p-4">
+                    <h3 className="text-[13px] font-bold mb-3">
                       {invoice.invoice_type === 'sell' ? 'Customer' : 'Supplier'} Details
                     </h3>
                     <div className="grid grid-cols-3 gap-4 text-sm">
@@ -604,17 +602,17 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
 
                   {/* Invoice Items */}
                   <div className="space-y-2">
-                    <h3 className="font-semibold">Invoice Items</h3>
-                    <div className="border rounded-lg">
+                    <h3 className="text-[13px] font-bold">Invoice Items</h3>
+                    <div className="overflow-x-auto rounded-xl border-2 border-border">
                       {invoice.invoice_items && invoice.invoice_items.length > 0 ? (
                         <Table>
                           <TableHeader>
-                            <TableRow>
-                              <TableHead className="font-bold">Product</TableHead>
-                              <TableHead className="font-bold">Quantity</TableHead>
-                              <TableHead className="font-bold">Unit Price</TableHead>
-                              <TableHead className="font-bold">Price Type</TableHead>
-                              <TableHead className="font-bold text-right">Total Price</TableHead>
+                            <TableRow className="bg-muted/60 hover:bg-muted/60">
+                              <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Product</TableHead>
+                              <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Quantity</TableHead>
+                              <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Unit Price</TableHead>
+                              <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Price Type</TableHead>
+                              <TableHead className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-right">Total Price</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -633,8 +631,8 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                                     nameClassName="font-medium"
                                   />
                                 </TableCell>
-                                <TableCell>{item.quantity}</TableCell>
-                                <TableCell>${(() => {
+                                <TableCell className="tabular-nums">{item.quantity}</TableCell>
+                                <TableCell className="tabular-nums">${(() => {
                                   // Use private_price_amount if it's a private price, otherwise use unit_price
                                   const displayUnitPrice = item.is_private_price && item.private_price_amount 
                                     ? item.private_price_amount 
@@ -642,11 +640,11 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                                   return Number(displayUnitPrice).toFixed(2);
                                 })()}</TableCell>
                                 <TableCell>
-                                  <Badge variant="outline" className="capitalize">
+                                  <StatusPill tone="neutral" className="capitalize">
                                     {item.price_type}
-                                  </Badge>
+                                  </StatusPill>
                                 </TableCell>
-                                <TableCell className="text-right font-bold">${Number(item.total_price || 0).toFixed(2)}</TableCell>
+                                <TableCell className="text-right font-bold tabular-nums">${Number(item.total_price || 0).toFixed(2)}</TableCell>
                               </TableRow>
                               );
                             })}
@@ -661,21 +659,10 @@ export default function InvoiceDetailDialog({ open, onOpenChange, invoiceId }: I
                   </div>
 
                   {/* Summary */}
-                  <div className="border rounded-lg p-4 bg-secondary/10">
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <div className="text-sm text-muted-foreground">Total Amount</div>
-                        <div className="text-2xl font-bold">${Number(invoice.total_amount || 0).toFixed(2)}</div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-success">Amount Paid</div>
-                        <div className="text-2xl font-bold text-success">${Number(invoice.amount_paid || 0).toFixed(2)}</div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-warning">Remaining Balance</div>
-                        <div className="text-2xl font-bold text-warning">${Number(remainingBalance || 0).toFixed(2)}</div>
-                      </div>
-                    </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <StatTile tone="primary" label="Total Amount" value={`$${Number(invoice.total_amount || 0).toFixed(2)}`} />
+                    <StatTile tone="success" label="Amount Paid" value={`$${Number(invoice.amount_paid || 0).toFixed(2)}`} />
+                    <StatTile tone="warning" label="Remaining Balance" value={`$${Number(remainingBalance || 0).toFixed(2)}`} />
                   </div>
                 </div>
               );
