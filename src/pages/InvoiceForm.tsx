@@ -1,19 +1,19 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { Fragment, useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Package, AlertTriangle, Search, X, User, Truck, CalendarDays, ScanBarcode, Wallet, TrendingUp, TrendingDown } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Trash2, AlertTriangle, User, Truck, CalendarDays, ScanBarcode, Wallet, TrendingUp, TrendingDown } from "lucide-react";
 import { productsRepo, customersRepo, suppliersRepo, invoicesRepo, productPricesRepo, inventoryRepo, packagesRepo, type PackageEntity } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
-import { normalizeBarcodeOrSku, normalizeBarcodeOrSkuForSearch } from "@/utils/barcodeSkuUtils";
-import ProductNameWithCode from "@/components/ProductNameWithCode";
+import { cn } from "@/lib/utils";
 import type { InvoiceFormItem } from "@/components/invoice/types";
 import { PackageLineGroup } from "@/components/invoice/PackageLineGroup";
+import { ProductSearchBar, type ProductSearchInfo } from "@/components/invoice/ProductSearchBar";
 import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
 import { SectionCard } from "@/components/page-ui/SectionCard";
 import { FieldLabel } from "@/components/page-ui/FieldLabel";
@@ -31,8 +31,11 @@ import {
 
 type InvoiceItem = InvoiceFormItem;
 
-// Product dropdown values for packages are "pkg:<id>"; product ids are numeric, so they never collide
-const PACKAGE_OPTION_PREFIX = "pkg:";
+/** Grid columns of an invoice line and of the column headings above the lines (lg and up). */
+const LINE_COLUMNS = {
+  sell: "lg:grid-cols-[minmax(0,1fr)_136px_116px_108px_108px_32px]",
+  buy: "lg:grid-cols-[minmax(0,1fr)_136px_132px_120px_32px]",
+} as const;
 
 const InvoiceForm = () => {
   const { t } = useTranslation();
@@ -55,20 +58,10 @@ const InvoiceForm = () => {
     const newType = location.pathname.includes('/buy') ? 'buy' : 'sell';
     setInvoiceType(newType);
     setSelectedEntity(""); // Reset selected entity when switching types
-    setItems([{
-      product_id: "",
-      quantity: 1,
-      unit_price: 0,
-      price_type: 'retail',
-      total_price: 0,
-      is_private_price: false,
-      private_price_amount: 0,
-      private_price_note: "",
-      barcode: "",
-    }]);
-    // When switching between buy/sell, focus barcode for fast scanning
+    setItems([]);
+    // When switching between buy/sell, focus the product search for fast scanning
     setTimeout(() => {
-      barcodeInputRef.current?.focus();
+      searchInputRef.current?.focus();
     }, 50);
   }, [location.pathname, isEditMode]);
   const [products, setProducts] = useState<any[]>([]);
@@ -78,41 +71,19 @@ const InvoiceForm = () => {
   const [customers, setCustomers] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [availableStock, setAvailableStock] = useState<Map<string, number>>(new Map());
-  
-  // Performance optimization: Pre-normalize product barcodes/SKUs to avoid repeated normalization
-  const normalizedProducts = useMemo(() => {
-    return products.map(p => {
-      // Ensure barcode and SKU are treated as strings for normalization
-      const barcodeStr = p.barcode != null ? String(p.barcode) : null;
-      const skuStr = p.sku != null ? String(p.sku) : null;
-      return {
-        ...p,
-        _normalizedBarcode: normalizeBarcodeOrSkuForSearch(barcodeStr),
-        _normalizedSku: normalizeBarcodeOrSkuForSearch(skuStr),
-      };
-    });
-  }, [products]);
-  
+  // False until today's stock has loaded, so the search doesn't show every product as out of stock
+  const [stockReady, setStockReady] = useState(false);
+
   const [selectedEntity, setSelectedEntity] = useState("");
   const [dueDate, setDueDate] = useState<string>("");
   const [paidDirectly, setPaidDirectly] = useState<boolean>(true);
   const [partialPaidAmount, setPartialPaidAmount] = useState<number>(0);
-  const [barcodeInput, setBarcodeInput] = useState("");
-  const [activeItemIndex, setActiveItemIndex] = useState<number>(0);
-  const [productSearchQuery, setProductSearchQuery] = useState<Record<number, string>>({});
-  const barcodeInputRef = useRef<HTMLInputElement>(null);
-  const productSearchInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
-  const [items, setItems] = useState<InvoiceItem[]>([{
-    product_id: "",
-    quantity: 1,
-    unit_price: 0,
-    price_type: 'retail',
-    total_price: 0,
-    is_private_price: false,
-    private_price_amount: 0,
-    private_price_note: "",
-    barcode: "",
-  }]);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  // Lines are added from the product search only, so the list never holds empty rows
+  const [items, setItems] = useState<InvoiceItem[]>([]);
+  // The line to highlight after it was added or increased (tick restarts the same line)
+  const [flash, setFlash] = useState<{ index: number; tick: number } | null>(null);
+  const lineRefs = useRef<Record<number, HTMLElement | null>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -209,15 +180,13 @@ const InvoiceForm = () => {
     };
   }, [isEditMode, id]);
   
-  // Available stock (sell invoices only). Loaded whenever the form is, or becomes, a sell
-  // invoice: the same form instance is reused when navigating from a buy or edit invoice to a
-  // new sell invoice, so loading it once on mount left every product at 0 available.
+  // Available stock: sell invoices enforce it, buy invoices only show it in the product search.
+  // Reloaded whenever the invoice type changes: the same form instance is reused when navigating
+  // from a buy or edit invoice to a new sell invoice, so loading it once on mount left every
+  // product at 0 available.
   useEffect(() => {
-    if (invoiceType !== 'sell') {
-      setAvailableStock(new Map());
-      return;
-    }
     let cancelled = false;
+    setStockReady(false);
     inventoryRepo.today()
       .then((rows) => {
         if (cancelled) return;
@@ -226,6 +195,7 @@ const InvoiceForm = () => {
           stockMap.set(String(row.product_id), Number(row.available_qty) || 0);
         });
         setAvailableStock(stockMap);
+        setStockReady(true);
       })
       .catch((error: any) => {
         if (cancelled) return;
@@ -407,28 +377,74 @@ const InvoiceForm = () => {
     });
   };
 
-  const addPackage = (index: number, packageId: string) => {
+  // ----- Adding lines -----
+  // The product search is the only way to add lines. A product appears once per invoice:
+  // choosing one that is already its own line adds 1 to it, and choosing a package that is
+  // already on the invoice sells one more package. New lines go to the top, right under the
+  // search. Each returns false when nothing was added (the reason is toasted), so the search
+  // keeps what was typed.
+
+  const flashLine = (index: number) => setFlash((prev) => ({ index, tick: (prev?.tick ?? 0) + 1 }));
+
+  const warnIfUnpriced = (product: { id: number | string; name?: string }) => {
+    if (invoiceType !== 'sell' || latestPrices[String(product.id)]?.retail_price != null) return;
+    toast({
+      title: "Price Not Set",
+      description: `Product "${product.name}" has no price set. Please add a price in the Product Prices page before selling this product.`,
+      variant: "destructive",
+    });
+  };
+
+  const addProductFromSearch = (productId: string): boolean => {
+    const product = productsById.get(productId);
+    if (!product || isEditMode) return false;
+
+    const existingIndex = items.findIndex((item) => String(item.product_id) === productId);
+    if (existingIndex !== -1) {
+      const existing = items[existingIndex];
+      if (existing.package_id) {
+        toast({
+          title: "Already in a package",
+          description: `"${product.name}" is part of the package "${existing.package_name}". Change the package qty instead.`,
+          variant: "destructive",
+        });
+        return false;
+      }
+      const quantity = existing.quantity + 1;
+      if (!handleQuantityChange(existingIndex, quantity)) return false;
+      flashLine(existingIndex);
+      toast({ title: "Quantity increased", description: `"${product.name}" is now ${quantity} on this invoice.` });
+      return true;
+    }
+
+    const available = stockReady ? getEffectiveAvailableStock(productId) : null;
+    if (available !== null && available <= 0) {
+      toast({ title: "Out of Stock", description: `"${product.name}" has no stock available to sell.`, variant: "destructive" });
+      return false;
+    }
+
+    setItems([buildRowForProduct(productId), ...items]);
+    flashLine(0);
+    warnIfUnpriced(product);
+    return true;
+  };
+
+  const addPackageFromSearch = (packageId: string): boolean => {
     const pkg = packages.find((p) => String(p.id) === packageId);
-    if (!pkg) return;
+    if (!pkg || isEditMode || invoiceType !== 'sell') return false;
 
     // Already on the invoice: sell one more package instead of adding its products twice
     const existing = packageGroups.get(packageId);
     if (existing) {
       const qty = existing.qty + 1;
-      const shortages = findPackageStockShortages(items, packageId, qty, (pid, i) => getEffectiveAvailableStock(pid, i));
-      if (shortages.length > 0) {
-        warnPackageShortages(shortages);
-        return;
-      }
-      const next = applyPackage(items, packageId, { qty });
-      if (!items[index]?.product_id) next.splice(index, 1); // drop the empty row it was picked from
-      setItems(next);
+      if (!handlePackageQtyChange(packageId, qty)) return false;
+      flashLine(existing.indexes[0]);
       toast({ title: "Package already on the invoice", description: `"${pkg.name}" quantity increased to ${qty}.` });
-      return;
+      return true;
     }
 
     // One product per invoice: a package can't reuse a product that is already on it
-    const conflicts = findPackageConflicts(items, pkg, index);
+    const conflicts = findPackageConflicts(items, pkg);
     if (conflicts.length > 0) {
       toast({
         title: `Can't add "${pkg.name}"`,
@@ -437,13 +453,12 @@ const InvoiceForm = () => {
           .join('. ') + '. Each product can appear only once per invoice.',
         variant: "destructive",
       });
-      return;
+      return false;
     }
 
-    const next = [...items];
-    next.splice(index, 1, ...createPackageLines(pkg, buildRowForProduct));
+    const next = [...createPackageLines(pkg, buildRowForProduct), ...items];
     setItems(next);
-    setActiveItemIndex(index);
+    flashLine(0);
 
     const shortages = findPackageStockShortages(next, packageId, 1, (pid, i) => getEffectiveAvailableStock(pid, i, next));
     if (shortages.length > 0) {
@@ -454,15 +469,48 @@ const InvoiceForm = () => {
         description: `"${pkg.name}" added at $${Number(pkg.default_price).toFixed(2)}. Change the package qty or price to update its lines.`,
       });
     }
+    return true;
   };
 
-  const handlePackageQtyChange = (packageId: string, qty: number) => {
+  const handleSearchNotFound = (query: string) => {
+    toast({
+      title: "Product Not Available",
+      description: `No product matches "${query}". Check the barcode or SKU, or search by name.`,
+      variant: "info",
+    });
+  };
+
+  // The column headings sit above the first line that isn't part of a package
+  const firstLineIndex = items.findIndex((item) => !item.package_id);
+
+  // Where each product already sits on the invoice, for the search results
+  const placementByProduct = useMemo(() => {
+    const placement = new Map<string, { packageName: string | null }>();
+    items.forEach((item) => {
+      if (item.product_id) placement.set(String(item.product_id), { packageName: item.package_id ? item.package_name || "" : null });
+    });
+    return placement;
+  }, [items]);
+
+  const describeProduct = (productId: string): ProductSearchInfo => {
+    const prices = latestPrices[productId];
+    const price = invoiceType === 'sell' ? prices?.retail_price : prices?.wholesale_price;
+    return {
+      stock: !stockReady ? null : invoiceType === 'sell' ? getEffectiveAvailableStock(productId) : availableStock.get(productId) ?? 0,
+      price: price != null ? Number(price) : null,
+      onInvoice: placementByProduct.get(productId) ?? null,
+    };
+  };
+
+  /** Returns false when the stock check rejects the new qty. */
+  const handlePackageQtyChange = (packageId: string, qty: number): boolean => {
     const shortages = findPackageStockShortages(items, packageId, qty, (pid, i) => getEffectiveAvailableStock(pid, i));
     if (shortages.length > 0) {
       warnPackageShortages(shortages);
-      return; // Don't update quantity
+      return false; // Don't update quantity
     }
     setItems(applyPackage(items, packageId, { qty }));
+    return true;
   };
 
   const handlePackagePriceChange = (packageId: string, price: number) => {
@@ -473,206 +521,7 @@ const InvoiceForm = () => {
     if (hasPayments) {
       return; // Same rule as removeItem
     }
-    const next = removePackage(items, packageId);
-    setItems(next.length > 0 ? next : [{
-      product_id: "",
-      quantity: 1,
-      unit_price: 0,
-      price_type: 'retail',
-      total_price: 0,
-      is_private_price: false,
-      private_price_amount: 0,
-      private_price_note: "",
-      barcode: "",
-    }]);
-  };
-
-  const handleProductChange = (index: number, productId: string) => {
-    if (productId.startsWith(PACKAGE_OPTION_PREFIX)) {
-      addPackage(index, productId.slice(PACKAGE_OPTION_PREFIX.length));
-      return;
-    }
-    const product = products.find(p => String(p.id) === productId || p.id === productId);
-    if (product) {
-      // Check if this product is already in another item
-      const existingItemIndex = items.findIndex((item, idx) => 
-        idx !== index && item.product_id && String(item.product_id) === String(productId)
-      );
-      
-      if (existingItemIndex !== -1) {
-        toast({
-          title: "Duplicate Product",
-          description: `This product is already added to the invoice at row ${existingItemIndex + 1}. Please remove the duplicate or edit the existing item.`,
-          variant: "destructive",
-        });
-        return; // Don't change the product
-      }
-      
-      const newItems = [...items];
-      newItems[index].product_id = productId;
-      // Update top barcode field when product is selected
-      setBarcodeInput(product.barcode || "");
-      setActiveItemIndex(index);
-      
-      if (invoiceType === 'sell') {
-        // For SELL invoices, default to retail price from product_prices
-        const lp = latestPrices[productId];
-        const retailPrice = lp?.retail_price != null ? Number(lp.retail_price) : 0;
-        newItems[index].unit_price = retailPrice;
-        newItems[index].price_type = 'retail';
-        
-        // Warn if product has no price set
-        if (retailPrice === 0 && (!lp || lp.retail_price === null)) {
-          toast({
-            title: "Price Not Set",
-            description: `Product "${product.name}" has no price set. Please add a price in the Product Prices page before selling this product.`,
-            variant: "destructive",
-          });
-        }
-      } else {
-        // For BUY invoices, start with wholesale as reference but user must enter actual cost
-        newItems[index].unit_price = 0; // User must enter
-        newItems[index].price_type = 'wholesale';
-      }
-      
-      const effectivePrice = newItems[index].is_private_price 
-        ? newItems[index].private_price_amount 
-        : newItems[index].unit_price;
-      newItems[index].total_price = effectivePrice * newItems[index].quantity;
-      setItems(newItems);
-    }
-  };
-
-  // Handle barcode/SKU input from top field - link with active item's product dropdown
-  const handleTopBarcodeSearch = (input: string) => {
-    const trimmed = input.trim();
-    if (!trimmed) return;
-    
-    // Normalize using utility function - removes all spaces and converts to uppercase
-    // Server stores barcodes/SKUs in uppercase (no spaces), so we match that format
-    const normalizedInput = normalizeBarcodeOrSku(trimmed);
-    if (!normalizedInput) {
-      toast({
-        title: "Invalid Input",
-        description: "Please enter a valid barcode or SKU",
-        variant: "destructive",
-      });
-      setBarcodeInput("");
-      return;
-    }
-    
-    // In edit mode, don't allow adding new items via barcode/SKU
-    if (isEditMode) {
-      toast({
-        title: "Edit Mode",
-        description: "Cannot add new items in edit mode. You can only modify quantity and price of existing items.",
-        variant: "info",
-      });
-      setBarcodeInput("");
-      return;
-    }
-
-    // Try to find product by barcode first, then by SKU
-    // Performance: Use pre-normalized values from memoized data
-    const product = normalizedProducts.find(p => {
-      // Check normalized barcode/SKU (handles spaces and case)
-      // _normalizedBarcode and _normalizedSku are pre-computed in useMemo
-      return p._normalizedBarcode === normalizedInput || p._normalizedSku === normalizedInput;
-    });
-
-    if (!product) {
-      toast({
-        title: "Product Not Available",
-        description: `No product found with barcode or SKU: ${trimmed}`,
-        variant: "info",
-      });
-      // Clear and refocus for next scan
-      setBarcodeInput("");
-      setTimeout(() => {
-        barcodeInputRef.current?.focus();
-      }, 100);
-      return;
-    }
-
-    // Check if this product is already in the items list
-    const existingItemIndex = items.findIndex(item =>
-      item.product_id && String(item.product_id) === String(product.id)
-    );
-    
-    if (existingItemIndex !== -1) {
-      toast({
-        title: "Duplicate Product",
-        description: `This product is already added to the invoice at row ${existingItemIndex + 1}. Please remove the duplicate or edit the existing item.`,
-        variant: "destructive",
-      });
-      // Focus on the existing item
-      setActiveItemIndex(existingItemIndex);
-      return;
-    }
-
-    // First try to use an empty line, if none exists, create new one at top
-    const productIdStr = String(product.id);
-    
-    // Calculate price based on invoice type
-    let unitPrice = 0;
-    let priceType: 'retail' | 'wholesale' = invoiceType === 'sell' ? 'retail' : 'wholesale';
-    
-    if (invoiceType === "sell") {
-      const lp = latestPrices[productIdStr];
-      unitPrice = lp?.retail_price != null ? Number(lp.retail_price) : 0;
-      
-      if (unitPrice === 0 && (!lp || lp.retail_price === null)) {
-        toast({
-          title: "Price Not Set",
-          description: `Product "${product.name}" has no price set. Please add a price in the Product Prices page before selling this product.`,
-          variant: "destructive",
-        });
-      }
-    }
-
-    setItems(prevItems => {
-      // Find first empty line (where product_id is empty)
-      const emptyIndex = prevItems.findIndex(item => !item.product_id);
-
-      if (emptyIndex >= 0) {
-        // Use existing empty line
-        const updated = [...prevItems];
-        updated[emptyIndex] = {
-          ...updated[emptyIndex],
-          product_id: productIdStr,
-          quantity: 1,
-          unit_price: unitPrice,
-          price_type: priceType,
-          total_price: unitPrice,
-          is_private_price: false,
-          private_price_amount: 0,
-          private_price_note: "",
-          barcode: "",
-        };
-        setActiveItemIndex(emptyIndex);
-        return updated;
-      } else {
-        // No empty line - create new one at top
-        const newItem: InvoiceItem = {
-          product_id: productIdStr,
-          quantity: 1,
-          unit_price: unitPrice,
-          price_type: priceType,
-          total_price: unitPrice,
-          is_private_price: false,
-          private_price_amount: 0,
-          private_price_note: "",
-          barcode: "",
-        };
-        setActiveItemIndex(0);
-        return [newItem, ...prevItems];
-      }
-    });
-
-    setBarcodeInput("");
-    setTimeout(() => {
-      barcodeInputRef.current?.focus();
-    }, 100);
+    setItems(removePackage(items, packageId));
   };
 
   const handlePriceTypeChange = (index: number, priceType: 'retail' | 'wholesale') => {
@@ -714,28 +563,30 @@ const InvoiceForm = () => {
     setItems(newItems);
   };
 
-  const handleQuantityChange = (index: number, quantity: number) => {
+  /** Returns false when the stock check rejects the new quantity. */
+  const handleQuantityChange = (index: number, quantity: number): boolean => {
     if (invoiceType === 'sell' && items[index].product_id) {
       const productId = String(items[index].product_id);
       const effectiveAvailable = getEffectiveAvailableStock(productId, index);
-      
+
       if (effectiveAvailable !== null && quantity > effectiveAvailable) {
         toast({
           title: "Insufficient Stock",
           description: `Only ${effectiveAvailable} units available for this product (after accounting for items already in invoice).`,
           variant: "destructive",
         });
-        return; // Don't update quantity
+        return false; // Don't update quantity
       }
     }
-    
+
     const newItems = [...items];
     newItems[index].quantity = quantity;
-    const effectivePrice = newItems[index].is_private_price 
-      ? newItems[index].private_price_amount 
+    const effectivePrice = newItems[index].is_private_price
+      ? newItems[index].private_price_amount
       : newItems[index].unit_price;
     newItems[index].total_price = effectivePrice * quantity;
     setItems(newItems);
+    return true;
   };
 
   const handlePrivatePriceToggle = (index: number, enabled: boolean) => {
@@ -757,20 +608,6 @@ const InvoiceForm = () => {
     newItems[index].private_price_amount = price;
     newItems[index].total_price = price * newItems[index].quantity;
     setItems(newItems);
-  };
-
-  const addItem = () => {
-    setItems([{
-      product_id: "",
-      quantity: 1,
-      unit_price: 0,
-      price_type: 'retail',
-      total_price: 0,
-      is_private_price: false,
-      private_price_amount: 0,
-      private_price_note: "",
-      barcode: "",
-    }, ...items]);
   };
 
   const removeItem = (index: number) => {
@@ -814,14 +651,24 @@ const InvoiceForm = () => {
     }
   }, [pageLoading]);
 
-  // Auto-focus barcode input when form is ready and not in edit mode
+  // Auto-focus the product search when the form is ready, so a scanner works straight away
   useEffect(() => {
     if (!pageLoading && !isEditMode) {
       setTimeout(() => {
-        barcodeInputRef.current?.focus();
+        searchInputRef.current?.focus();
       }, 50);
     }
   }, [pageLoading, isEditMode, invoiceType]);
+
+  // Briefly ring the line that was just added or increased
+  useEffect(() => {
+    if (!flash || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const primary = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim();
+    lineRefs.current[flash.index]?.animate(
+      [{ boxShadow: `0 0 0 4px hsl(${primary} / 0.4)` }, { boxShadow: `0 0 0 4px hsl(${primary} / 0)` }],
+      { duration: 1400, easing: "ease-out" },
+    );
+  }, [flash]);
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1070,7 +917,7 @@ const InvoiceForm = () => {
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <SectionCard title={t('invoiceForm.invoiceDetails')}>
-              <div className="grid gap-3 sm:grid-cols-3 items-start">
+              <div className="grid gap-3 sm:grid-cols-2 items-start">
                 {/* Supplier */}
                 <div className="space-y-1">
                   <FieldLabel htmlFor="entity-select" icon={invoiceType === 'sell' ? User : Truck}>
@@ -1114,34 +961,6 @@ const InvoiceForm = () => {
                     placeholder={t("commonPlaceholders.selectDueDate")}
                     className="h-8 text-[13px]"
                   />
-                </div>
-
-                {/* Barcode/SKU Scanner */}
-                <div className="space-y-1 rounded-lg border-2 border-primary/30 bg-primary-light p-2">
-                  <label htmlFor="barcode-scan" className="flex items-center gap-1.5 text-[11px] font-semibold text-primary-strong">
-                    <ScanBarcode className="h-3.5 w-3.5" aria-hidden="true" />
-                    Scan Barcode/SKU
-                  </label>
-                  <Input
-                    id="barcode-scan"
-                    ref={barcodeInputRef}
-                    placeholder="Scan or type barcode/SKU..."
-                    value={barcodeInput}
-                    onChange={(e) => setBarcodeInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        if (barcodeInput.trim()) {
-                          handleTopBarcodeSearch(barcodeInput);
-                        }
-                      }
-                    }}
-                    className="w-full h-8 text-[13px] border-primary/30 bg-background font-mono font-semibold"
-                    disabled={isEditMode}
-                  />
-                  <p className="text-[11px] text-muted-foreground">
-                    {isEditMode ? "Disabled in edit mode" : "Press Enter to search"}
-                  </p>
                 </div>
               </div>
               
@@ -1201,9 +1020,34 @@ const InvoiceForm = () => {
 
           <SectionCard
             title={t('invoiceForm.items')}
-            description={t('invoiceForm.addProducts')}
+            description={t('productSearch.itemsDescription', 'Search or scan to add. Each product appears once per invoice.')}
             meta={`${items.length} ${items.length === 1 ? 'item' : 'items'}`}
           >
+              <ProductSearchBar
+                ref={searchInputRef}
+                products={products}
+                packages={packages}
+                invoiceType={invoiceType}
+                describe={describeProduct}
+                isPackageOnInvoice={(packageId) => packageGroups.has(packageId)}
+                onAddProduct={addProductFromSearch}
+                onAddPackage={addPackageFromSearch}
+                onNotFound={handleSearchNotFound}
+                disabled={isEditMode}
+              />
+
+              {items.length === 0 && (
+                <div className="flex flex-col items-center gap-1 rounded-xl border-2 border-dashed border-border px-4 py-8 text-center">
+                  <ScanBarcode className="mb-1 h-6 w-6 text-muted-foreground" aria-hidden="true" />
+                  <p className="text-[13px] font-semibold">{t('productSearch.emptyTitle', 'No products on this invoice yet')}</p>
+                  <p className="text-[12px] text-muted-foreground">
+                    {invoiceType === 'sell'
+                      ? t('productSearch.emptyHintSell', 'Search or scan above to add a product or package.')
+                      : t('productSearch.emptyHintBuy', 'Search or scan above to add a product.')}
+                  </p>
+                </div>
+              )}
+
               {items.map((item, index) => {
                 // A package renders once, at its first line, as one group
                 if (item.package_id) {
@@ -1211,215 +1055,69 @@ const InvoiceForm = () => {
                   if (!group || group.indexes[0] !== index) return null;
                   const pkg = packages.find((p) => String(p.id) === group.packageId);
                   return (
-                    <PackageLineGroup
-                      key={`package-${group.packageId}`}
-                      group={group}
-                      defaultPrice={pkg ? Number(pkg.default_price) : null}
-                      productsById={productsById}
-                      getAvailable={(productId, lineIndex) => getEffectiveAvailableStock(productId, lineIndex)}
-                      canRemove={!hasPayments}
-                      onQtyChange={(qty) => handlePackageQtyChange(group.packageId, qty)}
-                      onPriceChange={(price) => handlePackagePriceChange(group.packageId, price)}
-                      onRemove={() => handleRemovePackage(group.packageId)}
-                    />
+                    <div key={`package-${group.packageId}`} ref={(el) => { lineRefs.current[index] = el; }} className="rounded-xl">
+                      <PackageLineGroup
+                        group={group}
+                        defaultPrice={pkg ? Number(pkg.default_price) : null}
+                        productsById={productsById}
+                        getAvailable={(productId, lineIndex) => getEffectiveAvailableStock(productId, lineIndex)}
+                        canRemove={!hasPayments}
+                        onQtyChange={(qty) => handlePackageQtyChange(group.packageId, qty)}
+                        onPriceChange={(price) => handlePackagePriceChange(group.packageId, price)}
+                        onRemove={() => handleRemovePackage(group.packageId)}
+                      />
+                    </div>
                   );
                 }
 
+                const product = productsById.get(String(item.product_id));
+                const code = product?.barcode || product?.sku || "";
                 const availableQty = getEffectiveAvailableStock(String(item.product_id), index);
                 const isLowStock = availableQty !== null && availableQty < 10;
                 const isOutOfStock = availableQty !== null && availableQty === 0;
-                
+
                 return (
-                  <div key={index} className="rounded-xl border-2 border-border bg-card p-2 transition-shadow hover:shadow-sm">
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
-                      <div className="md:col-span-3 space-y-1">
-                        <Label htmlFor={`product-${index}`} className="text-[11px] font-medium">{t('invoiceForm.product')}</Label>
-                        <Select
-                          value={item.product_id}
-                          onValueChange={(value) => {
-                            if (!isEditMode) {
-                              handleProductChange(index, value);
-                              setActiveItemIndex(index);
-                              // Clear search when product is selected
-                              setProductSearchQuery(prev => ({ ...prev, [index]: "" }));
-                            }
-                          }}
-                          onOpenChange={(open) => {
-                            if (open && !isEditMode) {
-                              setActiveItemIndex(index);
-                              // Focus the search input when dropdown opens
-                              setTimeout(() => {
-                                productSearchInputRefs.current[index]?.focus();
-                              }, 100);
-                            } else {
-                              // Clear search when dropdown closes
-                              setProductSearchQuery(prev => ({ ...prev, [index]: "" }));
-                            }
-                          }}
-                          disabled={isEditMode}
-                        >
-                          <SelectTrigger id={`product-${index}`} className="h-8 text-[13px]">
-                            <SelectValue placeholder={t('invoiceForm.selectProduct')} />
-                          </SelectTrigger>
-                          <SelectContent 
-                            side="bottom" 
-                            align="start" 
-                            position="popper" 
-                            avoidCollisions={false}
-                            sideOffset={4}
-                            className="max-h-[200px] overflow-y-auto"
-                          >
-                            <div className="sticky top-0 z-10 bg-popover border-b p-1.5">
-                              <div className="relative">
-                                <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                                <Input
-                                  ref={(el) => {
-                                    productSearchInputRefs.current[index] = el;
-                                  }}
-                                  type="text"
-                                  placeholder="Search products (name, barcode, SKU, ID)..."
-                                  value={productSearchQuery[index] || ""}
-                                  onChange={(e) => {
-                                    setProductSearchQuery(prev => ({ ...prev, [index]: e.target.value }));
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  onKeyDown={(e) => e.stopPropagation()}
-                                  className="w-full ps-8 pe-8 h-8 text-[13px]"
-                                  autoFocus
-                                />
-                                {(productSearchQuery[index] || "").trim() && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setProductSearchQuery(prev => ({ ...prev, [index]: "" }));
-                                    }}
-                                    className="absolute end-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0"
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                            <div className="max-h-[300px] overflow-y-auto">
-                              {(() => {
-                                const searchQueryRaw = (productSearchQuery[index] || "").trim();
-                                
-                                // Filter products if search query exists
-                                const filteredProducts = searchQueryRaw
-                                  ? (() => {
-                                      const searchQuery = searchQueryRaw.toLowerCase();
-                                      // Normalize search query for barcode/SKU matching (removes spaces, converts to uppercase)
-                                      const normalizedSearchForBarcodeSku = normalizeBarcodeOrSkuForSearch(searchQueryRaw);
-                                      
-                                      return products.filter(product => {
-                                        const name = (product.name || "").toLowerCase();
-                                        // Normalize product barcode/SKU for comparison
-                                        const barcode = normalizeBarcodeOrSkuForSearch(product.barcode);
-                                        const sku = normalizeBarcodeOrSkuForSearch(product.sku);
-                                        const id = (product.id || "").toString();
-                                        
-                                        // Search in name (case-insensitive partial match)
-                                        if (name.includes(searchQuery)) return true;
-                                        
-                                        // Search in barcode/SKU (normalized, exact or partial match)
-                                        if (normalizedSearchForBarcodeSku && (barcode.includes(normalizedSearchForBarcodeSku) || sku.includes(normalizedSearchForBarcodeSku))) {
-                                          return true;
-                                        }
-                                        
-                                        // Search in ID
-                                        if (id.includes(searchQuery)) return true;
-                                        
-                                        return false;
-                                      });
-                                    })()
-                                  : products; // Return all products if no search query
-                                
-                                // Packages are offered on SELL invoices only, matched by name
-                                const filteredPackages = invoiceType === 'sell'
-                                  ? packages.filter((pkg) => !searchQueryRaw || pkg.name.toLowerCase().includes(searchQueryRaw.toLowerCase()))
-                                  : [];
-
-                                if (filteredProducts.length === 0 && filteredPackages.length === 0) {
-                                  return (
-                                    <div className="px-2 py-6 text-center text-sm text-muted-foreground">
-                                      No products found matching "{productSearchQuery[index]}"
-                                    </div>
-                                  );
-                                }
-
-                                // Always return JSX (SelectItem components), never raw product objects
-                                return (
-                                  <>
-                                    {filteredPackages.length > 0 && (
-                                      <SelectGroup>
-                                        <SelectLabel className="px-2 pb-0.5 pt-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                          {t('packages.searchHeading', 'Packages')}
-                                        </SelectLabel>
-                                        {filteredPackages.map((pkg) => (
-                                          <SelectItem
-                                            key={`package-${pkg.id}`}
-                                            value={`${PACKAGE_OPTION_PREFIX}${pkg.id}`}
-                                            className="bg-primary-light/70 focus:bg-primary-light"
-                                          >
-                                            <span className="flex items-center gap-1.5">
-                                              <Package className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
-                                              <span className="font-medium">{pkg.name}</span>
-                                              <span className="rounded-md border border-primary/30 bg-primary-light px-1 py-px text-[10px] font-bold text-primary-strong">
-                                                {t('packages.badge', 'Package')}
-                                              </span>
-                                              <span className="ms-1 text-xs tabular-nums text-muted-foreground">
-                                                {t('packages.productsCount', '{{count}} products', { count: pkg.items.length })} · ${Number(pkg.default_price).toFixed(2)}
-                                              </span>
-                                            </span>
-                                          </SelectItem>
-                                        ))}
-                                      </SelectGroup>
-                                    )}
-                                    {filteredProducts.length > 0 && (
-                                      <SelectGroup>
-                                        {filteredPackages.length > 0 && (
-                                          <SelectLabel className="px-2 pb-0.5 pt-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                            {t('packages.productsHeading', 'Products')}
-                                          </SelectLabel>
-                                        )}
-                                        {filteredProducts.map((product) => (
-                                          <SelectItem key={product.id} value={String(product.id)}>
-                                            <ProductNameWithCode
-                                              product={product}
-                                              showId={true}
-                                              id={product.id}
-                                              nameClassName=""
-                                              codeClassName="text-muted-foreground text-xs ml-2"
-                                            />
-                                          </SelectItem>
-                                        ))}
-                                      </SelectGroup>
-                                    )}
-                                  </>
-                                );
-                              })()}
-                            </div>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="md:col-span-2 space-y-1">
-                        <FieldLabel
-                          htmlFor={`qty-${index}`}
-                          trailing={invoiceType === 'sell' && item.product_id && availableQty !== null ? (
+                  <Fragment key={index}>
+                  {index === firstLineIndex && (
+                    // One row of column headings on wide screens; each field keeps its own label for screen readers
+                    <div aria-hidden="true" className={cn("hidden gap-2 px-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground lg:grid", LINE_COLUMNS[invoiceType])}>
+                      <span>{t('invoiceForm.product')}</span>
+                      <span>{t('invoiceForm.quantity')}</span>
+                      {invoiceType === 'sell' && <span>{t('invoiceForm.priceType')}</span>}
+                      <span>{invoiceType === 'buy' ? t('invoiceForm.cost') : t('invoiceForm.unitPrice')}</span>
+                      <span>{t('invoiceForm.total')}</span>
+                    </div>
+                  )}
+                  <div
+                    ref={(el) => { lineRefs.current[index] = el; }}
+                    className="relative rounded-xl border-2 border-border bg-card p-2.5 transition-shadow hover:shadow-sm"
+                  >
+                    <div className={cn("grid grid-cols-2 items-end gap-2 lg:items-center", LINE_COLUMNS[invoiceType])}>
+                      <div className="col-span-2 min-w-0 pe-10 lg:col-span-1 lg:pe-0">
+                        <div className="truncate text-[13px] font-semibold" title={productName(item.product_id)}>
+                          {productName(item.product_id)}
+                        </div>
+                        <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+                          {code && <span className="truncate font-mono">{code}</span>}
+                          <span className="shrink-0 tabular-nums">{code && '· '}#{item.product_id}</span>
+                          {availableQty !== null && (
                             <span
                               title="Available stock"
-                              className={`flex items-center gap-1 text-[11px] tabular-nums ${isOutOfStock ? "text-destructive-strong" : isLowStock ? "text-warning-strong" : "text-muted-foreground"}`}
+                              className={cn(
+                                "flex shrink-0 items-center gap-1 tabular-nums",
+                                isOutOfStock ? "font-semibold text-destructive-strong" : isLowStock && "font-semibold text-warning-strong",
+                              )}
                             >
-                              {isOutOfStock || isLowStock ? <AlertTriangle className="h-3 w-3" aria-hidden="true" /> : <Package className="h-3 w-3" aria-hidden="true" />}
-                              {availableQty}
+                              <span aria-hidden="true">·</span>
+                              {(isOutOfStock || isLowStock) && <AlertTriangle className="h-3 w-3" aria-hidden="true" />}
+                              {t('productSearch.available', '{{count}} available', { count: availableQty })}
                             </span>
-                          ) : undefined}
-                        >
-                          {t('invoiceForm.quantity')}
-                        </FieldLabel>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1 lg:space-y-0">
+                        <Label htmlFor={`qty-${index}`} className="text-[11px] font-medium lg:sr-only">{t('invoiceForm.quantity')}</Label>
                         <QtyStepper
                           id={`qty-${index}`}
                           value={isNaN(item.quantity) || item.quantity < 1 ? 1 : item.quantity}
@@ -1427,10 +1125,10 @@ const InvoiceForm = () => {
                           onChange={(qty) => handleQuantityChange(index, qty)}
                         />
                       </div>
-                      
+
                       {invoiceType === 'sell' && (
-                        <div className="md:col-span-2 space-y-1">
-                          <Label htmlFor={`price-type-${index}`} className="text-[11px] font-medium">{t('invoiceForm.priceType')}</Label>
+                        <div className="space-y-1 lg:space-y-0">
+                          <Label htmlFor={`price-type-${index}`} className="text-[11px] font-medium lg:sr-only">{t('invoiceForm.priceType')}</Label>
                           <Select
                             value={item.price_type}
                             onValueChange={(value: 'retail' | 'wholesale') => handlePriceTypeChange(index, value)}
@@ -1445,14 +1143,17 @@ const InvoiceForm = () => {
                           </Select>
                         </div>
                       )}
-                      
-                      <div className={`${invoiceType === 'sell' ? 'md:col-span-2' : 'md:col-span-3'} space-y-1`}>
-                        <Label className="text-[11px] font-medium">{invoiceType === 'buy' ? t('invoiceForm.cost') : t('invoiceForm.unitPrice')}</Label>
+
+                      <div className="space-y-1 lg:space-y-0">
+                        <Label htmlFor={`unit-price-${index}`} className="text-[11px] font-medium lg:sr-only">
+                          {invoiceType === 'buy' ? t('invoiceForm.cost') : t('invoiceForm.unitPrice')}
+                        </Label>
                         <Input
+                          id={`unit-price-${index}`}
                           type="number"
                           step="0.01"
                           min="0"
-                          value={isNaN(item.unit_price) ? '' : item.unit_price}
+                          value={isNaN(item.unit_price) ? '' : invoiceType === 'sell' && !item.is_private_price ? item.unit_price.toFixed(2) : item.unit_price}
                           onChange={(e) => {
                             const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
                             handleUnitPriceChange(index, isNaN(val) ? 0 : val);
@@ -1462,40 +1163,35 @@ const InvoiceForm = () => {
                           className={`h-8 text-[13px] tabular-nums ${invoiceType === 'sell' && !item.is_private_price ? "bg-muted" : ""}`}
                         />
                       </div>
-                      
-                      <div className="md:col-span-2 space-y-1">
-                        <Label className="text-[11px] font-medium">{t('invoiceForm.total')}</Label>
+
+                      <div className="space-y-1 lg:space-y-0">
+                        <Label htmlFor={`total-${index}`} className="text-[11px] font-medium lg:sr-only">{t('invoiceForm.total')}</Label>
                         <Input
+                          id={`total-${index}`}
                           type="number"
                           value={isNaN(item.total_price) ? '' : item.total_price.toFixed(2)}
                           disabled
                           className="h-8 text-[13px] bg-muted font-semibold tabular-nums cursor-default"
                         />
                       </div>
-                      
-                      {items.length > 1 && (
-                        <div className="md:col-span-1 flex items-end">
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="icon"
-                            onClick={() => removeItem(index)}
-                            disabled={hasPayments}
-                            className={`h-8 w-8 ${
-                              hasPayments
-                                ? 'opacity-60 cursor-not-allowed bg-warning/10 text-warning hover:bg-warning/20 hover:text-warning'
-                                : ''
-                            }`}
-                            title={
-                              hasPayments
-                                ? "Cannot remove items from invoice with payments. Remove all payments first."
-                                : "Remove item"
-                            }
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      )}
+
+                      {/* Top corner of the card on small screens, last column on wide ones */}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeItem(index)}
+                        disabled={hasPayments}
+                        aria-label={`Remove ${productName(item.product_id)}`}
+                        title={
+                          hasPayments
+                            ? "Cannot remove items from invoice with payments. Remove all payments first."
+                            : "Remove item"
+                        }
+                        className="absolute end-2 top-2 h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive lg:static"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
 
                   {invoiceType === 'sell' && (
@@ -1549,17 +1245,10 @@ const InvoiceForm = () => {
                     </div>
                   )}
                   </div>
+                  </Fragment>
                 );
               })}
-              
-              {/* Hide Add Item button in edit mode */}
-              {!isEditMode && (
-                <Button type="button" variant="outline" onClick={addItem} className="w-full h-9 rounded-xl text-[13px] border-2 border-dashed hover:border-primary hover:bg-primary-light transition-colors">
-                  <Plus className="w-3.5 h-3.5 me-1.5" />
-                  {t('invoiceForm.addItem')}
-                </Button>
-              )}
-              
+
               <div className="flex border-t border-border pt-3">
                 <TotalSummary label={t('invoiceForm.totalAmount')} amount={calculateTotal()} />
               </div>
