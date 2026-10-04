@@ -14,11 +14,11 @@ import { normalizeBarcodeOrSku, normalizeBarcodeOrSkuForSearch } from "@/utils/b
 import ProductNameWithCode from "@/components/ProductNameWithCode";
 import type { InvoiceFormItem } from "@/components/invoice/types";
 import { PackageLineGroup } from "@/components/invoice/PackageLineGroup";
-import { InvoicePageHeader } from "@/components/invoice/ui/InvoicePageHeader";
-import { SectionCard } from "@/components/invoice/ui/SectionCard";
-import { FieldLabel } from "@/components/invoice/ui/FieldLabel";
-import { QtyStepper } from "@/components/invoice/ui/QtyStepper";
-import { TotalSummary } from "@/components/invoice/ui/TotalSummary";
+import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
+import { SectionCard } from "@/components/page-ui/SectionCard";
+import { FieldLabel } from "@/components/page-ui/FieldLabel";
+import { QtyStepper } from "@/components/page-ui/QtyStepper";
+import { TotalSummary } from "@/components/page-ui/TotalSummary";
 import {
   applyPackage,
   collectPackageGroups,

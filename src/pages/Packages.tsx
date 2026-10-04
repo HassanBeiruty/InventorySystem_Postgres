@@ -21,7 +21,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import ProductCombobox from "@/components/ProductCombobox";
-import { QtyStepper } from "@/components/invoice/ui/QtyStepper";
+import { QtyStepper } from "@/components/page-ui/QtyStepper";
 import { parseMoney } from "@/utils/money";
 import { useDebounce } from "@/hooks/useDebounce";
 

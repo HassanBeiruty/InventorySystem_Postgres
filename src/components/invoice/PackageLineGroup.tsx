@@ -4,8 +4,8 @@ import { AlertTriangle, Package, Trash2 } from "lucide-react";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
 import { cn } from "@/lib/utils";
 import type { PackageGroup } from "@/utils/invoicePackageLines";
-import { QtyStepper } from "./ui/QtyStepper";
-import { MoneyInput } from "./ui/MoneyInput";
+import { QtyStepper } from "@/components/page-ui/QtyStepper";
+import { MoneyInput } from "@/components/page-ui/MoneyInput";
 
 interface PackageLineGroupProps {
   group: PackageGroup;

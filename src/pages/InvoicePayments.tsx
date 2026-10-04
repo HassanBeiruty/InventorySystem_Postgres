@@ -8,8 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Filter, X, Pencil, Trash2, Eye, Plus, CreditCard, DollarSign, Coins, Hash } from "lucide-react";
-import { InvoicePageHeader } from "@/components/invoice/ui/InvoicePageHeader";
-import { StatTile } from "@/components/invoice/ui/StatTile";
+import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
+import { StatTile } from "@/components/page-ui/StatTile";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
 import { paymentsRepo, invoicesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";

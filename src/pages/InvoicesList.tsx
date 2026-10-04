@@ -18,9 +18,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
 import { summarizeInvoiceItems } from "@/utils/invoicePackageGroups";
-import { InvoicePageHeader } from "@/components/invoice/ui/InvoicePageHeader";
-import { StatTile } from "@/components/invoice/ui/StatTile";
-import { StatusPill, PaymentStatusPill } from "@/components/invoice/ui/StatusPill";
+import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
+import { StatTile } from "@/components/page-ui/StatTile";
+import { StatusPill, PaymentStatusPill } from "@/components/page-ui/StatusPill";
 import { useDebounce } from "@/hooks/useDebounce";
 
 const InvoicesList = () => {

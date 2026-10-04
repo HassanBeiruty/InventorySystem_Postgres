@@ -9,8 +9,8 @@ import { escapeHtml } from "@/utils/escapeHtml";
 import { Printer, X, Download } from "lucide-react";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
 import { PackageHeaderLine } from "@/components/invoice/PackageHeaderRow";
-import { StatusPill, PaymentStatusPill } from "@/components/invoice/ui/StatusPill";
-import { StatTile } from "@/components/invoice/ui/StatTile";
+import { StatusPill, PaymentStatusPill } from "@/components/page-ui/StatusPill";
+import { StatTile } from "@/components/page-ui/StatTile";
 import { groupInvoiceItems, packageHeaderHtml, packageHeaderPdfRow } from "@/utils/invoicePackageGroups";
 
 interface InvoiceItem {
