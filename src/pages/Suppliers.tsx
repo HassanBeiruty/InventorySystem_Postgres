@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
+import { SectionCard } from "@/components/page-ui/SectionCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -108,22 +109,15 @@ const Suppliers = () => {
   return (
     <DashboardLayout>
       <div className="space-y-3 sm:space-y-4 animate-fade-in">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10">
-              <UserPlus className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-                {t('suppliers.title')}
-              </h2>
-              <p className="text-muted-foreground text-xs sm:text-sm">{t('suppliers.subtitle')}</p>
-            </div>
-          </div>
+        <InvoicePageHeader
+          icon={UserPlus}
+          title={t('suppliers.title')}
+          description={t('suppliers.subtitle')}
+          actions={
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
               <Button className="gradient-secondary hover:shadow-glow-blue transition-all duration-300 hover:scale-105 font-semibold h-8 text-xs">
-                <Plus className="w-3.5 h-3.5 mr-1.5" />
+                <Plus className="w-3.5 h-3.5 me-1.5" />
                 {t('suppliers.addSupplier')}
               </Button>
             </DialogTrigger>
@@ -134,77 +128,71 @@ const Suppliers = () => {
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-3 py-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="name" className="text-sm">{t('suppliers.supplierName')}</Label>
-                  <Input id="name" name="name" placeholder={t('suppliers.supplierName')} required className="h-9" />
+                  <Label htmlFor="name" className="text-[11px] font-medium">{t('suppliers.supplierName')}</Label>
+                  <Input id="name" name="name" placeholder={t('suppliers.supplierName')} required className="h-8 text-[13px]" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="phone" className="text-sm">{t('suppliers.phone')}</Label>
-                  <Input id="phone" name="phone" placeholder={t('suppliers.phone')} className="h-9" />
+                  <Label htmlFor="phone" className="text-[11px] font-medium">{t('suppliers.phone')}</Label>
+                  <Input id="phone" name="phone" placeholder={t('suppliers.phone')} className="h-8 text-[13px]" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="address" className="text-sm">{t('suppliers.address')}</Label>
-                  <Input id="address" name="address" placeholder={t('suppliers.address')} className="h-9" />
+                  <Label htmlFor="address" className="text-[11px] font-medium">{t('suppliers.address')}</Label>
+                  <Input id="address" name="address" placeholder={t('suppliers.address')} className="h-8 text-[13px]" />
                 </div>
-                <Button type="submit" className="w-full h-9 mt-2" disabled={loading}>
+                <Button type="submit" className="w-full h-8 mt-2" disabled={loading}>
                   {loading ? t('common.loading') : t('common.save')}
                 </Button>
               </form>
             </DialogContent>
           </Dialog>
-        </div>
+          }
+        />
 
-        <Card className="border-2 shadow-card hover:shadow-elegant transition-all duration-300">
-          <CardHeader className="border-b bg-gradient-to-br from-secondary/5 via-transparent to-accent/5 pb-2 pt-2">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-              <div>
-                <CardTitle className="flex items-center gap-1.5 text-sm sm:text-base">
-                  <UserPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-secondary" />
-                  Supplier List
-                </CardTitle>
-                <CardDescription className="text-[10px] sm:text-xs">All your suppliers</CardDescription>
-              </div>
-              <div className="relative w-full sm:w-auto sm:min-w-[300px]">
-                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search suppliers (name, phone, address, ID)"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-8 h-8 text-sm"
-                  autoFocus
-                />
-                {searchQuery && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
-                  >
-                    <X className="w-3 h-3" />
-                  </Button>
-                )}
-              </div>
+        <SectionCard
+          icon={UserPlus}
+          title="Supplier List"
+          description="All your suppliers"
+        >
+            <div className="relative w-full sm:w-[300px]">
+              <Search className="absolute start-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                type="text"
+                placeholder="Search suppliers (name, phone, address, ID)"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full ps-8 pe-8 h-8 text-[13px]"
+                autoFocus
+              />
+              {searchQuery && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute end-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              )}
             </div>
-          </CardHeader>
-          <CardContent className="pt-2">
             {suppliers.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="w-20 h-20 rounded-full bg-secondary/10 flex items-center justify-center mb-4">
-                  <UserPlus className="w-10 h-10 text-secondary/50" />
+                <div className="w-20 h-20 rounded-full bg-secondary-light flex items-center justify-center mb-4">
+                  <UserPlus className="w-10 h-10 text-secondary/60" />
                 </div>
-                <p className="text-muted-foreground text-lg">
+                <p className="text-muted-foreground text-[13px]">
                   {searchQuery ? 'No suppliers found matching your search' : t('suppliers.noSuppliers')}
                 </p>
               </div>
             ) : (
-              <div className="rounded-xl border-2 overflow-x-auto">
+              <div className="rounded-lg border border-border overflow-hidden bg-card">
+                <div className="scroll-x">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-gradient-to-r from-secondary/5 to-accent/5 hover:from-secondary/10 hover:to-accent/10">
-                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('suppliers.supplierName')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('suppliers.phone')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap hidden md:table-cell p-2 text-xs">{t('suppliers.address')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs">Actions</TableHead>
+                    <TableRow className="bg-muted/60 hover:bg-muted/60">
+                      <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('suppliers.supplierName')}</TableHead>
+                      <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('suppliers.phone')}</TableHead>
+                      <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap hidden md:table-cell">{t('suppliers.address')}</TableHead>
+                      <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -214,9 +202,9 @@ const Suppliers = () => {
                         className="hover:bg-secondary/5 transition-colors animate-fade-in"
                         style={{ animationDelay: `${idx * 0.05}s` }}
                       >
-                        <TableCell className="font-medium whitespace-nowrap p-2 text-sm">{supplier.name}</TableCell>
-                        <TableCell className="text-muted-foreground whitespace-nowrap p-2 text-xs">{supplier.phone || "-"}</TableCell>
-                        <TableCell className="text-muted-foreground whitespace-nowrap hidden md:table-cell p-2 text-xs">{supplier.address || "-"}</TableCell>
+                        <TableCell className="font-medium whitespace-nowrap p-2 text-[13px]">{supplier.name}</TableCell>
+                        <TableCell className="text-muted-foreground whitespace-nowrap p-2 text-[12px]">{supplier.phone || "-"}</TableCell>
+                        <TableCell className="text-muted-foreground whitespace-nowrap hidden md:table-cell p-2 text-[12px]">{supplier.address || "-"}</TableCell>
                         <TableCell className="p-2">
                           <Button 
                             variant="ghost" 
@@ -231,10 +219,10 @@ const Suppliers = () => {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+        </SectionCard>
 
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
           <DialogContent>
@@ -245,18 +233,18 @@ const Suppliers = () => {
             {editingSupplier && (
               <form onSubmit={handleUpdate} className="space-y-3 py-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="edit-name" className="text-sm">{t('suppliers.supplierName')}</Label>
-                  <Input id="edit-name" name="name" defaultValue={editingSupplier.name} required className="h-9" />
+                  <Label htmlFor="edit-name" className="text-[11px] font-medium">{t('suppliers.supplierName')}</Label>
+                  <Input id="edit-name" name="name" defaultValue={editingSupplier.name} required className="h-8 text-[13px]" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="edit-phone" className="text-sm">{t('suppliers.phone')}</Label>
-                  <Input id="edit-phone" name="phone" defaultValue={editingSupplier.phone} className="h-9" />
+                  <Label htmlFor="edit-phone" className="text-[11px] font-medium">{t('suppliers.phone')}</Label>
+                  <Input id="edit-phone" name="phone" defaultValue={editingSupplier.phone} className="h-8 text-[13px]" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="edit-address" className="text-sm">{t('suppliers.address')}</Label>
-                  <Input id="edit-address" name="address" defaultValue={editingSupplier.address} className="h-9" />
+                  <Label htmlFor="edit-address" className="text-[11px] font-medium">{t('suppliers.address')}</Label>
+                  <Input id="edit-address" name="address" defaultValue={editingSupplier.address} className="h-8 text-[13px]" />
                 </div>
-                <Button type="submit" className="w-full h-9 mt-2" disabled={loading}>
+                <Button type="submit" className="w-full h-8 mt-2" disabled={loading}>
                   {loading ? t('common.loading') : t('common.save')}
                 </Button>
               </form>

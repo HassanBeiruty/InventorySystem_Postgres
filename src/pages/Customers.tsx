@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
+import { SectionCard } from "@/components/page-ui/SectionCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -116,17 +117,15 @@ const Customers = () => {
   return (
     <DashboardLayout>
       <div className="space-y-3 sm:space-y-4 animate-fade-in">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-          <div className="space-y-1">
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              👤 {t('customers.title')}
-            </h2>
-            <p className="text-muted-foreground text-xs sm:text-sm">{t('customers.subtitle')}</p>
-          </div>
+        <InvoicePageHeader
+          icon={Users}
+          title={t('customers.title')}
+          description={t('customers.subtitle')}
+          actions={
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
               <Button className="gradient-primary hover:shadow-glow transition-all duration-300 hover:scale-105 font-semibold h-8 text-xs">
-                <Plus className="w-3.5 h-3.5 mr-1.5" />
+                <Plus className="w-3.5 h-3.5 me-1.5" />
                 {t('customers.addCustomer')}
               </Button>
             </DialogTrigger>
@@ -137,82 +136,76 @@ const Customers = () => {
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-3 py-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="name" className="text-sm">{t('customers.customerName')}</Label>
-                  <Input id="name" name="name" placeholder={t('customers.customerName')} required className="h-9" />
+                  <Label htmlFor="name" className="text-[11px] font-medium">{t('customers.customerName')}</Label>
+                  <Input id="name" name="name" placeholder={t('customers.customerName')} required className="h-8 text-[13px]" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="phone" className="text-sm">{t('customers.phone')}</Label>
-                  <Input id="phone" name="phone" placeholder={t('customers.phone')} className="h-9" />
+                  <Label htmlFor="phone" className="text-[11px] font-medium">{t('customers.phone')}</Label>
+                  <Input id="phone" name="phone" placeholder={t('customers.phone')} className="h-8 text-[13px]" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="address" className="text-sm">{t('customers.address')}</Label>
-                  <Input id="address" name="address" placeholder={t('customers.address')} className="h-9" />
+                  <Label htmlFor="address" className="text-[11px] font-medium">{t('customers.address')}</Label>
+                  <Input id="address" name="address" placeholder={t('customers.address')} className="h-8 text-[13px]" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="credit" className="text-sm">{t('customers.creditLimit')}</Label>
-                  <Input id="credit" name="credit" type="number" step="0.01" placeholder="0.00" className="h-9" />
+                  <Label htmlFor="credit" className="text-[11px] font-medium">{t('customers.creditLimit')}</Label>
+                  <Input id="credit" name="credit" type="number" step="0.01" placeholder="0.00" className="h-8 text-[13px]" />
                 </div>
-                <Button type="submit" className="w-full h-9 mt-2" disabled={loading}>
+                <Button type="submit" className="w-full h-8 mt-2" disabled={loading}>
                   {loading ? t('common.loading') : t('common.save')}
                 </Button>
               </form>
             </DialogContent>
           </Dialog>
-        </div>
+          }
+        />
 
-        <Card className="border-2 shadow-card hover:shadow-elegant transition-all duration-300">
-          <CardHeader className="border-b bg-gradient-to-br from-success/5 via-transparent to-accent/5 pb-2 pt-2">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-              <div>
-                <CardTitle className="flex items-center gap-1.5 text-sm sm:text-base">
-                  <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-success" />
-                  Customer List
-                </CardTitle>
-                <CardDescription className="text-[10px] sm:text-xs">All your customers</CardDescription>
-              </div>
-              <div className="relative w-full sm:w-auto sm:min-w-[300px]">
-                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search customers (name, phone, address, ID)"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-8 h-8 text-sm"
-                  autoFocus
-                />
-                {searchQuery && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
-                  >
-                    <X className="w-3 h-3" />
-                  </Button>
-                )}
-              </div>
+        <SectionCard
+          icon={Users}
+          title="Customer List"
+          description="All your customers"
+        >
+            <div className="relative w-full sm:w-[300px]">
+              <Search className="absolute start-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                type="text"
+                placeholder="Search customers (name, phone, address, ID)"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full ps-8 pe-8 h-8 text-[13px]"
+                autoFocus
+              />
+              {searchQuery && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute end-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              )}
             </div>
-          </CardHeader>
-          <CardContent className="pt-2">
             {customers.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="w-20 h-20 rounded-full bg-success/10 flex items-center justify-center mb-4">
-                  <Users className="w-10 h-10 text-success/50" />
+                <div className="w-20 h-20 rounded-full bg-success-light flex items-center justify-center mb-4">
+                  <Users className="w-10 h-10 text-success/60" />
                 </div>
-                <p className="text-muted-foreground text-lg">
+                <p className="text-muted-foreground text-[13px]">
                   {searchQuery ? 'No customers found matching your search' : t('customers.noCustomers')}
                 </p>
               </div>
             ) : (
-              <div className="rounded-xl border-2 overflow-x-auto">
+              <div className="rounded-lg border border-border overflow-hidden bg-card">
+                <div className="scroll-x">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-gradient-to-r from-success/5 to-accent/5 hover:from-success/10 hover:to-accent/10">
-                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('customers.customerName')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('customers.phone')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap hidden md:table-cell p-2 text-xs">{t('customers.address')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('customers.creditLimit')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs">Actions</TableHead>
+                    <TableRow className="bg-muted/60 hover:bg-muted/60">
+                      <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('customers.customerName')}</TableHead>
+                      <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('customers.phone')}</TableHead>
+                      <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap hidden md:table-cell">{t('customers.address')}</TableHead>
+                      <TableHead className="h-9 px-2 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('customers.creditLimit')}</TableHead>
+                      <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -222,10 +215,10 @@ const Customers = () => {
                         className="hover:bg-success/5 transition-colors animate-fade-in"
                         style={{ animationDelay: `${idx * 0.05}s` }}
                       >
-                        <TableCell className="font-medium whitespace-nowrap p-2 text-sm">{customer.name}</TableCell>
-                        <TableCell className="text-muted-foreground whitespace-nowrap p-2 text-xs">{customer.phone || "-"}</TableCell>
-                        <TableCell className="text-muted-foreground whitespace-nowrap hidden md:table-cell p-2 text-xs">{customer.address || "-"}</TableCell>
-                        <TableCell className="font-semibold text-success whitespace-nowrap p-2 text-xs">${parseFloat(customer.credit_limit).toFixed(2)}</TableCell>
+                        <TableCell className="font-medium whitespace-nowrap p-2 text-[13px]">{customer.name}</TableCell>
+                        <TableCell className="text-muted-foreground whitespace-nowrap p-2 text-[12px]">{customer.phone || "-"}</TableCell>
+                        <TableCell className="text-muted-foreground whitespace-nowrap hidden md:table-cell p-2 text-[12px]">{customer.address || "-"}</TableCell>
+                        <TableCell className="font-semibold text-success-strong text-right tabular-nums whitespace-nowrap p-2 text-[12px]">${parseFloat(customer.credit_limit).toFixed(2)}</TableCell>
                         <TableCell className="p-2">
                           <Button 
                             variant="ghost" 
@@ -240,10 +233,10 @@ const Customers = () => {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+        </SectionCard>
 
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
           <DialogContent>
@@ -254,22 +247,22 @@ const Customers = () => {
             {editingCustomer && (
               <form onSubmit={handleUpdate} className="space-y-3 py-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="edit-name" className="text-sm">{t('customers.customerName')}</Label>
-                  <Input id="edit-name" name="name" defaultValue={editingCustomer.name} required className="h-9" />
+                  <Label htmlFor="edit-name" className="text-[11px] font-medium">{t('customers.customerName')}</Label>
+                  <Input id="edit-name" name="name" defaultValue={editingCustomer.name} required className="h-8 text-[13px]" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="edit-phone" className="text-sm">{t('customers.phone')}</Label>
-                  <Input id="edit-phone" name="phone" defaultValue={editingCustomer.phone} className="h-9" />
+                  <Label htmlFor="edit-phone" className="text-[11px] font-medium">{t('customers.phone')}</Label>
+                  <Input id="edit-phone" name="phone" defaultValue={editingCustomer.phone} className="h-8 text-[13px]" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="edit-address" className="text-sm">{t('customers.address')}</Label>
-                  <Input id="edit-address" name="address" defaultValue={editingCustomer.address} className="h-9" />
+                  <Label htmlFor="edit-address" className="text-[11px] font-medium">{t('customers.address')}</Label>
+                  <Input id="edit-address" name="address" defaultValue={editingCustomer.address} className="h-8 text-[13px]" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="edit-credit" className="text-sm">{t('customers.creditLimit')}</Label>
-                  <Input id="edit-credit" name="credit" type="number" step="0.01" defaultValue={editingCustomer.credit_limit} className="h-9" />
+                  <Label htmlFor="edit-credit" className="text-[11px] font-medium">{t('customers.creditLimit')}</Label>
+                  <Input id="edit-credit" name="credit" type="number" step="0.01" defaultValue={editingCustomer.credit_limit} className="h-8 text-[13px]" />
                 </div>
-                <Button type="submit" className="w-full h-9 mt-2" disabled={loading}>
+                <Button type="submit" className="w-full h-8 mt-2" disabled={loading}>
                   {loading ? t('common.loading') : t('common.save')}
                 </Button>
               </form>
