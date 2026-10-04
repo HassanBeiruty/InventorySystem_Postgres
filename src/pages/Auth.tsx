@@ -87,7 +87,7 @@ const Auth = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-primary/10 to-accent/10 p-4 relative overflow-hidden">
       {/* Theme and Language switchers */}
-      <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+      <div className="absolute top-4 end-4 z-20 flex items-center gap-2">
         <ThemeToggle />
         <LanguageSwitcher />
       </div>
@@ -99,23 +99,23 @@ const Auth = () => {
         <div className="absolute top-1/2 left-1/2 w-80 h-80 bg-secondary/20 rounded-full blur-3xl animate-float" style={{ animationDelay: '4s' }} />
       </div>
 
-      <Card className="w-full max-w-md shadow-elegant border-2 border-border/50 backdrop-blur-sm bg-card/95 animate-fade-in relative z-10">
-        <CardHeader className="space-y-4 text-center pb-8">
-          <div className="mx-auto w-20 h-20 gradient-primary rounded-3xl flex items-center justify-center shadow-glow animate-pulse-glow relative">
-            <Receipt className="w-10 h-10 text-primary-foreground relative z-10" />
-            <div className="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent rounded-3xl" />
+      <Card className="w-full max-w-md shadow-elegant border-2 border-border backdrop-blur-sm bg-card/95 animate-fade-in relative z-10">
+        <CardHeader className="space-y-3 text-center pb-6">
+          <div className="mx-auto w-14 h-14 gradient-primary rounded-2xl flex items-center justify-center shadow-glow relative">
+            <Receipt className="w-7 h-7 text-primary-foreground relative z-10" />
+            <div className="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent rounded-2xl" />
           </div>
-          <CardTitle className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+          <CardTitle className="text-xl font-bold tracking-tight">
             {t('auth.welcomeBack')}
           </CardTitle>
-          <CardDescription className="text-sm sm:text-base font-medium">
+          <CardDescription className="text-[13px]">
             {isLogin ? t('auth.signInToContinue') : t('auth.createAccount')}
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <form onSubmit={handleAuth} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-semibold">{t('auth.email')}</Label>
+        <CardContent className="space-y-5">
+          <form onSubmit={handleAuth} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-[11px] font-medium">{t('auth.email')}</Label>
               <Input
                 id="email"
                 type="email"
@@ -124,11 +124,11 @@ const Auth = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={loading}
-                className="h-11 border-2 focus:border-primary/50 transition-all"
+                className="h-9 text-[13px] border-2 focus:border-primary/50 transition-all"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-semibold">{t('auth.password')}</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-[11px] font-medium">{t('auth.password')}</Label>
               <Input
                 id="password"
                 type="password"
@@ -138,17 +138,17 @@ const Auth = () => {
                 required
                 disabled={loading}
                 minLength={8}
-                className="h-11 border-2 focus:border-primary/50 transition-all"
+                className="h-9 text-[13px] border-2 focus:border-primary/50 transition-all"
               />
               {!isLogin && (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[11px] text-muted-foreground">
                   Must be at least 8 characters with uppercase, lowercase, and a number
                 </p>
               )}
             </div>
             {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword" className="text-sm font-semibold">{t('auth.confirmPassword')}</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="confirmPassword" className="text-[11px] font-medium">{t('auth.confirmPassword')}</Label>
                 <Input
                   id="confirmPassword"
                   type="password"
@@ -158,20 +158,20 @@ const Auth = () => {
                   required
                   disabled={loading}
                   minLength={8}
-                  className="h-11 border-2 focus:border-primary/50 transition-all"
+                  className="h-9 text-[13px] border-2 focus:border-primary/50 transition-all"
                 />
               </div>
             )}
             {isLogin && (
-              <div className="text-right">
-                <Link to="/forgot-password" className="text-sm text-primary hover:underline">
+              <div className="text-end">
+                <Link to="/forgot-password" className="text-[13px] text-primary hover:underline">
                   {t('auth.forgotPassword')}
                 </Link>
               </div>
             )}
             <Button 
               type="submit" 
-              className="w-full h-11 gradient-primary hover:shadow-glow transition-all duration-300 hover:scale-[1.02] font-semibold text-base" 
+              className="w-full h-9 gradient-primary hover:shadow-glow transition-all duration-300 font-semibold text-[13px]" 
               disabled={loading}
             >
               {loading ? t('common.loading') : isLogin ? t('auth.signIn') : t('auth.signUp')}
@@ -184,7 +184,7 @@ const Auth = () => {
                 setIsLogin(!isLogin);
                 setConfirmPassword(""); // Clear confirm password when switching modes
               }}
-              className="text-primary hover:underline font-medium transition-colors"
+              className="text-[13px] text-primary hover:underline font-medium transition-colors"
               disabled={loading}
             >
               {isLogin ? t('auth.dontHaveAccount') + ' ' + t('auth.signUp') : t('auth.alreadyHaveAccount') + ' ' + t('auth.signIn')}

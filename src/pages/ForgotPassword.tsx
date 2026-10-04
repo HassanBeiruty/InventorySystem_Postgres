@@ -78,31 +78,31 @@ const ForgotPassword = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-primary/10 to-accent/10 p-4 relative overflow-hidden">
       <div className="absolute inset-0 bg-grid-small-black/[0.2] dark:bg-grid-small-white/[0.2]"></div>
       
-      <Card className="w-full max-w-md relative z-10 shadow-2xl">
+      <Card className="w-full max-w-md relative z-10 border-2 border-border shadow-elegant">
         <CardHeader className="space-y-1 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="p-3 bg-primary/10 rounded-full">
-              <Receipt className="h-8 w-8 text-primary" />
+          <div className="flex justify-center mb-3">
+            <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary-light">
+              <Receipt className="h-5 w-5 text-primary" aria-hidden="true" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Forgot Password</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-xl font-bold tracking-tight">Forgot Password</CardTitle>
+          <CardDescription className="text-[13px]">
             Enter your email address and we'll send you a link to reset your password
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-[11px] font-medium">Email</Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Mail className="absolute start-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
                 <Input
                   id="email"
                   type="email"
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10"
+                  className="ps-10 h-9 text-[13px]"
                   required
                   disabled={loading}
                 />
@@ -111,7 +111,7 @@ const ForgotPassword = () => {
 
             <Button 
               type="submit" 
-              className="w-full" 
+              className="w-full h-9 text-[13px]" 
               disabled={loading}
             >
               {loading ? "Sending..." : "Send Reset Link"}
@@ -120,7 +120,7 @@ const ForgotPassword = () => {
             <div className="text-center mt-4">
               <Link 
                 to="/auth" 
-                className="text-sm text-primary hover:underline inline-flex items-center gap-1"
+                className="text-[13px] text-primary hover:underline inline-flex items-center gap-1"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back to Login
