@@ -1,11 +1,14 @@
 import React, { useRef, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
+import { SectionCard } from "@/components/page-ui/SectionCard";
+import { StatTile } from "@/components/page-ui/StatTile";
+import { StatusPill } from "@/components/page-ui/StatusPill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -179,17 +182,15 @@ const LandedCost = () => {
   if (!isAdmin) {
     return (
       <DashboardLayout>
-        <div className="space-y-3 p-2 sm:p-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-1.5">
-              <Calculator className="w-5 h-5 sm:w-6 sm:h-6" />
-              {t("landedCost.title") || "Landed Cost"}
-            </h1>
-          </div>
-          <Card>
-            <CardContent className="p-3 text-center">
+        <div className="space-y-3 sm:space-y-4">
+          <InvoicePageHeader
+            icon={Calculator}
+            title={t("landedCost.title") || "Landed Cost"}
+          />
+          <Card className="rounded-xl border-2 border-border">
+            <CardContent className="p-4 text-center">
               <AlertCircle className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[13px] text-muted-foreground">
                 Admin access required to use the landed cost tool
               </p>
             </CardContent>
@@ -203,34 +204,25 @@ const LandedCost = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-3 p-2 sm:p-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-1.5">
-            <Calculator className="w-5 h-5 sm:w-6 sm:h-6" />
-            {t("landedCost.title") || "Landed Cost"}
-          </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            {t("landedCost.subtitle") ||
+      <div className="space-y-3 sm:space-y-4">
+        <InvoicePageHeader
+          icon={Calculator}
+          title={t("landedCost.title") || "Landed Cost"}
+          description={t("landedCost.subtitle") ||
               "Convert a supplier invoice to USD and spread the total tax across items by value. Produces a file you can import on the Invoices page."}
-          </p>
-        </div>
+        />
 
         {/* ---- Inputs ---- */}
-        <Card className="border-2">
-          <CardHeader className="p-2 sm:p-3 border-b">
-            <CardTitle className="flex items-center gap-1.5 text-xs sm:text-sm">
-              <FileSpreadsheet className="w-4 h-4" />
-              {t("landedCost.inputs") || "Invoice & rates"}
-            </CardTitle>
-            <CardDescription className="text-[10px] sm:text-xs">
-              Upload the supplier's Excel, then enter the day's rate and the total tax.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-2 sm:p-3 space-y-3">
+        <SectionCard
+          icon={FileSpreadsheet}
+          title={t("landedCost.inputs") || "Invoice & rates"}
+          description="Upload the supplier's Excel, then enter the day's rate and the total tax."
+          bodyClassName="space-y-3"
+        >
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {/* File */}
               <div className="space-y-1">
-                <Label className="text-[10px] sm:text-xs">Invoice file</Label>
+                <Label className="text-[11px] font-medium">Invoice file</Label>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -239,9 +231,9 @@ const LandedCost = () => {
                   className="hidden"
                 />
                 {file ? (
-                  <div className="flex items-center gap-1.5 h-8 px-2 border-2 rounded-md bg-muted/30">
+                  <div className="flex items-center gap-1.5 h-8 px-2 border-2 border-border rounded-md bg-muted/30">
                     <FileSpreadsheet className="w-3 h-3 shrink-0" />
-                    <span className="text-[10px] sm:text-xs truncate flex-1" title={file.name}>
+                    <span className="text-[12px] truncate flex-1" title={file.name}>
                       {file.name}
                     </span>
                     <Button
@@ -257,10 +249,10 @@ const LandedCost = () => {
                 ) : (
                   <Button
                     variant="outline"
-                    className="w-full h-8 text-[10px] sm:text-xs"
+                    className="w-full h-8 text-[13px]"
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    <Upload className="w-3 h-3 mr-1.5" />
+                    <Upload className="w-3 h-3 me-1.5" />
                     Choose Excel file
                   </Button>
                 )}
@@ -268,7 +260,7 @@ const LandedCost = () => {
 
               {/* Rate */}
               <div className="space-y-1">
-                <Label htmlFor="lc-rate" className="text-[10px] sm:text-xs">
+                <Label htmlFor="lc-rate" className="text-[11px] font-medium">
                   Exchange rate
                 </Label>
                 <Input
@@ -280,16 +272,16 @@ const LandedCost = () => {
                   placeholder="e.g. 6.7"
                   value={rate}
                   onChange={(e) => { setRate(e.target.value); setResult(null); }}
-                  className="h-8 text-[10px] sm:text-xs"
+                  className="h-8 text-[13px]"
                 />
-                <p className="text-[9px] sm:text-[10px] text-muted-foreground">
+                <p className="text-[11px] text-muted-foreground">
                   Unit price is divided by this. 6.7 means ¥6.70 = $1.
                 </p>
               </div>
 
               {/* Tax */}
               <div className="space-y-1">
-                <Label htmlFor="lc-tax" className="text-[10px] sm:text-xs">
+                <Label htmlFor="lc-tax" className="text-[11px] font-medium">
                   Total tax
                 </Label>
                 <Input
@@ -301,7 +293,7 @@ const LandedCost = () => {
                   placeholder="e.g. 1000"
                   value={tax}
                   onChange={(e) => { setTax(e.target.value); setResult(null); }}
-                  className="h-8 text-[10px] sm:text-xs"
+                  className="h-8 text-[13px]"
                 />
                 <div className="flex items-center gap-3 pt-0.5">
                   {[
@@ -310,7 +302,7 @@ const LandedCost = () => {
                   ].map((opt) => (
                     <label
                       key={String(opt.value)}
-                      className="flex items-center gap-1 text-[9px] sm:text-[10px] cursor-pointer"
+                      className="flex items-center gap-1 text-[11px] cursor-pointer"
                     >
                       <input
                         type="radio"
@@ -330,35 +322,31 @@ const LandedCost = () => {
               <Button
                 onClick={handleCalculate}
                 disabled={!canSubmit || calculating}
-                className="h-8 text-[10px] sm:text-xs"
+                className="h-8 text-[13px]"
               >
-                <Calculator className="w-3 h-3 mr-1.5" />
+                <Calculator className="w-3 h-3 me-1.5" />
                 {calculating ? "Calculating…" : "Calculate"}
               </Button>
               <Button
                 variant="outline"
                 onClick={handleDownload}
                 disabled={!canSubmit || !result || downloading}
-                className="h-8 text-[10px] sm:text-xs"
+                className="h-8 text-[13px]"
               >
-                <Download className="w-3 h-3 mr-1.5" />
+                <Download className="w-3 h-3 me-1.5" />
                 {downloading ? "Preparing…" : "Download importable Excel"}
               </Button>
             </div>
-          </CardContent>
-        </Card>
+        </SectionCard>
 
         {/* ---- Summary ---- */}
         {summary && (
-          <Card className="border-2">
-            <CardHeader className="p-2 sm:p-3 border-b">
-              <CardTitle className="text-xs sm:text-sm">Summary</CardTitle>
-              <CardDescription className="text-[10px] sm:text-xs">
-                Every line is marked up by the same {summary.upliftPct.toFixed(4)}% of its own
-                value, so expensive parts carry proportionally more tax than cheap ones.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-2 sm:p-3">
+          <SectionCard
+            icon={Calculator}
+            title="Summary"
+            description={<>Every line is marked up by the same {summary.upliftPct.toFixed(4)}% of its own
+                value, so expensive parts carry proportionally more tax than cheap ones.</>}
+          >
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {[
                   { label: "Goods (invoice currency)", value: money(summary.sourceGoodsTotal) },
@@ -374,133 +362,118 @@ const LandedCost = () => {
                     warn: summary.residualUsd !== 0,
                   },
                 ].map((tile) => (
-                  <div
+                  <StatTile
                     key={tile.label}
-                    className={`border-2 rounded-md p-2 ${tile.warn ? "border-destructive/60 bg-destructive/5" : ""}`}
-                  >
-                    <p className="text-[9px] sm:text-[10px] text-muted-foreground">{tile.label}</p>
-                    <p
-                      className={`text-xs sm:text-sm font-semibold tabular-nums ${tile.warn ? "text-destructive" : ""}`}
-                    >
-                      {tile.value}
-                    </p>
-                  </div>
+                    label={tile.label}
+                    value={tile.value}
+                    tone={tile.warn ? "destructive" : "default"}
+                  />
                 ))}
               </div>
 
               <div className="flex flex-wrap gap-1.5 mt-2">
-                <Badge variant="outline" className="text-[9px] sm:text-[10px]">
+                <StatusPill tone="neutral">
                   {summary.lineCount} lines · {summary.totalQuantity} units
-                </Badge>
+                </StatusPill>
                 {summary.nudgedCount > 0 && (
-                  <Badge variant="outline" className="text-[9px] sm:text-[10px]">
+                  <StatusPill tone="neutral">
                     {summary.nudgedCount} line(s) adjusted by 1¢ to close rounding
-                  </Badge>
+                  </StatusPill>
                 )}
                 {summary.zeroPriceLineCount > 0 && (
-                  <Badge variant="outline" className="text-[9px] sm:text-[10px]">
+                  <StatusPill tone="neutral">
                     {summary.zeroPriceLineCount} zero-price line(s) left at 0.00
-                  </Badge>
+                  </StatusPill>
                 )}
                 {summary.errorCount > 0 && (
-                  <Badge variant="destructive" className="text-[9px] sm:text-[10px]">
+                  <StatusPill tone="overdue">
                     {summary.errorCount} row(s) skipped
-                  </Badge>
+                  </StatusPill>
                 )}
               </div>
 
               {summary.residualUsd !== 0 && (
-                <p className="text-[9px] sm:text-[10px] text-destructive mt-2">
+                <p className="text-[11px] text-destructive-strong mt-2">
                   ${money(Math.abs(summary.residualUsd))} could not be placed: unit prices store
                   only 2 decimals, and no combination of these quantities lands exactly on the
                   target. The imported total will differ by this amount.
                 </p>
               )}
-            </CardContent>
-          </Card>
+          </SectionCard>
         )}
 
         {/* ---- Skipped rows ---- */}
         {result && result.errors.length > 0 && (
-          <Card className="border-2 border-destructive/40">
-            <CardHeader className="p-2 sm:p-3 border-b">
-              <CardTitle className="flex items-center gap-1.5 text-xs sm:text-sm text-destructive">
+          <SectionCard
+            className="border-destructive/40"
+            title={
+              <span className="inline-flex items-center gap-1.5 text-destructive-strong">
                 <AlertCircle className="w-4 h-4" />
                 Skipped rows ({result.errors.length})
-              </CardTitle>
-              <CardDescription className="text-[10px] sm:text-xs">
-                These are not in the output file and carry none of the tax.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-2 sm:p-3">
+              </span>
+            }
+            description="These are not in the output file and carry none of the tax."
+          >
               <ul className="space-y-0.5 max-h-40 overflow-y-auto">
                 {result.errors.slice(0, 50).map((e, i) => (
-                  <li key={i} className="text-[10px] sm:text-xs text-muted-foreground">
+                  <li key={i} className="text-[12px] text-muted-foreground">
                     Row {e.row}: {e.error}
                   </li>
                 ))}
               </ul>
               {result.errors.length > 50 && (
-                <p className="text-[10px] text-muted-foreground mt-1">
+                <p className="text-[11px] text-muted-foreground mt-1">
                   …and {result.errors.length - 50} more
                 </p>
               )}
-            </CardContent>
-          </Card>
+          </SectionCard>
         )}
 
         {/* ---- Lines ---- */}
         {result && result.lines.length > 0 && (
-          <Card className="border-2">
-            <CardHeader className="p-2 sm:p-3 border-b">
-              <CardTitle className="text-xs sm:text-sm">
-                Items ({result.lines.length})
-              </CardTitle>
-              <CardDescription className="text-[10px] sm:text-xs">
-                Net unit price is what goes into the file: USD cost plus this item's share of
-                the tax.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
+          <SectionCard
+            title={`Items (${result.lines.length})`}
+            description="Net unit price is what goes into the file: USD cost plus this item's share of the tax."
+            bodyClassName="space-y-0 p-0"
+          >
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-[10px] whitespace-nowrap">Barcode</TableHead>
-                      <TableHead className="text-[10px] text-right">Qty</TableHead>
-                      <TableHead className="text-[10px] text-right whitespace-nowrap">Unit (src)</TableHead>
-                      <TableHead className="text-[10px] text-right whitespace-nowrap">USD before tax</TableHead>
-                      <TableHead className="text-[10px] text-right whitespace-nowrap">Share %</TableHead>
-                      <TableHead className="text-[10px] text-right whitespace-nowrap">Tax share</TableHead>
-                      <TableHead className="text-[10px] text-right whitespace-nowrap font-semibold">Net unit price</TableHead>
-                      <TableHead className="text-[10px] text-right whitespace-nowrap">Line total</TableHead>
+                    <TableRow className="bg-muted/60 hover:bg-muted/60">
+                      <TableHead className="h-9 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Barcode</TableHead>
+                      <TableHead className="h-9 text-[10px] text-right font-bold uppercase tracking-wider text-muted-foreground">Qty</TableHead>
+                      <TableHead className="h-9 text-[10px] text-right font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Unit (src)</TableHead>
+                      <TableHead className="h-9 text-[10px] text-right font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">USD before tax</TableHead>
+                      <TableHead className="h-9 text-[10px] text-right font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Share %</TableHead>
+                      <TableHead className="h-9 text-[10px] text-right font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Tax share</TableHead>
+                      <TableHead className="h-9 text-[10px] text-right font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Net unit price</TableHead>
+                      <TableHead className="h-9 text-[10px] text-right font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Line total</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {result.lines.map((line) => (
                       <TableRow key={`${line.row}-${line.barcode}`}>
-                        <TableCell className="text-[10px] sm:text-xs font-mono whitespace-nowrap">
+                        <TableCell className="text-[12px] font-mono whitespace-nowrap">
                           {line.barcode || line.sku}
                           {line.nudged && (
-                            <span className="ml-1 text-muted-foreground" title="Adjusted by 1 cent to close rounding">
+                            <span className="ms-1 text-muted-foreground" title="Adjusted by 1 cent to close rounding">
                               ±1¢
                             </span>
                           )}
                         </TableCell>
-                        <TableCell className="text-[10px] sm:text-xs text-right tabular-nums">{line.quantity}</TableCell>
-                        <TableCell className="text-[10px] sm:text-xs text-right tabular-nums">{money(line.sourceUnitPrice)}</TableCell>
-                        <TableCell className="text-[10px] sm:text-xs text-right tabular-nums">{money(line.usdUnitBeforeTax, 4)}</TableCell>
-                        <TableCell className="text-[10px] sm:text-xs text-right tabular-nums text-muted-foreground">{line.sharePct.toFixed(3)}%</TableCell>
-                        <TableCell className="text-[10px] sm:text-xs text-right tabular-nums">{money(line.taxAllocatedUsd)}</TableCell>
-                        <TableCell className="text-[10px] sm:text-xs text-right tabular-nums font-semibold">{money(line.finalUnitPrice)}</TableCell>
-                        <TableCell className="text-[10px] sm:text-xs text-right tabular-nums">{money(line.lineTotalUsd)}</TableCell>
+                        <TableCell className="text-[12px] text-right tabular-nums">{line.quantity}</TableCell>
+                        <TableCell className="text-[12px] text-right tabular-nums">{money(line.sourceUnitPrice)}</TableCell>
+                        <TableCell className="text-[12px] text-right tabular-nums">{money(line.usdUnitBeforeTax, 4)}</TableCell>
+                        <TableCell className="text-[12px] text-right tabular-nums text-muted-foreground">{line.sharePct.toFixed(3)}%</TableCell>
+                        <TableCell className="text-[12px] text-right tabular-nums">{money(line.taxAllocatedUsd)}</TableCell>
+                        <TableCell className="text-[12px] text-right tabular-nums font-semibold">{money(line.finalUnitPrice)}</TableCell>
+                        <TableCell className="text-[12px] text-right tabular-nums">{money(line.lineTotalUsd)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </div>
-            </CardContent>
-          </Card>
+          </SectionCard>
         )}
       </div>
     </DashboardLayout>
