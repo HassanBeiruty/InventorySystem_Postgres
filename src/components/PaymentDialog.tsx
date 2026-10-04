@@ -13,6 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatTile } from "@/components/page-ui/StatTile";
+import { StatusPill } from "@/components/page-ui/StatusPill";
 import { invoicesRepo, exchangeRatesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
@@ -267,68 +269,59 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
                 <div className="space-y-3">
                   {/* Invoice Details */}
                   <div className="space-y-1.5">
-                    <h3 className="font-semibold text-sm">Invoice Details</h3>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
+                    <h3 className="font-bold text-[13px]">Invoice Details</h3>
+                    <div className="grid grid-cols-2 gap-2 text-[12px]">
                       <div>
                         <span className="text-muted-foreground">Entity:</span>
-                        <span className="ml-1.5 font-medium">{entityName}</span>
+                        <span className="ms-1.5 font-medium">{entityName}</span>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Type:</span>
-                        <span className="ml-1.5 font-medium capitalize">{invoice.invoice_type}</span>
+                        <StatusPill tone={invoice.invoice_type === 'sell' ? 'sell' : 'buy'} className="ms-1.5 capitalize">{invoice.invoice_type}</StatusPill>
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-2 pt-1">
-                      <div className="border rounded-lg p-2">
-                        <div className="text-[10px] text-muted-foreground">Total Amount</div>
-                        <div className="text-base font-bold">${totalAmount.toFixed(2)}</div>
-                      </div>
-                      <div className="border rounded-lg p-2">
-                        <div className="text-[10px] text-success">Total Paid</div>
-                        <div className="text-base font-bold text-success">${amountPaid.toFixed(2)}</div>
-                      </div>
-                      <div className="border rounded-lg p-2">
-                        <div className="text-[10px] text-warning">Remaining</div>
-                        <div className="text-base font-bold text-warning">${remainingBalance.toFixed(2)}</div>
-                      </div>
+                      <StatTile label="Total Amount" value={`$${totalAmount.toFixed(2)}`} />
+                      <StatTile tone="success" label="Total Paid" value={`$${amountPaid.toFixed(2)}`} />
+                      <StatTile tone="warning" label="Remaining" value={`$${remainingBalance.toFixed(2)}`} />
                     </div>
                   </div>
 
                   {/* Payment History */}
                   {invoice.payments && invoice.payments.length > 0 && (
                     <div className="space-y-1.5">
-                      <h3 className="font-semibold text-sm">Payment History</h3>
-                      <div className="border rounded-lg overflow-x-auto">
+                      <h3 className="font-bold text-[13px]">Payment History</h3>
+                      <div className="border border-border rounded-lg overflow-x-auto">
                         <Table>
                           <TableHeader>
-                            <TableRow>
-                              <TableHead className="whitespace-nowrap p-1.5 text-xs">Date</TableHead>
-                              <TableHead className="whitespace-nowrap p-1.5 text-xs">Paid Amount</TableHead>
-                              <TableHead className="whitespace-nowrap p-1.5 text-xs">Currency</TableHead>
-                              <TableHead className="whitespace-nowrap p-1.5 text-xs">Rate</TableHead>
-                              <TableHead className="whitespace-nowrap p-1.5 text-xs">USD Equivalent</TableHead>
-                              <TableHead className="whitespace-nowrap p-1.5 text-xs">Method</TableHead>
-                              <TableHead className="whitespace-nowrap p-1.5 text-xs">Notes</TableHead>
+                            <TableRow className="bg-muted/60 hover:bg-muted/60">
+                              <TableHead className="h-9 whitespace-nowrap p-1.5 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Date</TableHead>
+                              <TableHead className="h-9 whitespace-nowrap p-1.5 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Paid Amount</TableHead>
+                              <TableHead className="h-9 whitespace-nowrap p-1.5 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Currency</TableHead>
+                              <TableHead className="h-9 whitespace-nowrap p-1.5 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Rate</TableHead>
+                              <TableHead className="h-9 whitespace-nowrap p-1.5 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">USD Equivalent</TableHead>
+                              <TableHead className="h-9 whitespace-nowrap p-1.5 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Method</TableHead>
+                              <TableHead className="h-9 whitespace-nowrap p-1.5 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Notes</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {invoice.payments.map((payment) => (
                               <TableRow key={payment.id}>
-                                <TableCell className="text-xs whitespace-nowrap p-1.5">
+                                <TableCell className="text-[12px] whitespace-nowrap p-1.5 tabular-nums">
                                   {formatDateTimeLebanon(payment.payment_date, "MM/dd/yyyy")}
                                 </TableCell>
-                                <TableCell className="font-medium whitespace-nowrap p-1.5 text-xs">
+                                <TableCell className="font-medium whitespace-nowrap p-1.5 text-[12px] text-right tabular-nums">
                                   {parseFloat(String(payment.paid_amount || 0)).toFixed(2)}
                                 </TableCell>
-                                <TableCell className="whitespace-nowrap p-1.5 text-xs">{payment.currency_code || "USD"}</TableCell>
-                                <TableCell className="text-xs whitespace-nowrap p-1.5">
+                                <TableCell className="whitespace-nowrap p-1.5 text-[12px]">{payment.currency_code || "USD"}</TableCell>
+                                <TableCell className="text-[12px] whitespace-nowrap p-1.5 text-right tabular-nums">
                                   {parseFloat(String(payment.exchange_rate_on_payment || 1)).toFixed(6)}
                                 </TableCell>
-                                <TableCell className="font-medium text-success whitespace-nowrap p-1.5 text-xs">
+                                <TableCell className="font-medium text-success-strong whitespace-nowrap p-1.5 text-[12px] text-right tabular-nums">
                                   ${parseFloat(String(payment.usd_equivalent_amount || 0)).toFixed(2)}
                                 </TableCell>
-                                <TableCell className="whitespace-nowrap p-1.5 text-xs">{payment.payment_method || "-"}</TableCell>
-                                <TableCell className="text-xs text-muted-foreground max-w-xs truncate p-1.5">{payment.notes || "-"}</TableCell>
+                                <TableCell className="whitespace-nowrap p-1.5 text-[12px]">{payment.payment_method || "-"}</TableCell>
+                                <TableCell className="text-[12px] text-muted-foreground max-w-xs truncate p-1.5">{payment.notes || "-"}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
@@ -341,9 +334,9 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
                   <form onSubmit={handleSubmit} className="space-y-2">
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
-                        <Label htmlFor="currency_code" className="text-xs">Currency *</Label>
+                        <Label htmlFor="currency_code" className="text-[11px] font-medium">Currency *</Label>
                         <Select value={currencyCode} onValueChange={(value) => setCurrencyCode(value as "USD" | "LBP" | "EUR")}>
-                          <SelectTrigger id="currency_code" className="h-8 text-sm">
+                          <SelectTrigger id="currency_code" className="h-8 text-[13px]">
                             <SelectValue placeholder="Select currency" />
                           </SelectTrigger>
                           <SelectContent side="bottom" align="start">
@@ -355,7 +348,7 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
                       </div>
 
                       <div className="space-y-1">
-                        <Label htmlFor="paid_amount" className="text-xs">Paid Amount ({currencyCode}) *</Label>
+                        <Label htmlFor="paid_amount" className="text-[11px] font-medium">Paid Amount ({currencyCode}) *</Label>
                         <Input
                           id="paid_amount"
                           type="number"
@@ -364,7 +357,7 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
                           value={paidAmount}
                           onChange={(e) => setPaidAmount(e.target.value)}
                           placeholder="0.00"
-                          className="h-8 text-sm"
+                          className="h-8 text-[13px]"
                           required
                         />
                       </div>
@@ -373,7 +366,7 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
                     {currencyCode !== "USD" && (
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">
-                          <Label htmlFor="exchange_rate" className="text-xs">Exchange Rate (1 USD = {currencyCode})</Label>
+                          <Label htmlFor="exchange_rate" className="text-[11px] font-medium">Exchange Rate (1 USD = {currencyCode})</Label>
                           <Input
                             id="exchange_rate"
                             type="number"
@@ -381,15 +374,15 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
                             value={exchangeRate !== null ? parseFloat(String(exchangeRate)).toFixed(6) : ""}
                             disabled
                             placeholder={fetchingRate ? "Loading..." : "Select currency"}
-                            className="bg-muted h-8 text-sm"
+                            className="bg-muted h-8 text-[13px]"
                           />
                           {fetchingRate && (
-                            <p className="text-[10px] text-muted-foreground">Fetching current rate...</p>
+                            <p className="text-[11px] text-muted-foreground">Fetching current rate...</p>
                           )}
                         </div>
 
                         <div className="space-y-1">
-                          <Label htmlFor="usd_equivalent" className="text-xs">USD Equivalent</Label>
+                          <Label htmlFor="usd_equivalent" className="text-[11px] font-medium">USD Equivalent</Label>
                           <Input
                             id="usd_equivalent"
                             type="text"
@@ -399,16 +392,16 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
                                 : "$0.00"
                             }
                             disabled
-                            className="bg-muted font-semibold h-8 text-sm"
+                            className="bg-muted font-semibold h-8 text-[13px]"
                           />
                         </div>
                       </div>
                     )}
 
                     <div className="space-y-1">
-                      <Label htmlFor="payment_method" className="text-xs">Payment Method</Label>
+                      <Label htmlFor="payment_method" className="text-[11px] font-medium">Payment Method</Label>
                       <Select value={paymentMethod || "none"} onValueChange={(value) => setPaymentMethod(value === "none" ? "" : value)}>
-                        <SelectTrigger id="payment_method" className="h-8 text-sm">
+                        <SelectTrigger id="payment_method" className="h-8 text-[13px]">
                           <SelectValue placeholder="Select payment method" />
                         </SelectTrigger>
                         <SelectContent side="bottom" align="start">
@@ -422,14 +415,14 @@ export default function PaymentDialog({ open, onOpenChange, invoiceId, onPayment
                     </div>
 
                     <div className="space-y-1">
-                      <Label htmlFor="notes" className="text-xs">Notes</Label>
+                      <Label htmlFor="notes" className="text-[11px] font-medium">Notes</Label>
                       <Input
                         id="notes"
                         type="text"
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
                         placeholder="Add any notes about this payment..."
-                        className="h-8 text-sm"
+                        className="h-8 text-[13px]"
                       />
                     </div>
 

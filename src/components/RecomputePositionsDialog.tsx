@@ -116,13 +116,13 @@ export function RecomputePositionsDialog({
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="product-select">Product (Optional)</Label>
+            <Label htmlFor="product-select" className="text-[11px] font-medium">Product (Optional)</Label>
             <Select
               value={selectedProductId || "all"}
               onValueChange={(value) => setSelectedProductId(value === "all" ? "" : value)}
               disabled={fetchingProducts || loading}
             >
-              <SelectTrigger id="product-select">
+              <SelectTrigger id="product-select" className="h-8 text-[13px]">
                 <SelectValue placeholder="All Products" />
               </SelectTrigger>
               <SelectContent side="bottom" align="start">
@@ -138,16 +138,16 @@ export function RecomputePositionsDialog({
                 })}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[12px] text-muted-foreground">
               {selectedProductId === "" || selectedProductId === "all"
                 ? "Will recompute positions for all products"
                 : `Will recompute positions for selected product only`}
             </p>
           </div>
 
-          <div className="bg-muted/50 rounded-lg p-3 space-y-1">
-            <p className="text-sm font-medium">What this does:</p>
-            <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+          <div className="bg-muted/50 border border-border rounded-xl p-3 space-y-1">
+            <p className="text-[13px] font-bold">What this does:</p>
+            <ul className="text-[12px] text-muted-foreground space-y-1 list-disc list-inside">
               <li>Detects gaps in daily stock records</li>
               <li>Fills missing dates with last known values</li>
               <li>Recalculates positions from earliest gap to today</li>
@@ -166,12 +166,12 @@ export function RecomputePositionsDialog({
           <Button onClick={handleRecompute} disabled={loading || fetchingProducts}>
             {loading ? (
               <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                <Loader2 className="w-4 h-4 me-2 animate-spin" />
                 Recomputing...
               </>
             ) : (
               <>
-                <RefreshCw className="w-4 h-4 mr-2" />
+                <RefreshCw className="w-4 h-4 me-2" />
                 Recompute
               </>
             )}
