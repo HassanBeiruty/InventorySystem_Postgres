@@ -2,7 +2,9 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { inventoryRepo } from "@/integrations/api/repo";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
+import { SectionCard } from "@/components/page-ui/SectionCard";
+import { StatusPill } from "@/components/page-ui/StatusPill";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar, Package, Search, X, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { formatDateTimeLebanon, formatDateLebanon, getTodayLebanon } from "@/utils/dateUtils";
@@ -124,23 +126,16 @@ const DailyStocks = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-1.5 sm:space-y-2 animate-fade-in">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10">
-              <CalendarDays className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-                {t('dailyStocks.title')}
-              </h1>
-              <p className="text-muted-foreground text-[10px] sm:text-xs">{t('dailyStocks.subtitle')}</p>
-            </div>
-          </div>
+      <div className="space-y-3 sm:space-y-4 animate-fade-in">
+        <InvoicePageHeader
+          icon={CalendarDays}
+          title={t('dailyStocks.title')}
+          description={t('dailyStocks.subtitle')}
+          actions={
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
             <div className="flex items-center gap-2">
-              <Label htmlFor="start-date-daily" className="text-[10px] sm:text-xs whitespace-nowrap">
-                <Calendar className="w-3 h-3 inline mr-1" />
+              <Label htmlFor="start-date-daily" className="text-[11px] font-medium whitespace-nowrap">
+                <Calendar className="w-3 h-3 inline me-1" />
                 From:
               </Label>
               <Input
@@ -156,11 +151,11 @@ const DailyStocks = () => {
                   }
                 }}
                 max={endDate || getTodayLebanon()}
-                className="h-7 text-xs w-32"
+                className="h-8 text-[13px] w-36"
               />
             </div>
             <div className="flex items-center gap-2">
-              <Label htmlFor="end-date-daily" className="text-[10px] sm:text-xs whitespace-nowrap">
+              <Label htmlFor="end-date-daily" className="text-[11px] font-medium whitespace-nowrap">
                 To:
               </Label>
               <Input
@@ -175,47 +170,38 @@ const DailyStocks = () => {
                 }}
                 min={startDate}
                 max={getTodayLebanon()}
-                className="h-7 text-xs w-32"
+                className="h-8 text-[13px] w-36"
               />
             </div>
           </div>
-        </div>
+          }
+        />
 
-        <div className="border-2 rounded-lg overflow-hidden">
-          <div className="p-1.5 border-b bg-gradient-to-br from-primary/5 via-transparent to-accent/5">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
-              <div className="flex items-center gap-1.5">
-                <div className="p-1.5 rounded-lg bg-gradient-to-br from-primary/10 to-accent/10">
-                  <Package className="w-3 h-3 text-primary" />
-                </div>
-                <div>
-                  <h2 className="text-xs sm:text-sm font-bold">Daily Stock History</h2>
-                  <p className="text-[9px] sm:text-[10px] text-muted-foreground">Historical stock levels by date</p>
-                </div>
-              </div>
-              <div className="relative w-full sm:w-auto sm:min-w-[250px]">
-                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-muted-foreground" />
-                <Input
-                  placeholder={t('dailyStocks.searchProducts')}
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-7 pr-7 h-7 text-xs"
-                  autoFocus
-                />
-                {searchTerm && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSearchTerm("")}
-                    className="absolute right-0.5 top-1/2 transform -translate-y-1/2 h-5 w-5 p-0"
-                  >
-                    <X className="w-2.5 h-2.5" />
-                  </Button>
-                )}
-              </div>
+        <SectionCard
+          icon={Package}
+          title="Daily Stock History"
+          description="Historical stock levels by date"
+        >
+            <div className="relative w-full sm:w-[280px]">
+              <Search className="absolute start-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder={t('dailyStocks.searchProducts')}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full ps-8 pe-8 h-8 text-[13px]"
+                autoFocus
+              />
+              {searchTerm && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSearchTerm("")}
+                  className="absolute end-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              )}
             </div>
-          </div>
-          <div className="p-1.5 sm:p-2">
             {loading ? (
               <div className="space-y-3">
                 {[...Array(5)].map((_, i) => (
@@ -224,17 +210,17 @@ const DailyStocks = () => {
               </div>
             ) : allDatesInRange.length === 0 ? (
               <div className="text-center py-16">
-                <div className="w-20 h-20 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4">
+                <div className="w-20 h-20 rounded-full bg-accent-light flex items-center justify-center mx-auto mb-4">
                   <Calendar className="w-10 h-10 text-accent/50" />
                 </div>
-                <p className="text-muted-foreground text-lg">Please select a valid date range</p>
+                <p className="text-muted-foreground text-[13px]">Please select a valid date range</p>
               </div>
             ) : !currentDate ? (
               <div className="text-center py-16">
-                <div className="w-20 h-20 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4">
+                <div className="w-20 h-20 rounded-full bg-accent-light flex items-center justify-center mx-auto mb-4">
                   <Package className="w-10 h-10 text-accent/50" />
                 </div>
-                <p className="text-muted-foreground text-lg">
+                <p className="text-muted-foreground text-[13px]">
                   {searchTerm ? t('common.noData') : t('inventory.noStock')}
                 </p>
               </div>
@@ -244,39 +230,40 @@ const DailyStocks = () => {
                 <div className="flex items-center justify-between mb-2 pb-2 border-b">
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-accent" />
-                    <h3 className="text-sm font-bold">
+                    <h3 className="text-[13px] font-bold">
                       {formatDateTimeLebanon(currentDate, "EEEE, MMMM dd, yyyy")}
                     </h3>
                     {currentDate === getTodayLebanon() && (
-                      <Badge className="bg-success text-success-foreground text-[10px]">{t('inventory.todayPosition')}</Badge>
+                      <StatusPill tone="paid">{t('inventory.todayPosition')}</StatusPill>
                     )}
                   </div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-[12px] text-muted-foreground tabular-nums">
                     {currentDayItems.length} {currentDayItems.length === 1 ? 'product' : 'products'}
                   </div>
                 </div>
 
                 {currentDayItems.length === 0 ? (
                   <div className="text-center py-16">
-                    <div className="w-20 h-20 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4">
+                    <div className="w-20 h-20 rounded-full bg-accent-light flex items-center justify-center mx-auto mb-4">
                       <Package className="w-10 h-10 text-accent/50" />
                     </div>
-                    <p className="text-muted-foreground text-lg">
+                    <p className="text-muted-foreground text-[13px]">
                       {searchTerm ? "No products found matching your search for this day" : "No stock data for this day"}
                     </p>
                   </div>
                 ) : (
                   <>
-                    <div className="rounded-lg border-2 overflow-hidden">
+                    <div className="rounded-lg border border-border overflow-hidden bg-card">
+                      <div className="scroll-x">
                       <Table>
                         <TableHeader>
-                          <TableRow className="bg-gradient-to-r from-accent/5 to-primary/5">
-                            <TableHead className="font-bold p-2 pl-2 pr-1 text-xs w-[28%]">{t('invoices.product')}</TableHead>
-                            <TableHead className="font-bold p-2 text-xs w-[12%]">Category</TableHead>
-                            <TableHead className="text-center font-bold p-2 text-xs w-[10%]">{t('inventory.availableQty')}</TableHead>
-                            <TableHead className="text-right font-bold p-2 text-xs w-[10%]">Avg Cost</TableHead>
-                            <TableHead className="text-right font-bold p-2 pr-6 text-xs w-[12%]">Total Value</TableHead>
-                            <TableHead className="font-bold p-2 pl-6 text-xs w-[18%]">{t('inventory.lastUpdated')}</TableHead>
+                          <TableRow className="bg-muted/60 hover:bg-muted/60">
+                            <TableHead className="h-9 px-2 pe-1 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap w-[28%]">{t('invoices.product')}</TableHead>
+                            <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap w-[12%]">Category</TableHead>
+                            <TableHead className="h-9 px-2 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap w-[10%]">{t('inventory.availableQty')}</TableHead>
+                            <TableHead className="h-9 px-2 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap w-[10%]">Avg Cost</TableHead>
+                            <TableHead className="h-9 px-2 pe-6 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap w-[12%]">Total Value</TableHead>
+                            <TableHead className="h-9 px-2 ps-6 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap w-[18%]">{t('inventory.lastUpdated')}</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -286,30 +273,30 @@ const DailyStocks = () => {
                                 key={item.id} 
                                 className="hover:bg-accent/5 transition-colors"
                               >
-                                <TableCell className="font-semibold p-2 pl-2 pr-1 text-xs">
-                                  <ProductNameWithCode 
+                                <TableCell className="font-semibold p-2 pe-1 text-[13px]">
+                                  <ProductNameWithCode
                                     product={item.products || { name: "Unknown Product" }}
                                     showId={true}
                                     product_id={item.product_id}
                                     nameClassName=""
-                                    codeClassName="text-[10px] text-muted-foreground font-mono ml-1"
+                                    codeClassName="text-[11px] text-muted-foreground font-mono ms-1"
                                   />
                                 </TableCell>
-                                <TableCell className="text-muted-foreground text-xs p-2">
+                                <TableCell className="text-muted-foreground text-[12px] p-2">
                                   {item.products?.category_name || "-"}
                                 </TableCell>
-                                <TableCell className="text-center p-2">
-                                  <span className={`font-bold text-sm ${item.available_qty === 0 ? 'text-destructive' : item.available_qty < 10 ? 'text-warning' : 'text-success'}`}>
+                                <TableCell className="text-right p-2">
+                                  <StatusPill tone={item.available_qty === 0 ? 'overdue' : item.available_qty < 10 ? 'partial' : 'paid'} className="tabular-nums">
                                     {item.available_qty}
-                                  </span>
+                                  </StatusPill>
                                 </TableCell>
-                                <TableCell className="text-right font-mono text-xs p-2">
+                                <TableCell className="text-right font-mono tabular-nums text-[12px] p-2">
                                   ${Number(item.avg_cost || 0).toFixed(2)}
                                 </TableCell>
-                                <TableCell className="text-right font-semibold text-xs p-2 pr-6">
+                                <TableCell className="text-right font-semibold tabular-nums text-[12px] p-2 pe-6">
                                   ${(Number(item.available_qty) * Number(item.avg_cost || 0)).toFixed(2)}
                                 </TableCell>
-                                <TableCell className="text-xs text-muted-foreground p-2 pl-6">
+                                <TableCell className="text-[12px] text-muted-foreground p-2 ps-6">
                                   {item.updated_at ? formatDateTimeLebanon(item.updated_at, "MMM dd, yyyy HH:mm") : "-"}
                                 </TableCell>
                               </TableRow>
@@ -317,12 +304,13 @@ const DailyStocks = () => {
                           })}
                         </TableBody>
                       </Table>
+                      </div>
                     </div>
 
                     {/* Pagination Controls */}
                     {allDatesInRange.length > 1 && (
-                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 pt-4 border-t">
-                        <div className="text-sm text-muted-foreground">
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-3 pt-3 border-t">
+                        <div className="text-[12px] text-muted-foreground tabular-nums">
                           Day {currentDayIndex + 1} of {allDatesInRange.length}
                         </div>
                         <div className="flex items-center gap-2">
@@ -331,9 +319,9 @@ const DailyStocks = () => {
                             size="sm"
                             onClick={() => setCurrentDayIndex(Math.max(0, currentDayIndex - 1))}
                             disabled={currentDayIndex === 0}
-                            className="h-7 text-xs"
+                            className="h-8 text-[12px]"
                           >
-                            <ChevronLeft className="w-4 h-4 mr-1" />
+                            <ChevronLeft className="w-4 h-4 me-1" />
                             Previous Day
                           </Button>
                           <Button
@@ -341,10 +329,10 @@ const DailyStocks = () => {
                             size="sm"
                             onClick={() => setCurrentDayIndex(Math.min(allDatesInRange.length - 1, currentDayIndex + 1))}
                             disabled={currentDayIndex >= allDatesInRange.length - 1}
-                            className="h-7 text-xs"
+                            className="h-8 text-[12px]"
                           >
                             Next Day
-                            <ChevronRight className="w-4 h-4 ml-1" />
+                            <ChevronRight className="w-4 h-4 ms-1" />
                           </Button>
                         </div>
                       </div>
@@ -353,8 +341,7 @@ const DailyStocks = () => {
                 )}
               </>
             )}
-          </div>
-        </div>
+        </SectionCard>
       </div>
     </DashboardLayout>
   );

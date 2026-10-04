@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { stockRepo } from "@/integrations/api/repo";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Card } from "@/components/ui/card";
+import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
+import { SectionCard } from "@/components/page-ui/SectionCard";
+import { StatusPill } from "@/components/page-ui/StatusPill";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { TrendingUp, TrendingDown, Package, Search, X, Calendar, History, Filter } from "lucide-react";
+import { TrendingUp, Package, Search, X, Calendar, History, Filter } from "lucide-react";
 import { formatDateTimeLebanon, getTodayLebanon, getNDaysAgoLebanon } from "@/utils/dateUtils";
 import { useTranslation } from "react-i18next";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
@@ -81,23 +82,16 @@ const StockMovements = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-1.5 sm:space-y-2 animate-fade-in">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10">
-              <History className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-                {t('stockMovements.title')}
-              </h1>
-              <p className="text-muted-foreground text-[10px] sm:text-xs">{t('stockMovements.subtitle')}</p>
-            </div>
-          </div>
+      <div className="space-y-3 sm:space-y-4 animate-fade-in">
+        <InvoicePageHeader
+          icon={History}
+          title={t('stockMovements.title')}
+          description={t('stockMovements.subtitle')}
+          actions={
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
             <div className="flex items-center gap-2">
-              <Label htmlFor="start-date" className="text-[10px] sm:text-xs whitespace-nowrap">
-                <Calendar className="w-3 h-3 inline mr-1" />
+              <Label htmlFor="start-date" className="text-[11px] font-medium whitespace-nowrap">
+                <Calendar className="w-3 h-3 inline me-1" />
                 From:
               </Label>
               <Input
@@ -113,11 +107,11 @@ const StockMovements = () => {
                   }
                 }}
                 max={endDate || getTodayLebanon()}
-                className="h-7 text-xs w-32"
+                className="h-8 text-[13px] w-36"
               />
             </div>
             <div className="flex items-center gap-2">
-              <Label htmlFor="end-date" className="text-[10px] sm:text-xs whitespace-nowrap">
+              <Label htmlFor="end-date" className="text-[11px] font-medium whitespace-nowrap">
                 To:
               </Label>
               <Input
@@ -132,12 +126,12 @@ const StockMovements = () => {
                 }}
                 min={startDate}
                 max={getTodayLebanon()}
-                className="h-7 text-xs w-32"
+                className="h-8 text-[13px] w-36"
               />
             </div>
             <div className="flex items-center gap-2">
-              <Label htmlFor="product-id-filter" className="text-[10px] sm:text-xs whitespace-nowrap">
-                <Filter className="w-3 h-3 inline mr-1" />
+              <Label htmlFor="product-id-filter" className="text-[11px] font-medium whitespace-nowrap">
+                <Filter className="w-3 h-3 inline me-1" />
                 Product ID:
               </Label>
               <div className="relative">
@@ -148,14 +142,14 @@ const StockMovements = () => {
                   placeholder="e.g. 42"
                   value={productIdFilter}
                   onChange={(e) => setProductIdFilter(e.target.value)}
-                  className="h-7 text-xs w-24 pr-6"
+                  className="h-8 text-[13px] w-28 pe-7"
                 />
                 {productIdFilter && (
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setProductIdFilter("")}
-                    className="absolute right-0.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0"
+                    className="absolute end-0.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0"
                   >
                     <X className="w-2.5 h-2.5" />
                   </Button>
@@ -163,45 +157,35 @@ const StockMovements = () => {
               </div>
             </div>
           </div>
-        </div>
+          }
+        />
 
-        <Card className="border shadow-card hover:shadow-elegant transition-all duration-300">
-          <div className="p-1.5 border-b bg-gradient-to-br from-warning/5 via-transparent to-accent/5">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
-              <div className="flex items-center gap-1.5">
-                <div className="p-1.5 rounded-lg bg-gradient-to-br from-warning/10 to-accent/10">
-                  <TrendingUp className="w-3 h-3 text-warning" />
-                </div>
-                <div>
-                  <h2 className="text-xs sm:text-sm font-bold">Invoice-Based Stock Changes</h2>
-                  <p className="text-[9px] sm:text-[10px] text-muted-foreground">From StockInvoiceMovement table - Tracking & auditing</p>
-                </div>
-              </div>
-              <div className="relative w-full sm:w-auto sm:min-w-[250px]">
-                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search movements (product, invoice ID)"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-7 pr-7 h-7 text-xs"
-                  autoFocus
-                />
-                {searchQuery && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-0.5 top-1/2 transform -translate-y-1/2 h-5 w-5 p-0"
-                  >
-                    <X className="w-2.5 h-2.5" />
-                  </Button>
-                )}
-              </div>
+        <SectionCard
+          icon={TrendingUp}
+          title="Invoice-Based Stock Changes"
+          description="From StockInvoiceMovement table - Tracking & auditing"
+        >
+            <div className="relative w-full sm:w-[280px]">
+              <Search className="absolute start-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                type="text"
+                placeholder="Search movements (product, invoice ID)"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full ps-8 pe-8 h-8 text-[13px]"
+                autoFocus
+              />
+              {searchQuery && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute end-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              )}
             </div>
-          </div>
-          
-          <div className="p-1.5">
             {loading ? (
               <div className="space-y-2">
                 {[...Array(5)].map((_, i) => (
@@ -210,103 +194,96 @@ const StockMovements = () => {
               </div>
             ) : movements.length === 0 ? (
               <div className="text-center py-8">
-                <div className="w-16 h-16 rounded-full bg-warning/10 flex items-center justify-center mx-auto mb-2">
-                  <Package className="w-8 h-8 text-warning/50" />
+                <div className="w-16 h-16 rounded-full bg-warning-light flex items-center justify-center mx-auto mb-2">
+                  <Package className="w-8 h-8 text-warning/60" />
                 </div>
-                <p className="text-muted-foreground text-sm">{t('stockMovements.noMovements')}</p>
+                <p className="text-muted-foreground text-[13px]">{t('stockMovements.noMovements')}</p>
               </div>
             ) : filteredMovements.length === 0 ? (
               <div className="text-center py-8">
-                <div className="w-16 h-16 rounded-full bg-warning/10 flex items-center justify-center mx-auto mb-2">
-                  <Package className="w-8 h-8 text-warning/50" />
+                <div className="w-16 h-16 rounded-full bg-warning-light flex items-center justify-center mx-auto mb-2">
+                  <Package className="w-8 h-8 text-warning/60" />
                 </div>
-                <p className="text-muted-foreground text-sm">No movements found matching your search</p>
+                <p className="text-muted-foreground text-[13px]">No movements found matching your search</p>
               </div>
             ) : (
-              <div className="overflow-x-auto rounded border">
+              <div className="rounded-lg border border-border overflow-hidden bg-card">
+                <div className="scroll-x">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-gradient-to-r from-warning/5 to-accent/5 hover:from-warning/10 hover:to-accent/10">
-                      <TableHead className="font-bold p-2 pl-2 text-xs w-[12%]">{t('stockMovements.date')}</TableHead>
-                      <TableHead className="font-bold p-2 pr-1 text-xs w-[28%]">{t('stockMovements.product')}</TableHead>
-                      <TableHead className="font-bold p-2 text-xs w-[10%]">Category</TableHead>
-                      <TableHead className="text-center font-bold p-2 text-xs w-[8%]">{t('stockMovements.quantityBefore')}</TableHead>
-                      <TableHead className="text-center font-bold p-2 text-xs w-[8%]">{t('stockMovements.change')}</TableHead>
-                      <TableHead className="text-center font-bold p-2 text-xs w-[8%]">{t('stockMovements.quantityAfter')}</TableHead>
-                      <TableHead className="text-right font-bold p-2 text-xs w-[8%]">Unit Cost</TableHead>
-                      <TableHead className="text-right font-bold p-2 text-xs w-[9%]">Avg Cost After</TableHead>
-                      <TableHead className="font-bold p-2 text-xs w-[9%]">{t('stockMovements.invoice')}</TableHead>
+                    <TableRow className="bg-muted/60 hover:bg-muted/60">
+                      <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap w-[12%]">{t('stockMovements.date')}</TableHead>
+                      <TableHead className="h-9 px-2 pe-1 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap w-[28%]">{t('stockMovements.product')}</TableHead>
+                      <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap w-[10%]">Category</TableHead>
+                      <TableHead className="h-9 px-2 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap w-[8%]">{t('stockMovements.quantityBefore')}</TableHead>
+                      <TableHead className="h-9 px-2 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap w-[8%]">{t('stockMovements.change')}</TableHead>
+                      <TableHead className="h-9 px-2 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap w-[8%]">{t('stockMovements.quantityAfter')}</TableHead>
+                      <TableHead className="h-9 px-2 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap w-[8%]">Unit Cost</TableHead>
+                      <TableHead className="h-9 px-2 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap w-[9%]">Avg Cost After</TableHead>
+                      <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap w-[9%]">{t('stockMovements.invoice')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredMovements.map((movement, idx) => (
                       <TableRow 
                         key={movement.id}
-                        className="hover:bg-warning/5 transition-colors animate-fade-in"
+                        className="hover:bg-primary/5 transition-colors animate-fade-in"
                         style={{ animationDelay: `${idx * 0.02}s` }}
                       >
-                        <TableCell className="text-[10px] p-1.5 pl-2">
+                        <TableCell className="text-[12px] p-2 whitespace-nowrap tabular-nums">
                           {formatDateTimeLebanon(movement.invoice_date, "MMM dd, yyyy HH:mm")}
                         </TableCell>
-                        <TableCell className="font-semibold p-1.5 pr-1 text-xs">
+                        <TableCell className="font-semibold p-2 pe-1 text-[13px]">
                           <ProductNameWithCode 
                             product={movement.products || { name: "Unknown Product" }}
                             showId={true}
                             product_id={movement.product_id}
                             nameClassName=""
-                            codeClassName="text-[10px] text-muted-foreground font-mono ml-1"
+                            codeClassName="text-[11px] text-muted-foreground font-mono ms-1"
                           />
                         </TableCell>
-                        <TableCell className="text-muted-foreground p-1.5 text-[10px]">
+                        <TableCell className="text-muted-foreground p-2 text-[12px]">
                           {movement.products?.category_name || "-"}
                         </TableCell>
-                        <TableCell className="text-center font-medium text-muted-foreground p-1.5 text-[10px]">
+                        <TableCell className="text-right font-medium text-muted-foreground tabular-nums p-2 text-[12px]">
                           {movement.quantity_before}
                         </TableCell>
-                        <TableCell className="text-center p-1.5">
-                          <Badge
-                            variant={movement.quantity_change > 0 ? "default" : "destructive"}
-                            className="gap-0.5 font-semibold text-[10px]"
-                          >
-                            {movement.quantity_change > 0 ? (
-                              <TrendingUp className="w-2.5 h-2.5" />
-                            ) : (
-                              <TrendingDown className="w-2.5 h-2.5" />
-                            )}
+                        <TableCell className="text-right p-2">
+                          <StatusPill tone={movement.quantity_change > 0 ? 'buy' : 'overdue'} className="tabular-nums">
                             {movement.quantity_change > 0 ? "+" : ""}
                             {movement.quantity_change}
-                          </Badge>
+                          </StatusPill>
                         </TableCell>
-                        <TableCell className="text-center p-1.5">
-                          <span className={`font-bold text-xs ${movement.quantity_after === 0 ? 'text-destructive' : movement.quantity_after < 10 ? 'text-warning' : 'text-success'}`}>
+                        <TableCell className="text-right p-2">
+                          <span className={`font-bold text-[13px] tabular-nums ${movement.quantity_after === 0 ? 'text-destructive-strong' : movement.quantity_after < 10 ? 'text-warning-strong' : 'text-success-strong'}`}>
                             {movement.quantity_after}
                           </span>
                         </TableCell>
-                        <TableCell className="text-center p-1.5 text-[10px]">
+                        <TableCell className="text-right p-2 text-[12px] tabular-nums">
                           {movement.unit_cost !== null && movement.unit_cost !== undefined ? (
-                            <span className="font-medium text-primary">${Number(movement.unit_cost).toFixed(2)}</span>
+                            <span className="font-medium text-primary-strong">${Number(movement.unit_cost).toFixed(2)}</span>
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-center p-1.5 text-[10px]">
+                        <TableCell className="text-right p-2 text-[12px] tabular-nums">
                           {movement.avg_cost_after !== null && movement.avg_cost_after !== undefined ? (
-                            <span className="font-medium text-success">${Number(movement.avg_cost_after).toFixed(2)}</span>
+                            <span className="font-medium text-success-strong">${Number(movement.avg_cost_after).toFixed(2)}</span>
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-[10px] text-muted-foreground font-mono p-1.5">
+                        <TableCell className="text-[12px] text-muted-foreground font-mono p-2 whitespace-nowrap">
                           INV-{movement.invoice_id}
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </div>
             )}
-          </div>
-        </Card>
+        </SectionCard>
       </div>
     </DashboardLayout>
   );
