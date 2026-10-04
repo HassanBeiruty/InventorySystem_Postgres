@@ -1,6 +1,8 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
+import { SectionCard } from "@/components/page-ui/SectionCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -659,40 +661,30 @@ const Reports = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-2 sm:space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10">
-              <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-                {t("reports.title")}
-              </h2>
-              <p className="text-[10px] sm:text-xs text-muted-foreground">
-                {t("reports.subtitle")}
-              </p>
-            </div>
-          </div>
-          {isAdmin && (
-            <Button onClick={exportToPDF} className="gap-1.5 h-7 text-[10px] sm:text-xs">
+      <div className="space-y-3 sm:space-y-4">
+        <InvoicePageHeader
+          icon={BarChart3}
+          title={t("reports.title")}
+          description={t("reports.subtitle")}
+          actions={isAdmin ? (
+            <Button onClick={exportToPDF} className="gap-1.5 h-8 text-[12px]">
               <Download className="w-3 h-3" />
               Export PDF
             </Button>
-          )}
-        </div>
+          ) : undefined}
+        />
 
         {/* Date Range Filter for Summary Data */}
         {isAdmin && (
-          <Card className="border-2 p-2 sm:p-3">
+          <Card className="rounded-xl border-2 border-border p-3">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-primary" />
-                <span className="text-xs sm:text-sm font-medium">Filter Summary Data:</span>
+                <span className="text-[13px] font-bold">Filter Summary Data:</span>
               </div>
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="start-date-report" className="text-[10px] sm:text-xs whitespace-nowrap">
+                  <Label htmlFor="start-date-report" className="text-[11px] font-medium whitespace-nowrap">
                     From:
                   </Label>
                   <Input
@@ -708,11 +700,11 @@ const Reports = () => {
                       }
                     }}
                     max={endDate || getTodayLebanon()}
-                    className="h-7 text-xs w-32"
+                    className="h-8 text-[13px] w-36"
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="end-date-report" className="text-[10px] sm:text-xs whitespace-nowrap">
+                  <Label htmlFor="end-date-report" className="text-[11px] font-medium whitespace-nowrap">
                     To:
                   </Label>
                   <Input
@@ -727,7 +719,7 @@ const Reports = () => {
                     }}
                     min={startDate}
                     max={getTodayLebanon()}
-                    className="h-7 text-xs w-32"
+                    className="h-8 text-[13px] w-36"
                   />
                 </div>
                 {(startDate || endDate) && (
@@ -738,9 +730,9 @@ const Reports = () => {
                       setStartDate("");
                       setEndDate("");
                     }}
-                    className="h-7 text-xs"
+                    className="h-8 text-[12px]"
                   >
-                    <X className="w-3 h-3 mr-1" />
+                    <X className="w-3 h-3 me-1" />
                     Clear
                   </Button>
                 )}
@@ -750,16 +742,16 @@ const Reports = () => {
         )}
 
         {!isAdmin ? (
-          <Card className="border-2">
-            <CardContent className="p-3 sm:p-4 text-center">
+          <Card className="rounded-xl border-2 border-border">
+            <CardContent className="p-4 text-center">
               <AlertCircle className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-              <p className="text-xs text-muted-foreground">{t("settings.adminAccessRequired")}</p>
+              <p className="text-[13px] text-muted-foreground">{t("settings.adminAccessRequired")}</p>
             </CardContent>
           </Card>
         ) : loading ? (
           <div className="grid gap-2 sm:gap-3 md:grid-cols-5">
             {Array(5).fill(0).map((_, i) => (
-              <Card key={i} className="animate-pulse border-2">
+              <Card key={i} className="animate-pulse rounded-xl border border-border">
                 <CardHeader className="pb-1.5 p-2"><div className="h-3 w-20 bg-muted rounded"></div></CardHeader>
                 <CardContent className="p-2"><div className="h-6 w-24 bg-muted rounded"></div></CardContent>
               </Card>
@@ -769,82 +761,82 @@ const Reports = () => {
           <>
             <div className="grid gap-2 sm:gap-3 md:grid-cols-5">
               <Card
-                className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 border-2 cursor-pointer hover:shadow-lg transition-shadow"
+                className="rounded-xl border border-border bg-card cursor-pointer hover:border-primary/50 transition-colors"
                 onClick={handleShowCustomerSales}
               >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-2 px-2.5">
-                  <CardTitle className="text-xs sm:text-sm font-medium">Total Sales</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-success" />
+                  <CardTitle className="text-[11px] font-medium text-muted-foreground">Total Sales</CardTitle>
+                  <TrendingUp className="h-3.5 w-3.5 text-success-strong" aria-hidden="true" />
                 </CardHeader>
                 <CardContent className="px-2.5 pb-2">
-                  <div className="text-base sm:text-lg font-bold text-success">${summary.totalSales.toFixed(2)}</div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground">Revenue from sell invoices (all-time)</p>
-                  <p className="text-[9px] text-muted-foreground mt-1 italic">Click to view by customer</p>
+                  <div className="text-base font-bold tabular-nums text-success-strong">${summary.totalSales.toFixed(2)}</div>
+                  <p className="text-[11px] text-muted-foreground">Revenue from sell invoices (all-time)</p>
+                  <p className="text-[11px] text-muted-foreground mt-1 italic">Click to view by customer</p>
                 </CardContent>
               </Card>
 
-              <Card 
-                className="bg-gradient-to-br from-destructive/10 to-destructive/5 border-destructive/20 border-2 cursor-pointer hover:shadow-lg transition-shadow"
+              <Card
+                className="rounded-xl border border-border bg-card cursor-pointer hover:border-primary/50 transition-colors"
                 onClick={handleShowSupplierPurchases}
               >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-2 px-2.5">
-                  <CardTitle className="text-xs sm:text-sm font-medium">Total Purchases</CardTitle>
-                  <TrendingDown className="h-4 w-4 text-destructive" />
+                  <CardTitle className="text-[11px] font-medium text-muted-foreground">Total Purchases</CardTitle>
+                  <TrendingDown className="h-3.5 w-3.5 text-destructive-strong" aria-hidden="true" />
                 </CardHeader>
                 <CardContent className="px-2.5 pb-2">
-                  <div className="text-base sm:text-lg font-bold text-destructive">${summary.totalPurchases.toFixed(2)}</div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground">Cost from buy invoices (all-time)</p>
-                  <p className="text-[9px] text-muted-foreground mt-1 italic">Click to view by supplier</p>
+                  <div className="text-base font-bold tabular-nums text-destructive-strong">${summary.totalPurchases.toFixed(2)}</div>
+                  <p className="text-[11px] text-muted-foreground">Cost from buy invoices (all-time)</p>
+                  <p className="text-[11px] text-muted-foreground mt-1 italic">Click to view by supplier</p>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-warning/10 to-warning/5 border-warning/20 border-2">
+              <Card className="rounded-xl border border-border bg-card">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-2 px-2.5">
-                  <CardTitle className="text-xs sm:text-sm font-medium">Net Profit</CardTitle>
-                  <DollarSign className="h-4 w-4 text-warning" />
+                  <CardTitle className="text-[11px] font-medium text-muted-foreground">Net Profit</CardTitle>
+                  <DollarSign className="h-3.5 w-3.5 text-warning-strong" aria-hidden="true" />
                 </CardHeader>
                 <CardContent className="px-2.5 pb-2">
-                  <div className="text-base sm:text-lg font-bold text-warning">${summary.netProfit.toFixed(2)}</div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground">All sales minus all purchases (since inception)</p>
+                  <div className="text-base font-bold tabular-nums text-warning-strong">${summary.netProfit.toFixed(2)}</div>
+                  <p className="text-[11px] text-muted-foreground">All sales minus all purchases (since inception)</p>
                 </CardContent>
               </Card>
 
-              <Card 
-                className="bg-gradient-to-br from-accent/10 to-accent/5 border-accent/20 border-2 cursor-pointer hover:shadow-lg transition-shadow"
+              <Card
+                className="rounded-xl border border-border bg-card cursor-pointer hover:border-primary/50 transition-colors"
                 onClick={handleShowDailyProfit}
               >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-2 px-2.5">
-                  <CardTitle className="text-xs sm:text-sm font-medium">Profit</CardTitle>
-                  <DollarSign className="h-4 w-4 text-accent" />
+                  <CardTitle className="text-[11px] font-medium text-muted-foreground">Profit</CardTitle>
+                  <DollarSign className="h-3.5 w-3.5 text-primary-strong" aria-hidden="true" />
                 </CardHeader>
                 <CardContent className="px-2.5 pb-2">
-                  <div className="text-base sm:text-lg font-bold text-accent">${summary.actualProfit.toFixed(2)}</div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground">Sum of (quantity × (price - cost)) per item {startDate ? `(${startDate} - ${endDate || 'today'})` : '(last 30 days)'}</p>
-                  <p className="text-[9px] text-muted-foreground mt-1 italic">Click to view daily breakdown</p>
+                  <div className="text-base font-bold tabular-nums text-primary-strong">${summary.actualProfit.toFixed(2)}</div>
+                  <p className="text-[11px] text-muted-foreground">Sum of (quantity × (price - cost)) per item {startDate ? `(${startDate} - ${endDate || 'today'})` : '(last 30 days)'}</p>
+                  <p className="text-[11px] text-muted-foreground mt-1 italic">Click to view daily breakdown</p>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-success/10 to-success/5 border-success/20 border-2">
+              <Card className="rounded-xl border border-border bg-card">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-2 px-2.5">
-                  <CardTitle className="text-xs sm:text-sm font-medium">{t('dashboard.stockValue')}</CardTitle>
-                  <Warehouse className="h-4 w-4 text-success" />
+                  <CardTitle className="text-[11px] font-medium text-muted-foreground">{t('dashboard.stockValue')}</CardTitle>
+                  <Warehouse className="h-3.5 w-3.5 text-success-strong" aria-hidden="true" />
                 </CardHeader>
                 <CardContent className="px-2.5 pb-2">
-                  <div className="text-base sm:text-lg font-bold text-success">${summary.totalStockValue.toFixed(2)}</div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground">Current stock value at cost (today)</p>
+                  <div className="text-base font-bold tabular-nums text-success-strong">${summary.totalStockValue.toFixed(2)}</div>
+                  <p className="text-[11px] text-muted-foreground">Current stock value at cost (today)</p>
                 </CardContent>
               </Card>
             </div>
 
             {/* Chart Period Selector */}
-            <Card className="border-2 p-2 sm:p-3">
+            <Card className="rounded-xl border-2 border-border p-3">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <BarChart3 className="w-4 h-4 text-primary" />
-                  <span className="text-xs sm:text-sm font-medium">Chart Period:</span>
+                  <span className="text-[13px] font-bold">Chart Period:</span>
                 </div>
                 <Select value={chartPeriod} onValueChange={setChartPeriod}>
-                  <SelectTrigger className="w-[180px] h-7 text-xs">
+                  <SelectTrigger className="w-[180px] h-8 text-[13px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -860,14 +852,7 @@ const Reports = () => {
             </Card>
 
             <div className="grid gap-2 sm:gap-3 md:grid-cols-2">
-              <Card className="border-2">
-                <CardHeader className="p-2 sm:p-3 border-b">
-                  <CardTitle className="flex items-center gap-1.5 text-xs sm:text-sm">
-                    <BarChart3 className="w-4 h-4" />
-                    Sales & Purchases Trend
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-2 sm:p-3">
+              <SectionCard icon={BarChart3} title="Sales & Purchases Trend">
                   <ResponsiveContainer width="100%" height={250}>
                     <LineChart data={monthlyData}>
                       <CartesianGrid strokeDasharray="3 3" />
@@ -880,17 +865,9 @@ const Reports = () => {
                       <Line type="monotone" dataKey="profit" stroke={chartColors.secondary} name="Profit" />
                     </LineChart>
                   </ResponsiveContainer>
-                </CardContent>
-              </Card>
+              </SectionCard>
 
-              <Card className="border-2">
-                <CardHeader className="p-2 sm:p-3 border-b">
-                  <CardTitle className="flex items-center gap-1.5 text-xs sm:text-sm">
-                    <FileText className="w-4 h-4" />
-                    Payment Status
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-2 sm:p-3">
+              <SectionCard icon={FileText} title="Payment Status">
                   <ResponsiveContainer width="100%" height={250}>
                     <PieChart>
                       <Pie data={paymentStatusData} cx="50%" cy="50%" labelLine={false} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} outerRadius={80} fill={chartColors.primary} dataKey="value">
@@ -901,15 +878,10 @@ const Reports = () => {
                       <Tooltip />
                     </PieChart>
                   </ResponsiveContainer>
-                </CardContent>
-              </Card>
+              </SectionCard>
             </div>
 
-            <Card className="border-2">
-              <CardHeader className="p-2 sm:p-3 border-b">
-                <CardTitle className="text-xs sm:text-sm">Sales & Purchases Chart</CardTitle>
-              </CardHeader>
-              <CardContent className="p-2 sm:p-3">
+            <SectionCard icon={BarChart3} title="Sales & Purchases Chart">
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={monthlyData}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -922,15 +894,10 @@ const Reports = () => {
                     <Bar dataKey="profit" fill={chartColors.secondary} name="Profit" />
                   </BarChart>
                 </ResponsiveContainer>
-              </CardContent>
-            </Card>
+            </SectionCard>
 
             <div className="grid gap-2 sm:gap-3 md:grid-cols-2">
-              <Card className="border-2">
-                <CardHeader className="p-2 sm:p-3 border-b">
-                  <CardTitle className="text-xs sm:text-sm">Top 10 Products by Revenue</CardTitle>
-                </CardHeader>
-                <CardContent className="p-2 sm:p-3">
+              <SectionCard icon={Package} title="Top 10 Products by Revenue">
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={topProducts} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" />
@@ -940,14 +907,9 @@ const Reports = () => {
                       <Bar dataKey="revenue" fill={chartColors.primary} />
                     </BarChart>
                   </ResponsiveContainer>
-                </CardContent>
-              </Card>
+              </SectionCard>
 
-              <Card className="border-2">
-                <CardHeader className="p-2 sm:p-3 border-b">
-                  <CardTitle className="text-xs sm:text-sm">Top 10 Customers by Sales</CardTitle>
-                </CardHeader>
-                <CardContent className="p-2 sm:p-3">
+              <SectionCard icon={TrendingUp} title="Top 10 Customers by Sales">
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={topCustomers} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" />
@@ -957,25 +919,18 @@ const Reports = () => {
                       <Bar dataKey="total" fill={chartColors.warning} />
                     </BarChart>
                   </ResponsiveContainer>
-                </CardContent>
-              </Card>
+              </SectionCard>
             </div>
 
-            <Card className="border-2 shadow-card">
-              <CardHeader className="p-2 sm:p-3 border-b">
-                <CardTitle className="flex items-center gap-1.5 text-xs sm:text-sm">
-                  <Package className="w-4 h-4 text-primary" />
-                  Product Cost Tracking
-                </CardTitle>
-                <CardDescription className="text-[10px] sm:text-xs">
-                  Average costs calculated from purchase history for accurate profit analysis
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-2 sm:p-3">
-                <div className="text-xs text-muted-foreground">
+            <SectionCard
+              icon={Package}
+              title="Product Cost Tracking"
+              description="Average costs calculated from purchase history for accurate profit analysis"
+            >
+                <div className="text-[12px] text-muted-foreground">
                   <div className="flex justify-between items-center mb-1.5">
-                    <span className="text-[10px] sm:text-xs">Products with cost data:</span>
-                    <span className="font-semibold text-xs sm:text-sm">{productCosts.size} / {summary.totalProducts}</span>
+                    <span className="text-[12px]">Products with cost data:</span>
+                    <span className="font-semibold text-[13px] tabular-nums">{productCosts.size} / {summary.totalProducts}</span>
                   </div>
                   <div className="w-full bg-secondary rounded-full h-1.5">
                     <div 
@@ -984,8 +939,7 @@ const Reports = () => {
                     ></div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+            </SectionCard>
           </>
         )}
 
@@ -997,7 +951,7 @@ const Reports = () => {
               <DialogDescription>
                 Net profit calculated day by day using get_net_profit function
                 {dailyProfitData.length > 0 && (
-                  <span className="block mt-1 text-xs">
+                  <span className="block mt-1 text-[12px]">
                     {dailyProfitData[0]?.date} to {dailyProfitData[dailyProfitData.length - 1]?.date}
                   </span>
                 )}
@@ -1011,14 +965,14 @@ const Reports = () => {
                 <Skeleton className="h-10 w-full" />
               </div>
             ) : dailyProfitData.length > 0 ? (
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border border-border rounded-lg overflow-hidden">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-xs">Date</TableHead>
-                      <TableHead className="text-xs text-right">Total Revenue</TableHead>
-                      <TableHead className="text-xs text-right">Total Cost</TableHead>
-                      <TableHead className="text-xs text-right">Net Profit</TableHead>
+                    <TableRow className="bg-muted/60 hover:bg-muted/60">
+                      <TableHead className="h-9 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Date</TableHead>
+                      <TableHead className="h-9 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Revenue</TableHead>
+                      <TableHead className="h-9 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Cost</TableHead>
+                      <TableHead className="h-9 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Net Profit</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1033,10 +987,10 @@ const Reports = () => {
                       
                       return (
                         <TableRow key={idx} className={Number(day.net_profit) === 0 ? 'opacity-50' : ''}>
-                          <TableCell className="text-xs font-medium">{formattedDate}</TableCell>
-                          <TableCell className="text-xs text-right">${Number(day.total_revenue).toFixed(2)}</TableCell>
-                          <TableCell className="text-xs text-right">${Number(day.total_cost).toFixed(2)}</TableCell>
-                          <TableCell className={`text-xs text-right font-bold ${Number(day.net_profit) >= 0 ? 'text-success' : 'text-destructive'}`}>
+                          <TableCell className="text-[12px] font-medium">{formattedDate}</TableCell>
+                          <TableCell className="text-[12px] text-right tabular-nums">${Number(day.total_revenue).toFixed(2)}</TableCell>
+                          <TableCell className="text-[12px] text-right tabular-nums">${Number(day.total_cost).toFixed(2)}</TableCell>
+                          <TableCell className={`text-[12px] text-right tabular-nums font-bold ${Number(day.net_profit) >= 0 ? 'text-success-strong' : 'text-destructive-strong'}`}>
                             ${Number(day.net_profit).toFixed(2)}
                           </TableCell>
                         </TableRow>
@@ -1045,9 +999,9 @@ const Reports = () => {
                   </TableBody>
                 </Table>
                 <div className="p-3 border-t bg-muted/50">
-                  <div className="flex justify-between items-center text-sm">
+                  <div className="flex justify-between items-center text-[13px]">
                     <span className="font-medium">Total:</span>
-                    <span className={`font-bold ${dailyProfitData.reduce((sum, d) => sum + Number(d.net_profit), 0) >= 0 ? 'text-success' : 'text-destructive'}`}>
+                    <span className={`font-bold tabular-nums ${dailyProfitData.reduce((sum, d) => sum + Number(d.net_profit), 0) >= 0 ? 'text-success-strong' : 'text-destructive-strong'}`}>
                       ${dailyProfitData.reduce((sum, d) => sum + Number(d.net_profit), 0).toFixed(2)}
                     </span>
                   </div>
@@ -1056,7 +1010,7 @@ const Reports = () => {
             ) : (
               <div className="py-8 text-center text-muted-foreground">
                 <p>No data available for the selected date range.</p>
-                <p className="text-xs mt-2">Please select a date range to view daily profit breakdown.</p>
+                <p className="text-[12px] mt-2">Please select a date range to view daily profit breakdown.</p>
               </div>
             )}
             
@@ -1085,21 +1039,21 @@ const Reports = () => {
                 <Skeleton className="h-10 w-full" />
               </div>
             ) : customerSalesData.length > 0 ? (
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border border-border rounded-lg overflow-hidden">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-xs">Customer</TableHead>
-                      <TableHead className="text-xs text-right">Invoice Count</TableHead>
-                      <TableHead className="text-xs text-right">Total Sales</TableHead>
+                    <TableRow className="bg-muted/60 hover:bg-muted/60">
+                      <TableHead className="h-9 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Customer</TableHead>
+                      <TableHead className="h-9 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Invoice Count</TableHead>
+                      <TableHead className="h-9 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Sales</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {customerSalesData.map((customer: any, idx: number) => (
                       <TableRow key={customer.customer_id || idx}>
-                        <TableCell className="text-xs font-medium">{customer.customer_name || 'Unknown Customer'}</TableCell>
-                        <TableCell className="text-xs text-right">{customer.invoice_count || 0}</TableCell>
-                        <TableCell className="text-xs text-right font-bold text-success">
+                        <TableCell className="text-[12px] font-medium">{customer.customer_name || 'Unknown Customer'}</TableCell>
+                        <TableCell className="text-[12px] text-right tabular-nums">{customer.invoice_count || 0}</TableCell>
+                        <TableCell className="text-[12px] text-right tabular-nums font-bold text-success-strong">
                           ${Number(customer.total_sales).toFixed(2)}
                         </TableCell>
                       </TableRow>
@@ -1107,13 +1061,13 @@ const Reports = () => {
                   </TableBody>
                 </Table>
                 <div className="p-3 border-t bg-muted/50">
-                  <div className="flex justify-between items-center text-sm">
+                  <div className="flex justify-between items-center text-[13px]">
                     <span className="font-medium">Total:</span>
-                    <span className="font-bold text-success">
+                    <span className="font-bold tabular-nums text-success-strong">
                       ${customerSalesData.reduce((sum, c) => sum + Number(c.total_sales), 0).toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
+                  <div className="flex justify-between items-center text-[12px] text-muted-foreground mt-1">
                     <span>Customers: {customerSalesData.length}</span>
                     <span>Total Invoices: {customerSalesData.reduce((sum, c) => sum + Number(c.invoice_count), 0)}</span>
                   </div>
@@ -1122,7 +1076,7 @@ const Reports = () => {
             ) : (
               <div className="py-8 text-center text-muted-foreground">
                 <p>No sales data available.</p>
-                <p className="text-xs mt-2">No sell invoices found for any customers.</p>
+                <p className="text-[12px] mt-2">No sell invoices found for any customers.</p>
               </div>
             )}
             
@@ -1151,21 +1105,21 @@ const Reports = () => {
                 <Skeleton className="h-10 w-full" />
               </div>
             ) : supplierPurchasesData.length > 0 ? (
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border border-border rounded-lg overflow-hidden">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-xs">Supplier</TableHead>
-                      <TableHead className="text-xs text-right">Invoice Count</TableHead>
-                      <TableHead className="text-xs text-right">Total Purchases</TableHead>
+                    <TableRow className="bg-muted/60 hover:bg-muted/60">
+                      <TableHead className="h-9 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Supplier</TableHead>
+                      <TableHead className="h-9 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Invoice Count</TableHead>
+                      <TableHead className="h-9 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Purchases</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {supplierPurchasesData.map((supplier: any, idx: number) => (
                       <TableRow key={supplier.supplier_id || idx}>
-                        <TableCell className="text-xs font-medium">{supplier.supplier_name || 'Unknown Supplier'}</TableCell>
-                        <TableCell className="text-xs text-right">{supplier.invoice_count || 0}</TableCell>
-                        <TableCell className="text-xs text-right font-bold text-destructive">
+                        <TableCell className="text-[12px] font-medium">{supplier.supplier_name || 'Unknown Supplier'}</TableCell>
+                        <TableCell className="text-[12px] text-right tabular-nums">{supplier.invoice_count || 0}</TableCell>
+                        <TableCell className="text-[12px] text-right tabular-nums font-bold text-destructive-strong">
                           ${Number(supplier.total_purchases).toFixed(2)}
                         </TableCell>
                       </TableRow>
@@ -1173,13 +1127,13 @@ const Reports = () => {
                   </TableBody>
                 </Table>
                 <div className="p-3 border-t bg-muted/50">
-                  <div className="flex justify-between items-center text-sm">
+                  <div className="flex justify-between items-center text-[13px]">
                     <span className="font-medium">Total:</span>
-                    <span className="font-bold text-destructive">
+                    <span className="font-bold tabular-nums text-destructive-strong">
                       ${supplierPurchasesData.reduce((sum, s) => sum + Number(s.total_purchases), 0).toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
+                  <div className="flex justify-between items-center text-[12px] text-muted-foreground mt-1">
                     <span>Suppliers: {supplierPurchasesData.length}</span>
                     <span>Total Invoices: {supplierPurchasesData.reduce((sum, s) => sum + Number(s.invoice_count), 0)}</span>
                   </div>
@@ -1188,7 +1142,7 @@ const Reports = () => {
             ) : (
               <div className="py-8 text-center text-muted-foreground">
                 <p>No purchase data available.</p>
-                <p className="text-xs mt-2">No buy invoices found for any suppliers.</p>
+                <p className="text-[12px] mt-2">No buy invoices found for any suppliers.</p>
               </div>
             )}
             

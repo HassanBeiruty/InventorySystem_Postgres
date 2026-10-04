@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Receipt, Package, Users, UserPlus, DollarSign, TrendingUp, TrendingDown } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Receipt, Package, Users, UserPlus, DollarSign } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
+import { SectionCard } from "@/components/page-ui/SectionCard";
+import { StatusPill, PaymentStatusPill } from "@/components/page-ui/StatusPill";
 import { invoicesRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
@@ -68,59 +71,51 @@ const Dashboard = () => {
       value: (stats.todayInvoicesCount ?? 0).toString(),
       icon: Receipt,
       description: t('dashboard.todayInvoices'),
-      color: "text-primary",
+      color: "text-primary-strong",
     },
     {
       title: t('inventory.title'),
       value: (stats.todayProductsCount ?? 0).toString(),
       icon: Package,
       description: t('inventory.subtitle'),
-      color: "text-success",
+      color: "text-success-strong",
     },
     {
       title: t('customers.title'),
       value: stats.customersCount.toString(),
       icon: Users,
       description: t('customers.subtitle'),
-      color: "text-warning",
+      color: "text-warning-strong",
     },
     {
       title: t('suppliers.title'),
       value: stats.suppliersCount.toString(),
       icon: UserPlus,
       description: t('suppliers.subtitle'),
-      color: "text-destructive",
+      color: "text-destructive-strong",
     },
     {
       title: t('dashboard.totalSales'),
       value: `$${(stats.todayRevenue ?? 0).toFixed(2)}`,
       icon: DollarSign,
       description: t('dashboard.totalSales'),
-      color: "text-primary",
+      color: "text-primary-strong",
     },
   ];
 
   return (
     <DashboardLayout>
-      <div className="space-y-2 sm:space-y-3 animate-fade-in">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 shrink-0">
-              <Receipt className="w-5 h-5 sm:w-8 sm:h-8 text-primary" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-                {t('dashboard.title')}
-              </h2>
-              <p className="text-muted-foreground text-xs sm:text-sm">{t('dashboard.subtitle')}</p>
-            </div>
-          </div>
-        </div>
+      <div className="space-y-3 sm:space-y-4 animate-fade-in">
+        <InvoicePageHeader
+          icon={Receipt}
+          title={t('dashboard.title')}
+          description={t('dashboard.subtitle')}
+        />
 
-        <div className="grid gap-2 sm:gap-3 grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-2 grid-cols-2 lg:grid-cols-3">
           {loading ? (
             Array(5).fill(0).map((_, i) => (
-              <Card key={i} className="animate-pulse border-2">
+              <Card key={i} className="animate-pulse rounded-xl border border-border">
                 <CardHeader className="flex flex-row items-start justify-between gap-1 space-y-0 pb-1.5 pt-2 px-2">
                   <div className="h-3.5 w-full max-w-[6rem] bg-muted rounded"></div>
                   <div className="h-4 w-4 bg-muted rounded shrink-0"></div>
@@ -135,7 +130,7 @@ const Dashboard = () => {
             statsDisplay.map((stat, index) => (
               <Card 
                 key={stat.title} 
-                className="group relative overflow-hidden border-2 hover:border-primary/50 transition-all cursor-pointer hover:scale-[1.02] duration-300 shadow-card hover:shadow-elegant animate-slide-up"
+                className="group relative overflow-hidden rounded-xl border border-border hover:border-primary/50 transition-colors cursor-pointer duration-300 animate-slide-up"
                 style={{ animationDelay: `${index * 0.1}s` }}
                 onClick={() => {
                   if (stat.title === "Total Invoices") navigate("/invoices");
@@ -147,18 +142,16 @@ const Dashboard = () => {
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 <CardHeader className="flex flex-row items-start justify-between gap-1 space-y-0 pb-1.5 pt-2 px-2">
-                  <CardTitle className="text-[11px] leading-tight sm:text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors min-w-0 break-words">
+                  <CardTitle className="text-[11px] leading-tight font-medium text-muted-foreground group-hover:text-foreground transition-colors min-w-0 break-words">
                     {stat.title}
                   </CardTitle>
-                  <div className="p-1 sm:p-1.5 rounded-lg bg-gradient-to-br from-primary/10 to-accent/10 group-hover:scale-110 transition-transform duration-300 shrink-0">
-                    <stat.icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${stat.color}`} />
-                  </div>
+                  <stat.icon className={`h-3.5 w-3.5 shrink-0 ${stat.color}`} aria-hidden="true" />
                 </CardHeader>
                 <CardContent className="px-2 pb-2">
-                  <div className="text-base sm:text-lg font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent truncate">
+                  <div className="text-base font-bold tabular-nums truncate">
                     {stat.value}
                   </div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 line-clamp-2">{stat.description}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{stat.description}</p>
                 </CardContent>
               </Card>
             ))
@@ -166,30 +159,14 @@ const Dashboard = () => {
         </div>
 
         <div className="grid gap-2">
-          <Card className="border-2 shadow-card hover:shadow-elegant transition-all duration-300 group overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <CardHeader className="relative pb-1.5 pt-2 px-2">
-              <CardTitle className="flex items-center gap-1.5 text-sm sm:text-base">
-                <Receipt className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
-                {t('dashboard.recentInvoices')}
-              </CardTitle>
-              <CardDescription className="text-[10px] sm:text-xs">{t('dashboard.recentInvoices')}</CardDescription>
-            </CardHeader>
-            <CardContent className="relative pt-1.5 px-2 pb-2">
+          <SectionCard icon={Receipt} title={t('dashboard.recentInvoices')}>
               {recentInvoices.length > 0 ? (
                 <div className="space-y-1.5">
                   {recentInvoices.map((invoice, idx) => {
                     const typeChip = (
-                      <>
-                        {invoice.invoice_type === 'buy' ? (
-                          <TrendingUp className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-success shrink-0" />
-                        ) : (
-                          <TrendingDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary shrink-0" />
-                        )}
-                        <span className="text-[10px] font-medium text-foreground whitespace-nowrap">
-                          {invoice.invoice_type === 'sell' ? t('invoices.sell') : t('invoices.buy')}
-                        </span>
-                      </>
+                      <StatusPill tone={invoice.invoice_type === 'sell' ? 'sell' : 'buy'}>
+                        {invoice.invoice_type === 'sell' ? t('invoices.sell') : t('invoices.buy')}
+                      </StatusPill>
                     );
 
                     return (
@@ -199,35 +176,29 @@ const Dashboard = () => {
                         style={{ animationDelay: `${idx * 0.1}s` }}
                       >
                         <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-xs sm:text-sm text-foreground truncate">
+                          <p className="font-semibold text-[13px] text-foreground truncate">
                             {invoice.invoice_type === 'sell' ? invoice.customers?.name : invoice.suppliers?.name}
                           </p>
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            <p className="text-[10px] text-muted-foreground flex items-center gap-1 whitespace-nowrap">
+                            <p className="text-[11px] text-muted-foreground flex items-center gap-1 whitespace-nowrap tabular-nums">
                               <span className="w-1 h-1 rounded-full bg-muted-foreground" />
                               {formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}
                             </p>
                             {/* On phones the type sits inline with the date instead of
                                 taking a row of its own. */}
-                            <span className="sm:hidden flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-primary/5 dark:bg-primary/10 border border-primary/20">
+                            <span className="sm:hidden flex items-center">
                               {typeChip}
                             </span>
                           </div>
                         </div>
-                        <div className="hidden sm:flex items-center justify-center gap-1.5 px-2 py-1 rounded-md bg-primary/5 dark:bg-primary/10 border border-primary/20 self-center mx-auto">
+                        <div className="hidden sm:flex items-center justify-center self-center mx-auto">
                           {typeChip}
                         </div>
-                        <div className="text-right shrink-0">
-                          <p className="font-bold text-sm sm:text-base whitespace-nowrap">${Number(invoice.total_amount).toFixed(2)}</p>
-                          <p className={`text-[10px] px-1.5 py-0.5 rounded-full inline-block font-medium whitespace-nowrap ${
-                            invoice.payment_status === 'paid' 
-                              ? 'bg-success/10 text-success dark:bg-success/20 dark:text-success' 
-                              : invoice.payment_status === 'partial' 
-                              ? 'bg-warning/10 text-warning dark:bg-warning/20 dark:text-warning' 
-                              : 'bg-pending-light text-pending dark:bg-pending-light dark:text-pending border border-pending/30 dark:border-pending/40'
-                          }`}>
-                            {invoice.payment_status === 'paid' ? `✓ ${t('dashboard.paid')}` : invoice.payment_status === 'partial' ? `◐ ${t('dashboard.partial')}` : `○ ${t('dashboard.pending')}`}
-                          </p>
+                        <div className="text-right shrink-0 space-y-0.5">
+                          <p className="font-bold text-[13px] tabular-nums whitespace-nowrap">${Number(invoice.total_amount).toFixed(2)}</p>
+                          <PaymentStatusPill status={invoice.payment_status}>
+                            {invoice.payment_status === 'paid' ? t('dashboard.paid') : invoice.payment_status === 'partial' ? t('dashboard.partial') : t('dashboard.pending')}
+                          </PaymentStatusPill>
                         </div>
                       </div>
                     );
@@ -236,11 +207,10 @@ const Dashboard = () => {
               ) : (
                 <div className="text-center py-10 text-muted-foreground">
                   <Receipt className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">{t('common.noData')}</p>
+                  <p className="text-[13px]">{t('common.noData')}</p>
                 </div>
               )}
-            </CardContent>
-          </Card>
+          </SectionCard>
         </div>
       </div>
     </DashboardLayout>
