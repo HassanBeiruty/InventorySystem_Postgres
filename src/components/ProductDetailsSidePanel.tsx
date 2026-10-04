@@ -130,14 +130,14 @@ export default function ProductDetailsSidePanel({ open, onOpenChange, productId 
       />
       
       {/* Side Panel */}
-      <div className="fixed right-0 top-0 h-full w-full sm:w-[500px] lg:relative lg:h-full lg:w-full bg-background border-l lg:border lg:rounded-lg shadow-xl z-50 lg:z-auto flex flex-col">
+      <div className="fixed right-0 top-0 h-full w-full sm:w-[500px] lg:relative lg:h-full lg:w-full bg-card border-l lg:border-2 lg:rounded-xl shadow-xl z-50 lg:z-auto flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="border-b p-2 flex items-center justify-between bg-gradient-to-r from-primary/5 to-accent/5 flex-shrink-0">
+        <div className="border-b border-border p-3 flex items-center justify-between bg-gradient-to-r from-muted/80 to-transparent flex-shrink-0">
           <div className="flex-1 min-w-0">
-            <h2 className="text-sm font-bold truncate">
+            <h2 className="text-base font-bold truncate">
               {loading || !product ? 'Loading...' : `Product #${product.id}`}
             </h2>
-            <p className="text-[10px] text-muted-foreground">Product details</p>
+            <p className="text-[12px] text-muted-foreground">Product details</p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <Button
@@ -152,7 +152,7 @@ export default function ProductDetailsSidePanel({ open, onOpenChange, productId 
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
           {loading || !product ? (
             <div className="space-y-4">
               <Skeleton className="h-20 w-full" />
@@ -162,91 +162,91 @@ export default function ProductDetailsSidePanel({ open, onOpenChange, productId 
           ) : (
             <>
               {/* Product Name */}
-              <div className="border rounded-lg p-2 bg-secondary/10">
-                <div className="text-xs text-muted-foreground mb-1">Product Name</div>
-                <div className="text-sm font-bold">
-                  <ProductNameWithCode 
+              <div className="rounded-xl border-2 border-border p-3 bg-primary-light">
+                <div className="text-[11px] font-medium text-muted-foreground mb-1">Product Name</div>
+                <div className="text-[13px] font-bold">
+                  <ProductNameWithCode
                     product={product}
                     nameClassName="font-bold"
-                    codeClassName="text-xs text-muted-foreground font-mono ml-2 font-normal"
+                    codeClassName="text-[11px] text-muted-foreground font-mono ms-2 font-normal"
                   />
                 </div>
               </div>
 
               {/* Basic Information */}
-              <div className="border rounded-lg p-2">
-                <div className="text-xs font-semibold mb-2">Basic Information</div>
+              <div className="rounded-xl border-2 border-border p-3">
+                <div className="text-[13px] font-bold mb-2">Basic Information</div>
                 <div className="space-y-2">
                   <div className="flex justify-between items-center py-1 border-b border-border/50">
-                    <span className="text-xs text-muted-foreground">Product ID</span>
-                    <span className="text-xs font-medium">#{product.id}</span>
+                    <span className="text-[12px] text-muted-foreground">Product ID</span>
+                    <span className="text-[12px] font-medium tabular-nums">#{product.id}</span>
                   </div>
                   <div className="flex justify-between items-center py-1 border-b border-border/50">
-                    <span className="text-xs text-muted-foreground">Barcode</span>
-                    <span className="text-xs font-mono font-medium">{product.barcode || "N/A"}</span>
+                    <span className="text-[12px] text-muted-foreground">Barcode</span>
+                    <span className="text-[12px] font-mono font-medium">{product.barcode || "N/A"}</span>
                   </div>
                   <div className="flex justify-between items-center py-1 border-b border-border/50">
-                    <span className="text-xs text-muted-foreground">SKU</span>
-                    <span className="text-xs font-mono font-medium">{product.sku || "N/A"}</span>
+                    <span className="text-[12px] text-muted-foreground">SKU</span>
+                    <span className="text-[12px] font-mono font-medium">{product.sku || "N/A"}</span>
                   </div>
                   <div className="flex justify-between items-center py-1">
-                    <span className="text-xs text-muted-foreground">Shelf</span>
-                    <span className="text-xs font-medium">{product.shelf || "N/A"}</span>
+                    <span className="text-[12px] text-muted-foreground">Shelf</span>
+                    <span className="text-[12px] font-medium">{product.shelf || "N/A"}</span>
                   </div>
                 </div>
               </div>
 
               {/* Description */}
-              <div className="border rounded-lg p-2">
-                <div className="text-xs font-semibold mb-2">Description</div>
-                <div className="text-xs text-muted-foreground min-h-[20px]">
+              <div className="rounded-xl border-2 border-border p-3">
+                <div className="text-[13px] font-bold mb-2">Description</div>
+                <div className="text-[12px] text-muted-foreground min-h-[20px]">
                   {product.description || "No description available"}
                 </div>
               </div>
 
               {/* Pricing */}
-              <div className="border rounded-lg p-2 bg-secondary/10">
-                <div className="text-xs font-semibold mb-2">Pricing Information</div>
+              <div className="rounded-xl border-2 border-border p-3 bg-muted/30">
+                <div className="text-[13px] font-bold mb-2">Pricing Information</div>
                 {latestPrice ? (
                   <div className="space-y-2">
                     <div className="flex justify-between items-center py-1 border-b border-border/50">
-                      <span className="text-xs text-muted-foreground">Wholesale Price</span>
-                      <span className="text-xs font-bold">
+                      <span className="text-[12px] text-muted-foreground">Wholesale Price</span>
+                      <span className="text-[12px] font-bold tabular-nums">
                         ${latestPrice.wholesale_price ? Number(latestPrice.wholesale_price).toFixed(2) : 'N/A'}
                       </span>
                     </div>
                     <div className="flex justify-between items-center py-1">
-                      <span className="text-xs text-muted-foreground">Retail Price</span>
-                      <span className="text-xs font-bold text-primary">
+                      <span className="text-[12px] text-muted-foreground">Retail Price</span>
+                      <span className="text-[12px] font-bold text-primary-strong tabular-nums">
                         ${latestPrice.retail_price ? Number(latestPrice.retail_price).toFixed(2) : 'N/A'}
                       </span>
                     </div>
                   </div>
                 ) : (
-                  <div className="text-xs text-muted-foreground">No pricing information available</div>
+                  <div className="text-[12px] text-muted-foreground">No pricing information available</div>
                 )}
               </div>
 
               {/* Stock Information */}
-              <div className="border rounded-lg p-2 bg-secondary/10">
-                <div className="text-xs font-semibold mb-2">Stock Information</div>
+              <div className="rounded-xl border-2 border-border p-3 bg-muted/30">
+                <div className="text-[13px] font-bold mb-2">Stock Information</div>
                 {stockInfo !== null ? (
                   <div className="space-y-2">
                     <div className="flex justify-between items-center py-1 border-b border-border/50">
-                      <span className="text-xs text-muted-foreground">Available Quantity</span>
-                      <span className={`text-xs font-bold ${stockInfo.available_qty === 0 ? 'text-destructive' : stockInfo.available_qty < 10 ? 'text-warning' : 'text-success'}`}>
+                      <span className="text-[12px] text-muted-foreground">Available Quantity</span>
+                      <span className={`text-[12px] font-bold tabular-nums ${stockInfo.available_qty === 0 ? 'text-destructive-strong' : stockInfo.available_qty < 10 ? 'text-warning-strong' : 'text-success-strong'}`}>
                         {stockInfo.available_qty}
                       </span>
                     </div>
                     <div className="flex justify-between items-center py-1">
-                      <span className="text-xs text-muted-foreground">Average Cost</span>
-                      <span className="text-xs font-bold">
+                      <span className="text-[12px] text-muted-foreground">Average Cost</span>
+                      <span className="text-[12px] font-bold tabular-nums">
                         ${stockInfo.avg_cost.toFixed(2)}
                       </span>
                     </div>
                   </div>
                 ) : (
-                  <div className="text-xs text-muted-foreground">No Stock Details available</div>
+                  <div className="text-[12px] text-muted-foreground">No Stock Details available</div>
                 )}
               </div>
             </>

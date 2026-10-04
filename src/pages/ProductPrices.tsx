@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
+import { SectionCard } from "@/components/page-ui/SectionCard";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -208,30 +210,23 @@ const ProductPrices = () => {
   return (
     <DashboardLayout>
       <div className="space-y-3 sm:space-y-4 animate-fade-in">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10">
-              <Coins className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-                {t('productPrices.title')}
-              </h1>
-              <p className="text-muted-foreground text-[10px] sm:text-xs">{t('productPrices.subtitle')}</p>
-            </div>
-          </div>
+        <InvoicePageHeader
+          icon={Coins}
+          title={t('productPrices.title')}
+          description={t('productPrices.subtitle')}
+          actions={
           <div className="flex gap-2">
             <Button
               variant="outline"
               onClick={() => setShowFilters(!showFilters)}
-              className="gap-1.5 h-8 text-xs"
+              className="gap-1.5 h-8 text-[12px]"
             >
               <Filter className="w-3.5 h-3.5" />
               {showFilters ? t('common.hideFilters') : t('common.showFilters')}
             </Button>
             <Dialog open={isAddOpen} onOpenChange={handleAddDialogOpenChange}>
               <DialogTrigger asChild>
-                <Button className="gap-1.5 h-8 text-xs">
+                <Button className="gap-1.5 h-8 text-[12px]">
                   <Plus className="w-3.5 h-3.5" />
                   {t('productPrices.addPrice')}
                 </Button>
@@ -243,9 +238,9 @@ const ProductPrices = () => {
                 </DialogHeader>
                 <form onSubmit={handleAdd} className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label>{t('invoiceForm.product')}</Label>
+                    <Label className="text-[11px] font-medium">{t('invoiceForm.product')}</Label>
                     {productsWithoutPrices.length === 0 ? (
-                      <div className="text-sm text-muted-foreground p-2 border rounded-md">
+                      <div className="text-[13px] text-muted-foreground p-2 border border-border rounded-md">
                         No products without prices available. All products already have prices.
                       </div>
                     ) : (
@@ -259,48 +254,49 @@ const ProductPrices = () => {
                     <input type="hidden" name="product_id" value={addProductId} />
                   </div>
                   <div className="space-y-2">
-                    <Label>{t('productPrices.wholesalePrice')}</Label>
+                    <Label className="text-[11px] font-medium">{t('productPrices.wholesalePrice')}</Label>
                     <Input 
                       type="number" 
                       step="0.01" 
-                      name="wholesale_price" 
+                      name="wholesale_price" className="h-8 text-[13px]" 
                       placeholder="0.00" 
                       required 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>{t('productPrices.retailPrice')}</Label>
+                    <Label className="text-[11px] font-medium">{t('productPrices.retailPrice')}</Label>
                     <Input 
                       type="number" 
                       step="0.01" 
-                      name="retail_price" 
+                      name="retail_price" className="h-8 text-[13px]" 
                       placeholder="0.00" 
                       required 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>{t('productPrices.effectiveDate')}</Label>
+                    <Label className="text-[11px] font-medium">{t('productPrices.effectiveDate')}</Label>
                     <Input 
                       type="date" 
-                      name="effective_date" 
+                      name="effective_date" className="h-8 text-[13px]" 
                       defaultValue={getTodayLebanon()}
                     />
                   </div>
-                  <Button type="submit" className="w-full" disabled={formLoading}>
+                  <Button type="submit" className="w-full h-8 text-[13px]" disabled={formLoading}>
                     {formLoading ? t('common.loading') : t('common.save')}
                   </Button>
                 </form>
               </DialogContent>
             </Dialog>
           </div>
-        </div>
+          }
+        />
 
         {/* Filters */}
         {showFilters && (
-          <div className="border-2 rounded-lg p-4 bg-muted/20">
-            <div className="grid gap-4 md:grid-cols-3">
+          <div className="border-2 border-border rounded-xl p-3 bg-card">
+            <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-2">
-                <Label>{t('invoiceForm.product')}</Label>
+                <Label className="text-[11px] font-medium">{t('invoiceForm.product')}</Label>
                 <ProductCombobox
                   products={products}
                   value={filters.product_id}
@@ -311,7 +307,7 @@ const ProductPrices = () => {
               </div>
               
               <div className="space-y-2">
-                <Label>{t('invoices.startDate')}</Label>
+                <Label className="text-[11px] font-medium">{t('invoices.startDate')}</Label>
                 <Input
                   type="date"
                   value={filters.start_date}
@@ -324,11 +320,12 @@ const ProductPrices = () => {
                     }
                   }}
                   max={filters.end_date || getTodayLebanon()}
+                  className="h-8 text-[13px]"
                 />
               </div>
               
               <div className="space-y-2">
-                <Label>{t('invoices.endDate')}</Label>
+                <Label className="text-[11px] font-medium">{t('invoices.endDate')}</Label>
                 <Input
                   type="date"
                   value={filters.end_date}
@@ -340,14 +337,15 @@ const ProductPrices = () => {
                   }}
                   min={filters.start_date}
                   max={getTodayLebanon()}
+                  className="h-8 text-[13px]"
                 />
               </div>
             </div>
             
-            <div className="flex gap-2 mt-4">
-              <Button onClick={applyFilters}>{t('common.apply')}</Button>
-              <Button variant="outline" onClick={clearFilters}>
-                <X className="w-4 h-4 mr-2" />
+            <div className="flex gap-2 mt-3">
+              <Button onClick={applyFilters} className="h-8 text-[13px]">{t('common.apply')}</Button>
+              <Button variant="outline" onClick={clearFilters} className="h-8 text-[13px]">
+                <X className="w-4 h-4 me-2" />
                 {t('common.clear')}
               </Button>
             </div>
@@ -355,15 +353,11 @@ const ProductPrices = () => {
         )}
 
         {/* Prices Table */}
-        <div className="border-2 rounded-lg overflow-hidden">
-          <div className="border-b bg-gradient-to-br from-primary/5 to-accent/5 p-4">
-            <h3 className="flex items-center gap-2 text-lg font-bold">
-              <DollarSign className="w-5 h-5 text-primary" />
-              Price Records
-            </h3>
-            <p className="text-sm text-muted-foreground">All product price entries</p>
-          </div>
-          <div className="p-4">
+        <SectionCard
+          icon={DollarSign}
+          title="Price Records"
+          description="All product price entries"
+        >
             {loading ? (
               <div className="space-y-3">
                 {Array(10).fill(0).map((_, i) => (
@@ -373,19 +367,19 @@ const ProductPrices = () => {
             ) : prices.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">
                 <DollarSign className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p className="text-lg">{t('productPrices.noPrices')}</p>
+                <p className="text-[13px]">{t('productPrices.noPrices')}</p>
               </div>
             ) : (
               <>
                 <div className="relative w-full sm:w-auto sm:max-w-md mb-2">
-                  <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <Search className="absolute start-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                   <Input
                     ref={searchInputRef}
                     type="text"
                     placeholder="Search prices (product name, ID)"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-8 pr-8 h-8 text-sm"
+                    className="w-full ps-8 pe-8 h-8 text-[13px]"
                     autoFocus
                   />
                   {searchQuery && (
@@ -393,27 +387,28 @@ const ProductPrices = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => setSearchQuery("")}
-                      className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                      className="absolute end-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
                     >
                       <X className="w-3 h-3" />
                     </Button>
                   )}
                 </div>
-                <div className="rounded-xl border-2 overflow-hidden">
+                <div className="rounded-lg border border-border overflow-hidden bg-card">
+                  <div className="scroll-x">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5">
-                        <TableHead className="font-bold p-2 pl-2 text-xs">{t('invoiceForm.product')}</TableHead>
-                        <TableHead className="font-bold p-2 text-xs">{t('productPrices.effectiveDate')}</TableHead>
-                        <TableHead className="text-right font-bold p-2 text-xs">{t('productPrices.wholesalePrice')}</TableHead>
-                        <TableHead className="text-right font-bold p-2 text-xs">{t('productPrices.retailPrice')}</TableHead>
-                        <TableHead className="text-center font-bold p-2 text-xs">Actions</TableHead>
+                      <TableRow className="bg-muted/60 hover:bg-muted/60">
+                        <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('invoiceForm.product')}</TableHead>
+                        <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('productPrices.effectiveDate')}</TableHead>
+                        <TableHead className="h-9 px-2 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('productPrices.wholesalePrice')}</TableHead>
+                        <TableHead className="h-9 px-2 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('productPrices.retailPrice')}</TableHead>
+                        <TableHead className="h-9 px-2 text-center text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredPrices.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-sm">
+                          <TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-[13px]">
                             No prices found matching your search
                           </TableCell>
                         </TableRow>
@@ -424,21 +419,21 @@ const ProductPrices = () => {
                         className="hover:bg-primary/5 transition-colors animate-fade-in"
                         style={{ animationDelay: `${idx * 0.01}s` }}
                       >
-                        <TableCell className="font-semibold p-2 pl-2 text-sm">
+                        <TableCell className="font-semibold p-2 ps-2 text-[13px]">
                           <ProductNameWithCode 
                             product={price}
                             showId={true}
                             product_id={price.product_id}
-                            nameClassName="text-sm"
+                            nameClassName="text-[13px]"
                           />
                         </TableCell>
-                        <TableCell className="text-xs p-2">
+                        <TableCell className="text-[12px] p-2 tabular-nums">
                           {formatDateTimeLebanon(price.effective_date, "MMM dd, yyyy")}
                         </TableCell>
-                        <TableCell className="text-right font-semibold text-warning p-2 text-xs">
+                        <TableCell className="text-right font-semibold text-warning-strong tabular-nums p-2 text-[12px]">
                           ${parseFloat(price.wholesale_price).toFixed(2)}
                         </TableCell>
-                        <TableCell className="text-right font-semibold text-primary p-2 text-xs">
+                        <TableCell className="text-right font-semibold text-primary-strong tabular-nums p-2 text-[12px]">
                           ${parseFloat(price.retail_price).toFixed(2)}
                         </TableCell>
                         <TableCell className="text-center p-2">
@@ -466,11 +461,11 @@ const ProductPrices = () => {
                       )}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               </>
             )}
-          </div>
-        </div>
+        </SectionCard>
 
         {/* Edit Dialog */}
         <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
@@ -482,41 +477,41 @@ const ProductPrices = () => {
             {editingPrice && (
               <form onSubmit={handleUpdate} className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label>{t('invoiceForm.product')}</Label>
+                  <Label className="text-[11px] font-medium">{t('invoiceForm.product')}</Label>
                   <Input 
-                    value={editingPrice.product_name || ''} 
+                    value={editingPrice.product_name || ''} className="h-8 text-[13px]" 
                     disabled 
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>{t('productPrices.wholesalePrice')}</Label>
+                  <Label className="text-[11px] font-medium">{t('productPrices.wholesalePrice')}</Label>
                   <Input 
                     type="number" 
                     step="0.01" 
-                    name="wholesale_price" 
+                    name="wholesale_price" className="h-8 text-[13px]" 
                     defaultValue={editingPrice.wholesale_price}
                     required 
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>{t('productPrices.retailPrice')}</Label>
+                  <Label className="text-[11px] font-medium">{t('productPrices.retailPrice')}</Label>
                   <Input 
                     type="number" 
                     step="0.01" 
-                    name="retail_price" 
+                    name="retail_price" className="h-8 text-[13px]" 
                     defaultValue={editingPrice.retail_price}
                     required 
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>{t('productPrices.effectiveDate')}</Label>
+                  <Label className="text-[11px] font-medium">{t('productPrices.effectiveDate')}</Label>
                   <Input 
                     type="date" 
-                    name="effective_date" 
+                    name="effective_date" className="h-8 text-[13px]" 
                     defaultValue={editingPrice.effective_date?.split('T')[0] || getTodayLebanon()}
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={formLoading}>
+                <Button type="submit" className="w-full h-8 text-[13px]" disabled={formLoading}>
                   {formLoading ? t('productPrices.updating') : t('productPrices.updatePrice')}
                 </Button>
               </form>

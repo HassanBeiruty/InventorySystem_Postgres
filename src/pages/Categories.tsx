@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
+import { SectionCard } from "@/components/page-ui/SectionCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -142,17 +143,15 @@ const Categories = () => {
   return (
     <DashboardLayout>
       <div className="space-y-3 sm:space-y-4 animate-fade-in">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-          <div className="space-y-1">
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              📁 {t('categories.title')}
-            </h2>
-            <p className="text-muted-foreground text-xs sm:text-sm">{t('categories.subtitle')}</p>
-          </div>
+        <InvoicePageHeader
+          icon={FolderTree}
+          title={t('categories.title')}
+          description={t('categories.subtitle')}
+          actions={
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
               <Button className="gradient-primary hover:shadow-glow transition-all duration-300 hover:scale-105 font-semibold h-8 text-xs">
-                <Plus className="w-3.5 h-3.5 mr-1.5" />
+                <Plus className="w-3.5 h-3.5 me-1.5" />
                 {t('categories.addCategory')}
               </Button>
             </DialogTrigger>
@@ -163,72 +162,66 @@ const Categories = () => {
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-3 py-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="name" className="text-sm">{t('categories.categoryName')}</Label>
-                  <Input id="name" name="name" placeholder={t('categories.categoryName')} required className="h-9" />
+                  <Label htmlFor="name" className="text-[11px] font-medium">{t('categories.categoryName')}</Label>
+                  <Input id="name" name="name" placeholder={t('categories.categoryName')} required className="h-8 text-[13px]" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="description" className="text-sm">{t('categories.description')}</Label>
-                  <Textarea id="description" name="description" placeholder={t('categories.description')} rows={2} className="text-sm" />
+                  <Label htmlFor="description" className="text-[11px] font-medium">{t('categories.description')}</Label>
+                  <Textarea id="description" name="description" placeholder={t('categories.description')} rows={2} className="text-[13px]" />
                 </div>
-                <Button type="submit" className="w-full h-9 mt-2" disabled={loading}>
+                <Button type="submit" className="w-full h-8 mt-2" disabled={loading}>
                   {loading ? t('common.loading') : t('common.save')}
                 </Button>
               </form>
             </DialogContent>
           </Dialog>
-        </div>
+          }
+        />
 
-        <Card className="border-2 shadow-card hover:shadow-elegant transition-all duration-300">
-          <CardHeader className="border-b bg-gradient-to-br from-primary/5 via-transparent to-accent/5 pb-2 pt-2">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-              <div>
-                <CardTitle className="flex items-center gap-1.5 text-sm sm:text-base">
-                  <FolderTree className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
-                  Category List
-                </CardTitle>
-                <CardDescription className="text-[10px] sm:text-xs">All your product categories</CardDescription>
-              </div>
-              <div className="relative w-full sm:w-auto sm:min-w-[300px]">
-                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search categories (name, description, ID)"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-8 h-8 text-sm"
-                  autoFocus
-                />
-                {searchQuery && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
-                  >
-                    <X className="w-3 h-3" />
-                  </Button>
-                )}
-              </div>
+        <SectionCard
+          icon={FolderTree}
+          title="Category List"
+          description="All your product categories"
+        >
+            <div className="relative w-full sm:w-[300px]">
+              <Search className="absolute start-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                type="text"
+                placeholder="Search categories (name, description, ID)"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full ps-8 pe-8 h-8 text-[13px]"
+                autoFocus
+              />
+              {searchQuery && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute end-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              )}
             </div>
-          </CardHeader>
-          <CardContent className="pt-2">
             {categories.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                  <FolderTree className="w-10 h-10 text-primary/50" />
+                <div className="w-20 h-20 rounded-full bg-primary-light flex items-center justify-center mb-4">
+                  <FolderTree className="w-10 h-10 text-primary/60" />
                 </div>
-                <p className="text-muted-foreground text-lg">
+                <p className="text-muted-foreground text-[13px]">
                   {searchQuery ? 'No categories found matching your search' : t('categories.noCategories')}
                 </p>
               </div>
             ) : (
-              <div className="rounded-xl border-2 overflow-x-auto">
+              <div className="rounded-lg border border-border overflow-hidden bg-card">
+                <div className="scroll-x">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5 hover:from-primary/10 hover:to-accent/10">
-                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('categories.categoryName')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap hidden md:table-cell p-2 text-xs">{t('categories.description')}</TableHead>
-                      <TableHead className="font-bold whitespace-nowrap p-2 text-xs">Actions</TableHead>
+                    <TableRow className="bg-muted/60 hover:bg-muted/60">
+                      <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('categories.categoryName')}</TableHead>
+                      <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap hidden md:table-cell">{t('categories.description')}</TableHead>
+                      <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -238,8 +231,8 @@ const Categories = () => {
                         className="hover:bg-primary/5 transition-colors animate-fade-in"
                         style={{ animationDelay: `${idx * 0.05}s` }}
                       >
-                        <TableCell className="font-medium whitespace-nowrap p-2 text-sm">{category.name}</TableCell>
-                        <TableCell className="text-muted-foreground whitespace-nowrap hidden md:table-cell p-2 text-xs">{category.description || "-"}</TableCell>
+                        <TableCell className="font-medium whitespace-nowrap p-2 text-[13px]">{category.name}</TableCell>
+                        <TableCell className="text-muted-foreground whitespace-nowrap hidden md:table-cell p-2 text-[12px]">{category.description || "-"}</TableCell>
                         <TableCell className="p-2">
                           <div className="flex items-center gap-1">
                             <Button 
@@ -264,10 +257,10 @@ const Categories = () => {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+        </SectionCard>
 
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
           <DialogContent>
@@ -278,14 +271,14 @@ const Categories = () => {
             {editingCategory && (
               <form onSubmit={handleUpdate} className="space-y-3 py-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="edit-name" className="text-sm">{t('categories.categoryName')}</Label>
-                  <Input id="edit-name" name="name" defaultValue={editingCategory.name} required className="h-9" />
+                  <Label htmlFor="edit-name" className="text-[11px] font-medium">{t('categories.categoryName')}</Label>
+                  <Input id="edit-name" name="name" defaultValue={editingCategory.name} required className="h-8 text-[13px]" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="edit-description" className="text-sm">{t('categories.description')}</Label>
-                  <Textarea id="edit-description" name="description" defaultValue={editingCategory.description || ""} rows={2} className="text-sm" />
+                  <Label htmlFor="edit-description" className="text-[11px] font-medium">{t('categories.description')}</Label>
+                  <Textarea id="edit-description" name="description" defaultValue={editingCategory.description || ""} rows={2} className="text-[13px]" />
                 </div>
-                <Button type="submit" className="w-full h-9 mt-2" disabled={loading}>
+                <Button type="submit" className="w-full h-8 mt-2" disabled={loading}>
                   {loading ? t('categories.updating') : t('categories.updateCategory')}
                 </Button>
               </form>

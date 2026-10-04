@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
+import { SectionCard } from "@/components/page-ui/SectionCard";
+import { StatTile } from "@/components/page-ui/StatTile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -531,25 +533,18 @@ const Products = () => {
   return (
     <DashboardLayout>
       <div className="space-y-3 sm:space-y-4 animate-fade-in">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10">
-              <Package className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-xl sm:text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-                {t('products.title')}
-              </h2>
-              <p className="text-muted-foreground text-xs sm:text-sm">{t('products.subtitle')}</p>
-            </div>
-          </div>
-          <div className="flex gap-2 w-full sm:w-auto">
+        <InvoicePageHeader
+          icon={Package}
+          title={t('products.title')}
+          description={t('products.subtitle')}
+          actions={
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
             <Button 
               variant="outline"
               onClick={() => navigate("/products/quick-add")}
               className="hover:scale-105 transition-all duration-300 font-semibold text-xs h-8 flex-1 sm:flex-initial"
             >
-              <Scan className="w-3.5 h-3.5 sm:mr-1.5" />
+              <Scan className="w-3.5 h-3.5 sm:me-1.5" />
               <span className="hidden sm:inline">{t('products.quickAdd')}</span>
               <span className="sm:hidden">{t('products.quick')}</span>
             </Button>
@@ -560,14 +555,14 @@ const Products = () => {
                   className="hover:scale-105 transition-all duration-300 font-semibold text-xs h-8 flex-1 sm:flex-initial"
                   aria-label={t('products.importExport')}
                 >
-                  <FileSpreadsheet className="w-3.5 h-3.5 sm:mr-1.5" />
+                  <FileSpreadsheet className="w-3.5 h-3.5 sm:me-1.5" />
                   <span className="whitespace-nowrap">{t('products.importExport')}</span>
-                  <ChevronDown className="w-3 h-3 ml-1.5" />
+                  <ChevronDown className="w-3 h-3 ms-1.5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={triggerFileInput} disabled={importLoading}>
-                  <ArrowDown className="w-4 h-4 mr-2" />
+                  <ArrowDown className="w-4 h-4 me-2" />
                   {importLoading ? t('products.importing') : t('products.importExcel')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={async () => {
@@ -628,7 +623,7 @@ const Products = () => {
                     });
                   }
                 }}>
-                  <ArrowUp className="w-4 h-4 mr-2" />
+                  <ArrowUp className="w-4 h-4 me-2" />
                   {t('products.exportExcel')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -643,32 +638,32 @@ const Products = () => {
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
               <Button className="gradient-primary hover:shadow-glow transition-all duration-300 hover:scale-105 font-semibold h-8 text-xs">
-                <Plus className="w-3.5 h-3.5 mr-1.5" />
+                <Plus className="w-3.5 h-3.5 me-1.5" />
                 {t('products.addProduct')}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle className="text-2xl">{t('products.addProduct')}</DialogTitle>
+                <DialogTitle className="text-lg">{t('products.addProduct')}</DialogTitle>
                 <DialogDescription>{t('products.subtitle')}</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4 py-2">
                 {/* Basic Information Section */}
                 <div className="space-y-4">
-                  <h3 className="text-base font-semibold border-b pb-2">{t('products.basicInformation')}</h3>
+                  <h3 className="text-[13px] font-bold border-b pb-1.5">{t('products.basicInformation')}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="name" className="text-sm font-medium">{t('products.productName')} <span className="text-destructive">*</span></Label>
-                      <Input id="name" name="name" placeholder={t('products.productName')} required className="h-10" />
+                      <Label htmlFor="name" className="text-[11px] font-medium">{t('products.productName')} <span className="text-destructive">*</span></Label>
+                      <Input id="name" name="name" placeholder={t('products.productName')} required className="h-8 text-[13px]" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="barcode" className="text-sm font-medium">{t('products.barcode')}</Label>
-                      <Input id="barcode" name="barcode" placeholder={t('products.barcode')} className="h-10" />
+                      <Label htmlFor="barcode" className="text-[11px] font-medium">{t('products.barcode')}</Label>
+                      <Input id="barcode" name="barcode" placeholder={t('products.barcode')} className="h-8 text-[13px]" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="category_id" className="text-sm font-medium">{t('categories.title')}</Label>
+                      <Label htmlFor="category_id" className="text-[11px] font-medium">{t('categories.title')}</Label>
                       <Select value={formCategoryId || "none"} onValueChange={(val) => setFormCategoryId(val === "none" ? "" : val)}>
-                        <SelectTrigger id="category_id" className="h-10">
+                        <SelectTrigger id="category_id" className="h-8 text-[13px]">
                           <SelectValue placeholder={`${t('common.all')} ${t('categories.title')}`} />
                         </SelectTrigger>
                         <SelectContent side="bottom" align="start">
@@ -682,54 +677,54 @@ const Products = () => {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="sku" className="text-sm font-medium">{t('products.sku')}</Label>
-                      <Input id="sku" name="sku" placeholder={t('products.skuOptional')} className="h-10" />
+                      <Label htmlFor="sku" className="text-[11px] font-medium">{t('products.sku')}</Label>
+                      <Input id="sku" name="sku" placeholder={t('products.skuOptional')} className="h-8 text-[13px]" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="shelf" className="text-sm font-medium">{t('products.shelf')}</Label>
-                      <Input id="shelf" name="shelf" placeholder={t('products.shelfOptional')} className="h-10" />
+                      <Label htmlFor="shelf" className="text-[11px] font-medium">{t('products.shelf')}</Label>
+                      <Input id="shelf" name="shelf" placeholder={t('products.shelfOptional')} className="h-8 text-[13px]" />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="description" className="text-sm font-medium">{t('categories.description')}</Label>
-                    <Textarea id="description" name="description" placeholder={t('categories.description')} rows={3} className="text-sm" />
+                    <Label htmlFor="description" className="text-[11px] font-medium">{t('categories.description')}</Label>
+                    <Textarea id="description" name="description" placeholder={t('categories.description')} rows={3} className="text-[13px]" />
                   </div>
                 </div>
                 
                 {/* Pricing Section */}
                 <div className="pt-4 border-t space-y-4">
-                  <h3 className="text-base font-semibold border-b pb-2">{t('products.pricing')}</h3>
+                  <h3 className="text-[13px] font-bold border-b pb-1.5">{t('products.pricing')}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="wholesale-price" className="text-sm font-medium">{t('products.wholesalePriceWithCurrency')}</Label>
+                      <Label htmlFor="wholesale-price" className="text-[11px] font-medium">{t('products.wholesalePriceWithCurrency')}</Label>
                       <Input 
                         id="wholesale-price" 
                         type="number" 
                         step="0.01" 
                         name="wholesale_price"
                         placeholder="0.00" 
-                        className="h-10" 
+                        className="h-8 text-[13px]" 
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="retail-price" className="text-sm font-medium">{t('products.retailPriceWithCurrency')}</Label>
+                      <Label htmlFor="retail-price" className="text-[11px] font-medium">{t('products.retailPriceWithCurrency')}</Label>
                       <Input 
                         id="retail-price" 
                         type="number" 
                         step="0.01" 
                         name="retail_price"
                         placeholder="0.00" 
-                        className="h-10" 
+                        className="h-8 text-[13px]" 
                       />
                     </div>
                   </div>
                 </div>
                 
                 <div className="flex gap-3 pt-4 border-t">
-                  <Button type="submit" className="flex-1 h-10" disabled={loading}>
+                  <Button type="submit" className="flex-1 h-8" disabled={loading}>
                     {loading ? t('common.loading') : t('common.save')}
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => setIsOpen(false)} className="h-10">
+                  <Button type="button" variant="outline" onClick={() => setIsOpen(false)} className="h-8 text-[13px]">
                     {t('common.cancel')}
                   </Button>
                 </div>
@@ -737,54 +732,45 @@ const Products = () => {
             </DialogContent>
           </Dialog>
           </div>
-        </div>
+          }
+        />
 
         {/* Main Content with Side Panel */}
         <div className="flex gap-2">
           {/* Products Table Section */}
           <div className={`flex-1 min-w-0 transition-all duration-300 ${sidePanelOpen ? 'lg:mr-[420px]' : ''}`}>
-            <Card className="border-2 shadow-card hover:shadow-elegant transition-all duration-300">
-              <CardHeader className="border-b bg-gradient-to-br from-primary/5 via-transparent to-accent/5 pb-2 pt-2">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                  <div>
-                <CardTitle className="flex items-center gap-1.5 text-sm sm:text-base">
-                  <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
-                  {t('products.title')}
-                </CardTitle>
-                <CardDescription className="text-[10px] sm:text-xs">{t('products.subtitle')}</CardDescription>
-                  </div>
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-                    <div className="relative flex-1 sm:flex-initial sm:w-[350px]">
-                      <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                      <Input
-                        type="text"
-                        placeholder={t('products.searchPlaceholder')}
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-8 pr-8 h-8 text-sm"
-                        autoFocus
-                      />
-                      {searchQuery && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSearchQuery("")}
-                          className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
-                        >
-                          <X className="w-3 h-3" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
+            <SectionCard
+              icon={Package}
+              title={t('products.title')}
+              meta={<span>{totalProducts} {t('products.products')}</span>}
+            >
+                <div className="relative w-full sm:w-[350px]">
+                  <Search className="absolute start-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                  <Input
+                    type="text"
+                    placeholder={t('products.searchPlaceholder')}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full ps-8 pe-8 h-8 text-[13px]"
+                    autoFocus
+                  />
+                  {searchQuery && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSearchQuery("")}
+                      className="absolute end-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  )}
                 </div>
-              </CardHeader>
-              <CardContent className="pt-2">
                 {filteredProducts.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                      <Package className="w-10 h-10 text-primary/50" />
+                    <div className="w-20 h-20 rounded-full bg-primary-light flex items-center justify-center mb-4">
+                      <Package className="w-10 h-10 text-primary/60" />
                     </div>
-                    <p className="text-muted-foreground text-lg">
+                    <p className="text-muted-foreground text-[13px]">
                       {products.length === 0 
                         ? t('products.noProducts')
                         : t('products.noProducts')}
@@ -792,16 +778,17 @@ const Products = () => {
                   </div>
                 ) : (
                   <>
-                    <div className="rounded-xl border-2 overflow-x-auto">
+                    <div className="rounded-lg border border-border overflow-hidden bg-card">
+                      <div className="scroll-x">
                       <Table>
                         <TableHeader>
-                          <TableRow className="bg-gradient-to-r from-primary/5 to-accent/5 hover:from-primary/10 hover:to-accent/10">
-                            <TableHead className="font-bold whitespace-nowrap p-2 pl-2 pr-0.5 text-xs">{t('products.productName')}</TableHead>
-                            <TableHead className="font-bold whitespace-nowrap p-2 pl-0.5 text-xs">Category</TableHead>
-                            <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('products.barcode')}</TableHead>
-                            <TableHead className="font-bold whitespace-nowrap p-2 text-xs">SKU</TableHead>
-                            <TableHead className="font-bold whitespace-nowrap p-2 text-xs">Description</TableHead>
-                            <TableHead className="font-bold whitespace-nowrap p-2 text-xs">{t('common.actions')}</TableHead>
+                          <TableRow className="bg-muted/60 hover:bg-muted/60">
+                            <TableHead className="h-9 px-2 ps-2 pe-0.5 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('products.productName')}</TableHead>
+                            <TableHead className="h-9 px-2 ps-0.5 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Category</TableHead>
+                            <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('products.barcode')}</TableHead>
+                            <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">SKU</TableHead>
+                            <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Description</TableHead>
+                            <TableHead className="h-9 px-2 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('common.actions')}</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -810,20 +797,20 @@ const Products = () => {
                             return (
                               <TableRow 
                                 key={product.id} 
-                                className={`hover:bg-primary/5 transition-colors cursor-pointer animate-fade-in ${isSelected ? 'bg-primary/10 border-l-4 border-l-primary' : ''}`}
+                                className={`hover:bg-primary/5 transition-colors cursor-pointer animate-fade-in ${isSelected ? 'bg-primary/10 border-s-4 border-s-primary' : ''}`}
                                 style={{ animationDelay: `${idx * 0.05}s` }}
                                 onClick={() => handleViewDetails(String(product.id))}
                               >
-                                <TableCell className="font-medium whitespace-nowrap p-2 pl-2 pr-0.5">
+                                <TableCell className="font-medium whitespace-nowrap p-2 ps-2 pe-0.5">
                                   <div>
-                                    <span className="font-semibold text-sm">{product.name}</span>
-                                    <span className="text-muted-foreground text-[10px] ml-1.5">#{product.id}</span>
+                                    <span className="font-semibold text-[13px]">{product.name}</span>
+                                    <span className="text-muted-foreground text-[11px] ms-1.5 tabular-nums">#{product.id}</span>
                                   </div>
                                 </TableCell>
-                                <TableCell className="text-muted-foreground whitespace-nowrap text-xs p-2 pl-0.5">{product.category_name || "-"}</TableCell>
-                                <TableCell className="text-muted-foreground whitespace-nowrap font-mono text-xs p-2">{product.barcode || "-"}</TableCell>
-                                <TableCell className="text-muted-foreground whitespace-nowrap font-mono text-xs p-2">{product.sku || "-"}</TableCell>
-                                <TableCell className="text-muted-foreground text-xs p-2 max-w-[200px]">
+                                <TableCell className="text-muted-foreground whitespace-nowrap text-[12px] p-2 ps-0.5">{product.category_name || "-"}</TableCell>
+                                <TableCell className="text-muted-foreground whitespace-nowrap font-mono text-[12px] p-2">{product.barcode || "-"}</TableCell>
+                                <TableCell className="text-muted-foreground whitespace-nowrap font-mono text-[12px] p-2">{product.sku || "-"}</TableCell>
+                                <TableCell className="text-muted-foreground text-[12px] p-2 max-w-[200px]">
                                   {product.description ? (
                                     <span 
                                       className="block truncate" 
@@ -868,11 +855,12 @@ const Products = () => {
                           })}
                         </TableBody>
                       </Table>
+                      </div>
                     </div>
                     {/* Pagination Controls */}
                     {totalProducts > 0 && (
-                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 pt-4 border-t">
-                        <div className="text-sm text-muted-foreground">
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t">
+                        <div className="text-[12px] text-muted-foreground tabular-nums">
                           {t('products.showing')} {startIndex}-{endIndex} {t('products.of')} {totalProducts} {t('products.products')}
                         </div>
                         <div className="flex items-center gap-2">
@@ -883,11 +871,11 @@ const Products = () => {
                             disabled={currentPage === 1 || pageLoading}
                             className="h-8"
                           >
-                            <ChevronLeft className="w-4 h-4 mr-1" />
+                            <ChevronLeft className="w-4 h-4 me-1" />
                             {t('products.previousPage')}
                           </Button>
                           <div className="flex items-center gap-1">
-                            <span className="text-sm text-muted-foreground px-2">
+                            <span className="text-[12px] text-muted-foreground px-2 tabular-nums">
                               {t('products.page')} {currentPage} {t('products.of')} {totalPages}
                             </span>
                           </div>
@@ -899,15 +887,14 @@ const Products = () => {
                             className="h-8"
                           >
                             {t('products.nextPage')}
-                            <ChevronRight className="w-4 h-4 ml-1" />
+                            <ChevronRight className="w-4 h-4 ms-1" />
                           </Button>
                         </div>
                       </div>
                     )}
                   </>
                 )}
-              </CardContent>
-            </Card>
+            </SectionCard>
           </div>
 
           {/* Fixed Side Panel */}
@@ -934,27 +921,27 @@ const Products = () => {
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="text-2xl">{t('products.editProduct')}</DialogTitle>
+              <DialogTitle className="text-lg">{t('products.editProduct')}</DialogTitle>
               <DialogDescription>{t('products.subtitle')}</DialogDescription>
             </DialogHeader>
             {editingProduct && (
               <form onSubmit={handleUpdate} className="space-y-4 py-2">
                 {/* Basic Information Section */}
                 <div className="space-y-4">
-                  <h3 className="text-base font-semibold border-b pb-2">{t('products.basicInformation')}</h3>
+                  <h3 className="text-[13px] font-bold border-b pb-1.5">{t('products.basicInformation')}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="edit-name" className="text-sm font-medium">{t('products.productName')} <span className="text-destructive">*</span></Label>
-                      <Input id="edit-name" name="name" defaultValue={editingProduct.name} required className="h-10" />
+                      <Label htmlFor="edit-name" className="text-[11px] font-medium">{t('products.productName')} <span className="text-destructive">*</span></Label>
+                      <Input id="edit-name" name="name" defaultValue={editingProduct.name} required className="h-8 text-[13px]" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="edit-barcode" className="text-sm font-medium">{t('products.barcode')}</Label>
-                      <Input id="edit-barcode" name="barcode" defaultValue={editingProduct.barcode || ""} className="h-10" />
+                      <Label htmlFor="edit-barcode" className="text-[11px] font-medium">{t('products.barcode')}</Label>
+                      <Input id="edit-barcode" name="barcode" defaultValue={editingProduct.barcode || ""} className="h-8 text-[13px]" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="edit-category_id" className="text-sm font-medium">{t('categories.title')}</Label>
+                      <Label htmlFor="edit-category_id" className="text-[11px] font-medium">{t('categories.title')}</Label>
                       <Select value={editFormCategoryId || "none"} onValueChange={(val) => setEditFormCategoryId(val === "none" ? "" : val)}>
-                        <SelectTrigger id="edit-category_id" className="h-10">
+                        <SelectTrigger id="edit-category_id" className="h-8 text-[13px]">
                           <SelectValue placeholder={`${t('common.all')} ${t('categories.title')}`} />
                         </SelectTrigger>
                         <SelectContent side="bottom" align="start">
@@ -968,26 +955,26 @@ const Products = () => {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="edit-sku" className="text-sm font-medium">SKU</Label>
-                      <Input id="edit-sku" name="sku" defaultValue={editingProduct.sku || ""} className="h-10" />
+                      <Label htmlFor="edit-sku" className="text-[11px] font-medium">SKU</Label>
+                      <Input id="edit-sku" name="sku" defaultValue={editingProduct.sku || ""} className="h-8 text-[13px]" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="edit-shelf" className="text-sm font-medium">Shelf</Label>
-                      <Input id="edit-shelf" name="shelf" defaultValue={editingProduct.shelf || ""} className="h-10" />
+                      <Label htmlFor="edit-shelf" className="text-[11px] font-medium">Shelf</Label>
+                      <Input id="edit-shelf" name="shelf" defaultValue={editingProduct.shelf || ""} className="h-8 text-[13px]" />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit-description" className="text-sm font-medium">{t('categories.description')}</Label>
-                    <Textarea id="edit-description" name="description" defaultValue={editingProduct.description || ""} rows={3} className="text-sm" />
+                    <Label htmlFor="edit-description" className="text-[11px] font-medium">{t('categories.description')}</Label>
+                    <Textarea id="edit-description" name="description" defaultValue={editingProduct.description || ""} rows={3} className="text-[13px]" />
                   </div>
                 </div>
                 
                 {/* Pricing Section */}
                 <div className="pt-4 border-t space-y-4">
-                  <h3 className="text-base font-semibold border-b pb-2">Pricing</h3>
+                  <h3 className="text-[13px] font-bold border-b pb-1.5">Pricing</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="edit-wholesale-price" className="text-sm font-medium">Wholesale Price ($)</Label>
+                      <Label htmlFor="edit-wholesale-price" className="text-[11px] font-medium">Wholesale Price ($)</Label>
                       <Input 
                         id="edit-wholesale-price" 
                         type="number" 
@@ -995,11 +982,11 @@ const Products = () => {
                         value={wholesalePrice}
                         onChange={(e) => setWholesalePrice(e.target.value)}
                         placeholder="0.00" 
-                        className="h-10" 
+                        className="h-8 text-[13px]" 
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="edit-retail-price" className="text-sm font-medium">Retail Price ($)</Label>
+                      <Label htmlFor="edit-retail-price" className="text-[11px] font-medium">Retail Price ($)</Label>
                       <Input 
                         id="edit-retail-price" 
                         type="number" 
@@ -1007,7 +994,7 @@ const Products = () => {
                         value={retailPrice}
                         onChange={(e) => setRetailPrice(e.target.value)}
                         placeholder="0.00" 
-                        className="h-10" 
+                        className="h-8 text-[13px]" 
                       />
                     </div>
                   </div>
@@ -1021,10 +1008,10 @@ const Products = () => {
                 </div>
                 
                 <div className="flex gap-3 pt-4 border-t">
-                  <Button type="submit" className="flex-1 h-10" disabled={loading}>
+                  <Button type="submit" className="flex-1 h-8" disabled={loading}>
                     {loading ? t('common.loading') : t('common.save')}
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => setEditOpen(false)} className="h-10">
+                  <Button type="button" variant="outline" onClick={() => setEditOpen(false)} className="h-8 text-[13px]">
                     Cancel
                   </Button>
                 </div>
@@ -1040,7 +1027,7 @@ const Products = () => {
               <DialogTitle className="text-xl">
                 {t('products.importPreview') === 'products.importPreview' ? 'Import Preview' : t('products.importPreview')}
               </DialogTitle>
-              <DialogDescription className="text-xs">
+              <DialogDescription className="text-[12px]">
                 {t('products.reviewBeforeImport') === 'products.reviewBeforeImport' 
                   ? 'Review the products that will be created or updated before importing'
                   : t('products.reviewBeforeImport')}
@@ -1051,30 +1038,21 @@ const Products = () => {
               <div className="space-y-3 py-2">
                 {/* Summary */}
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-blue-50 dark:bg-blue-950/30 p-2 rounded border border-blue-200 dark:border-blue-800">
-                    <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                      {previewData.summary?.new || 0}
-                    </div>
-                    <div className="text-xs text-blue-700 dark:text-blue-300 mt-0.5 font-medium">
-                      {t('products.productsToCreate') === 'products.productsToCreate' ? 'Products to Create' : t('products.productsToCreate')}
-                    </div>
-                  </div>
-                  <div className="bg-yellow-50 dark:bg-yellow-950/30 p-2 rounded border border-yellow-200 dark:border-yellow-800">
-                    <div className="text-xl font-bold text-yellow-600 dark:text-yellow-400">
-                      {previewData.summary?.existing || 0}
-                    </div>
-                    <div className="text-xs text-yellow-700 dark:text-yellow-300 mt-0.5 font-medium">
-                      {t('products.productsToUpdate') === 'products.productsToUpdate' ? 'Products to Update' : t('products.productsToUpdate')}
-                    </div>
-                  </div>
-                  <div className="bg-red-50 dark:bg-red-950/30 p-2 rounded border border-red-200 dark:border-red-800">
-                    <div className="text-xl font-bold text-red-600 dark:text-red-400">
-                      {previewData.summary?.errors || 0}
-                    </div>
-                    <div className="text-xs text-red-700 dark:text-red-300 mt-0.5 font-medium">
-                      {t('products.importErrors') === 'products.importErrors' ? 'Import Errors' : t('products.importErrors')}
-                    </div>
-                  </div>
+                  <StatTile
+                    tone="primary"
+                    label={t('products.productsToCreate') === 'products.productsToCreate' ? 'Products to Create' : t('products.productsToCreate')}
+                    value={previewData.summary?.new || 0}
+                  />
+                  <StatTile
+                    tone="warning"
+                    label={t('products.productsToUpdate') === 'products.productsToUpdate' ? 'Products to Update' : t('products.productsToUpdate')}
+                    value={previewData.summary?.existing || 0}
+                  />
+                  <StatTile
+                    tone="destructive"
+                    label={t('products.importErrors') === 'products.importErrors' ? 'Import Errors' : t('products.importErrors')}
+                    value={previewData.summary?.errors || 0}
+                  />
                 </div>
 
                 {/* No Changes Message */}
@@ -1083,10 +1061,10 @@ const Products = () => {
                  (!previewData.existingProducts || previewData.existingProducts.length === 0) &&
                  (!previewData.errors || previewData.errors.length === 0) && (
                   <div className="border rounded-lg p-4 bg-muted/50 text-center">
-                    <p className="text-sm font-medium text-muted-foreground">
+                    <p className="text-[13px] font-medium text-muted-foreground">
                       No changes detected in the import file.
                     </p>
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="text-[12px] text-muted-foreground mt-1">
                       All products in the file already exist with the same data.
                     </p>
                   </div>
@@ -1095,38 +1073,38 @@ const Products = () => {
                 {/* New Products List */}
                 {previewData.newProducts && previewData.newProducts.length > 0 && (
                   <div className="space-y-1">
-                    <h3 className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                    <h3 className="text-[13px] font-bold text-primary-strong">
                       {(t('products.productsToCreate') === 'products.productsToCreate' ? 'Products to Create' : t('products.productsToCreate'))} ({previewData.newProducts.length})
                     </h3>
-                    <div className="border rounded max-h-[200px] overflow-y-auto">
+                    <div className="border border-border rounded-lg max-h-[200px] overflow-y-auto">
                       <Table>
                         <TableHeader>
-                          <TableRow className="h-7">
-                            <TableHead className="text-xs p-1.5">Row</TableHead>
-                            <TableHead className="text-xs p-1.5">Name</TableHead>
-                            <TableHead className="text-xs p-1.5">SKU</TableHead>
-                            <TableHead className="text-xs p-1.5">Barcode</TableHead>
-                            <TableHead className="text-xs p-1.5">Category</TableHead>
-                            <TableHead className="text-xs p-1.5">Wholesale Price</TableHead>
-                            <TableHead className="text-xs p-1.5">Retail Price</TableHead>
+                          <TableRow className="h-7 bg-muted/60 hover:bg-muted/60">
+                            <TableHead className="h-8 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground p-1.5">Row</TableHead>
+                            <TableHead className="h-8 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground p-1.5">Name</TableHead>
+                            <TableHead className="h-8 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground p-1.5">SKU</TableHead>
+                            <TableHead className="h-8 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground p-1.5">Barcode</TableHead>
+                            <TableHead className="h-8 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground p-1.5">Category</TableHead>
+                            <TableHead className="h-8 text-end text-[10px] font-bold uppercase tracking-wider text-muted-foreground p-1.5">Wholesale Price</TableHead>
+                            <TableHead className="h-8 text-end text-[10px] font-bold uppercase tracking-wider text-muted-foreground p-1.5">Retail Price</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {previewData.newProducts.slice(0, 20).map((product: any) => (
                             <TableRow key={product.row} className="h-6">
-                              <TableCell className="text-xs p-1.5">{product.row}</TableCell>
-                              <TableCell className="text-xs p-1.5 font-medium">{product.name}</TableCell>
-                              <TableCell className="text-xs p-1.5 font-mono">{product.sku || '-'}</TableCell>
-                              <TableCell className="text-xs p-1.5 font-mono">{product.barcode || '-'}</TableCell>
-                              <TableCell className="text-xs p-1.5">{product.category || '-'}</TableCell>
-                              <TableCell className="text-xs p-1.5">${product.wholesale_price ? Number(product.wholesale_price).toFixed(2) : '-'}</TableCell>
-                              <TableCell className="text-xs p-1.5">${product.retail_price ? Number(product.retail_price).toFixed(2) : '-'}</TableCell>
+                              <TableCell className="text-[12px] p-1.5 tabular-nums">{product.row}</TableCell>
+                              <TableCell className="text-[12px] p-1.5 font-medium">{product.name}</TableCell>
+                              <TableCell className="text-[12px] p-1.5 font-mono">{product.sku || '-'}</TableCell>
+                              <TableCell className="text-[12px] p-1.5 font-mono">{product.barcode || '-'}</TableCell>
+                              <TableCell className="text-[12px] p-1.5">{product.category || '-'}</TableCell>
+                              <TableCell className="text-[12px] p-1.5 text-end tabular-nums">${product.wholesale_price ? Number(product.wholesale_price).toFixed(2) : '-'}</TableCell>
+                              <TableCell className="text-[12px] p-1.5 text-end tabular-nums">${product.retail_price ? Number(product.retail_price).toFixed(2) : '-'}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
                       </Table>
                       {previewData.newProducts.length > 20 && (
-                        <div className="p-1.5 text-xs text-muted-foreground text-center">
+                        <div className="p-1.5 text-[12px] text-muted-foreground text-center">
                           ... and {previewData.newProducts.length - 20} more
                         </div>
                       )}
@@ -1137,15 +1115,15 @@ const Products = () => {
                 {/* Existing Products List */}
                 {previewData.existingProducts && previewData.existingProducts.length > 0 && (
                   <div className="space-y-1">
-                    <h3 className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">
+                    <h3 className="text-[13px] font-bold text-warning-strong">
                       {(t('products.productsToUpdate') === 'products.productsToUpdate' ? 'Products to Update' : t('products.productsToUpdate'))} ({previewData.existingProducts.length})
                     </h3>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-[12px] text-muted-foreground">
                       {t('products.checkToUpdate') === 'products.checkToUpdate' 
                         ? 'Select which products to update. Only changed fields will be shown.'
                         : t('products.checkToUpdate')}
                     </p>
-                    <div className="border rounded max-h-[300px] overflow-y-auto space-y-1.5 p-1.5">
+                    <div className="border border-border rounded-lg max-h-[300px] overflow-y-auto space-y-1.5 p-1.5">
                       {previewData.existingProducts.map((product: any) => {
                         // Calculate which fields have changed
                         const changes: any = {};
@@ -1176,7 +1154,7 @@ const Products = () => {
                         const hasChanges = Object.keys(changes).length > 0;
                         
                         return (
-                          <div key={product.row} className="border rounded p-1.5 bg-yellow-50 dark:bg-yellow-950/20">
+                          <div key={product.row} className="border border-border rounded-md p-1.5 bg-warning-light">
                             <div className="flex items-start gap-1.5 mb-1">
                               <input
                                 type="checkbox"
@@ -1194,21 +1172,21 @@ const Products = () => {
                               />
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5 mb-0.5">
-                                  <span className="text-[10px] font-semibold">Row {product.row}</span>
-                                  <span className="text-[10px] font-medium text-yellow-700 dark:text-yellow-300 truncate">
+                                  <span className="text-[11px] font-semibold tabular-nums">Row {product.row}</span>
+                                  <span className="text-[11px] font-medium text-warning-strong truncate">
                                     {product.existing_name}
                                   </span>
                                 </div>
                                 {hasChanges ? (
                                   <div className="space-y-0.5 mt-1">
                                     {Object.entries(changes).map(([field, change]: [string, any]) => (
-                                      <div key={field} className="text-[10px] flex items-start gap-1 bg-white dark:bg-gray-900 rounded p-1">
-                                        <span className="font-medium text-gray-600 dark:text-gray-400 capitalize min-w-[60px]">{field}:</span>
+                                      <div key={field} className="text-[11px] flex items-start gap-1 bg-card rounded p-1">
+                                        <span className="font-medium text-muted-foreground capitalize min-w-[60px]">{field}:</span>
                                         <div className="flex-1 min-w-0">
-                                          <div className="text-red-600 dark:text-red-400 line-through truncate">
+                                          <div className="text-destructive-strong line-through truncate">
                                             {change.before}
                                           </div>
-                                          <div className="text-green-600 dark:text-green-400 font-medium truncate">
+                                          <div className="text-success-strong font-medium truncate">
                                             → {change.after}
                                           </div>
                                         </div>
@@ -1216,7 +1194,7 @@ const Products = () => {
                                     ))}
                                   </div>
                                 ) : (
-                                  <div className="text-[10px] text-muted-foreground italic mt-0.5">
+                                  <div className="text-[11px] text-muted-foreground italic mt-0.5">
                                     No changes detected
                                   </div>
                                 )}
@@ -1232,17 +1210,17 @@ const Products = () => {
                 {/* Errors List */}
                 {previewData.errors && previewData.errors.length > 0 && (
                   <div className="space-y-1">
-                    <h3 className="text-sm font-semibold text-red-600 dark:text-red-400">
+                    <h3 className="text-[13px] font-bold text-destructive-strong">
                       {(t('products.importErrors') === 'products.importErrors' ? 'Import Errors' : t('products.importErrors'))} ({previewData.errors.length})
                     </h3>
-                    <div className="border border-red-200 dark:border-red-800 rounded p-2 bg-red-50 dark:bg-red-950/30">
+                    <div className="border border-destructive/30 rounded-lg p-2 bg-destructive/10">
                       {previewData.errors.slice(0, 10).map((error: any, idx: number) => (
-                        <div key={idx} className="text-xs text-red-700 dark:text-red-300 mb-1">
+                        <div key={idx} className="text-[12px] text-destructive-strong mb-1">
                           Row {error.row}: {error.error}
                         </div>
                       ))}
                       {previewData.errors.length > 10 && (
-                        <div className="text-[10px] text-red-600 dark:text-red-400 mt-1">
+                        <div className="text-[11px] text-destructive-strong mt-1">
                           ... and {previewData.errors.length - 10} more errors
                         </div>
                       )}
