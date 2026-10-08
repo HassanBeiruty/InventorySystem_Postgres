@@ -46,6 +46,7 @@ describe('Section 3: Suppliers', () => {
 			const timer = perfMonitor.start('create-supplier-no-name');
 			const response = await request(app)
 				.post('/api/suppliers')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.send({
 					phone: '+9611234567',
 					address: 'Test Address'
@@ -63,6 +64,7 @@ describe('Section 3: Suppliers', () => {
 			const timer = perfMonitor.start('list-suppliers');
 			const response = await request(app)
 				.get('/api/suppliers')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);

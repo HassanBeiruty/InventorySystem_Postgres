@@ -121,6 +121,7 @@ describe('Section 7: Invoice Payments', () => {
 			const invoiceId = createdInvoices[0];
 			const response = await request(app)
 				.get(`/api/invoices/${invoiceId}/payments`)
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);

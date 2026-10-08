@@ -238,6 +238,22 @@ router.use((req, res, next) => {
 	});
 });
 
+// Every API route needs a signed-in user, except the ones that sign a user in, up or out.
+// Checked here once, so a new route is protected by default instead of only when someone
+// remembers to add authenticateToken to it. Admin-only routes still add requireAdmin.
+// A future public route (e.g. a password reset) must be added to this list.
+const PUBLIC_ROUTES = new Set([
+	'POST /auth/signup',
+	'POST /auth/signin',
+	'POST /auth/logout',
+]);
+router.use((req, res, next) => {
+	if (req.method === 'OPTIONS' || PUBLIC_ROUTES.has(`${req.method} ${req.path}`)) {
+		return next();
+	}
+	return authenticateToken(req, res, next);
+});
+
 // Rate limiting is only applied to auth routes (signin/signup)
 // Business API routes have no rate limiting to allow normal operations
 

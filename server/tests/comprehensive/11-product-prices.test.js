@@ -58,6 +58,7 @@ describe('Section 11: Product Prices', () => {
 			const timer = perfMonitor.start('list-product-prices');
 			const response = await request(app)
 				.get('/api/product-prices')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);
@@ -70,6 +71,7 @@ describe('Section 11: Product Prices', () => {
 			const timer = perfMonitor.start('list-product-prices-filtered');
 			const response = await request(app)
 				.get(`/api/product-prices?product_id=${createdProducts[0]}`)
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);
@@ -84,6 +86,7 @@ describe('Section 11: Product Prices', () => {
 			const timer = perfMonitor.start('get-product-prices');
 			const response = await request(app)
 				.get(`/api/products/${createdProducts[0]}/prices`)
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);
@@ -96,6 +99,7 @@ describe('Section 11: Product Prices', () => {
 			const timer = perfMonitor.start('get-latest-product-price');
 			const response = await request(app)
 				.get(`/api/products/${createdProducts[0]}/price-latest`)
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			// Can be null if no prices exist
@@ -113,6 +117,7 @@ describe('Section 11: Product Prices', () => {
 			const timer = perfMonitor.start('get-latest-prices');
 			const response = await request(app)
 				.get('/api/product-prices/latest')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);

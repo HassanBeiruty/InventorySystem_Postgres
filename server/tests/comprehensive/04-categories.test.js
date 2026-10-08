@@ -46,6 +46,7 @@ describe('Section 4: Categories', () => {
 			const timer = perfMonitor.start('create-category-no-name');
 			const response = await request(app)
 				.post('/api/categories')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.send({ description: 'Test description' })
 				.expect(400);
 
@@ -60,6 +61,7 @@ describe('Section 4: Categories', () => {
 			const timer = perfMonitor.start('list-categories');
 			const response = await request(app)
 				.get('/api/categories')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);

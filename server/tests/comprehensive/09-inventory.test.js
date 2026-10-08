@@ -30,6 +30,7 @@ describe('Section 9: Inventory', () => {
 			const timer = perfMonitor.start('get-today-inventory');
 			const response = await request(app)
 				.get('/api/inventory/today')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);
@@ -44,6 +45,7 @@ describe('Section 9: Inventory', () => {
 			const timer = perfMonitor.start('get-daily-inventory');
 			const response = await request(app)
 				.get('/api/inventory/daily')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);
@@ -58,6 +60,7 @@ describe('Section 9: Inventory', () => {
 			const timer = perfMonitor.start('get-daily-history');
 			const response = await request(app)
 				.get('/api/inventory/daily-history')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);
@@ -72,6 +75,7 @@ describe('Section 9: Inventory', () => {
 			const timer = perfMonitor.start('get-low-stock');
 			const response = await request(app)
 				.get('/api/inventory/low-stock/10')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);

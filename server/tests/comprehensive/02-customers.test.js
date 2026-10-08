@@ -46,6 +46,7 @@ describe('Section 2: Customers', () => {
 			const timer = perfMonitor.start('create-customer-no-name');
 			const response = await request(app)
 				.post('/api/customers')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.send({
 					phone: '+9611234567',
 					address: 'Test Address'
@@ -77,6 +78,7 @@ describe('Section 2: Customers', () => {
 			const timer = perfMonitor.start('list-customers');
 			const response = await request(app)
 				.get('/api/customers')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);

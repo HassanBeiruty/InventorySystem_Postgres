@@ -168,6 +168,7 @@ describe('Complete User Flow Test Suite', () => {
 			
 			const response = await request(app)
 				.get('/api/categories')
+				.set('Authorization', `Bearer ${authToken}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);
@@ -225,6 +226,7 @@ describe('Complete User Flow Test Suite', () => {
 			
 			const response = await request(app)
 				.get('/api/products')
+				.set('Authorization', `Bearer ${authToken}`)
 				.expect(200);
 
 			// The list is paginated: { data: [...], pagination: {...} }
@@ -261,6 +263,7 @@ describe('Complete User Flow Test Suite', () => {
 			const customerData = testUtils.generateTestData('customer');
 			const response = await request(app)
 				.post('/api/customers')
+				.set('Authorization', `Bearer ${authToken}`)
 				.send(customerData)
 				.expect(200);
 
@@ -276,6 +279,7 @@ describe('Complete User Flow Test Suite', () => {
 			
 			const response = await request(app)
 				.get('/api/customers')
+				.set('Authorization', `Bearer ${authToken}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);
@@ -292,6 +296,7 @@ describe('Complete User Flow Test Suite', () => {
 			const supplierData = testUtils.generateTestData('supplier');
 			const response = await request(app)
 				.post('/api/suppliers')
+				.set('Authorization', `Bearer ${authToken}`)
 				.send(supplierData)
 				.expect(200);
 
@@ -307,6 +312,7 @@ describe('Complete User Flow Test Suite', () => {
 			
 			const response = await request(app)
 				.get('/api/suppliers')
+				.set('Authorization', `Bearer ${authToken}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);
@@ -347,6 +353,7 @@ describe('Complete User Flow Test Suite', () => {
 			
 			const response = await request(app)
 				.get('/api/product-prices')
+				.set('Authorization', `Bearer ${authToken}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);
@@ -398,6 +405,7 @@ describe('Complete User Flow Test Suite', () => {
 			
 			const response = await request(app)
 				.get('/api/invoices')
+				.set('Authorization', `Bearer ${authToken}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);
@@ -414,6 +422,7 @@ describe('Complete User Flow Test Suite', () => {
 			const invoiceId = createdInvoices[0];
 			const response = await request(app)
 				.get(`/api/invoices/${invoiceId}`)
+				.set('Authorization', `Bearer ${authToken}`)
 				.expect(200);
 
 			expect(response.body).toHaveProperty('id', invoiceId);
@@ -458,6 +467,7 @@ describe('Complete User Flow Test Suite', () => {
 			
 			const response = await request(app)
 				.get('/api/inventory/today')
+				.set('Authorization', `Bearer ${authToken}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);
@@ -471,6 +481,7 @@ describe('Complete User Flow Test Suite', () => {
 			
 			const response = await request(app)
 				.get('/api/stock-movements/recent/20')
+				.set('Authorization', `Bearer ${authToken}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);
@@ -484,6 +495,7 @@ describe('Complete User Flow Test Suite', () => {
 			
 			const response = await request(app)
 				.get('/api/inventory/low-stock/10')
+				.set('Authorization', `Bearer ${authToken}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);

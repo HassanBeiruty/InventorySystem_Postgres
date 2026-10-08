@@ -31,6 +31,7 @@ describe('Section 8: Exchange Rates', () => {
 			const timer = perfMonitor.start('get-usd-rate');
 			const response = await request(app)
 				.get('/api/exchange-rates/USD/rate')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			expect(response.body).toHaveProperty('currency_code', 'USD');
@@ -44,6 +45,7 @@ describe('Section 8: Exchange Rates', () => {
 			const timer = perfMonitor.start('get-lbp-rate');
 			const response = await request(app)
 				.get('/api/exchange-rates/LBP/rate')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect([200, 404]);
 
 			if (response.status === 200) {

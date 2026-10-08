@@ -194,25 +194,8 @@ app.get('/api/health', async (req, res) => {
 	}
 });
 
-// Simple DB test: list first 20 rows from Invoices if exists, else list tables
-app.get('/api/db-test', async (req, res) => {
-	try {
-		const { query } = require('./db');
-		const hasInvoices = await query("SELECT 1 FROM information_schema.tables WHERE table_name = 'invoices' AND table_schema = 'public'", []);
-		if (hasInvoices.recordset.length > 0) {
-			const rows = await query('SELECT * FROM invoices ORDER BY created_at DESC LIMIT 20', []);
-			return res.json({ source: 'invoices', rows: rows.recordset });
-		}
-		const tables = await query('SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema = \'public\' ORDER BY table_schema, table_name', []);
-		res.json({ source: 'information_schema.tables', rows: tables.recordset });
-	} catch (err) {
-		const errorMsg = err?.message || err?.toString() || 'Unknown error';
-		console.error('DB test failed:', errorMsg);
-		res.status(500).json({ status: 'error', error: errorMsg });
-	}
-});
-
-// API routes
+// API routes (all of them require a signed-in user except sign-in/up/out; /api/health above stays
+// public for uptime monitoring)
 app.use('/api', require('./routes/api'));
 
 // Admin: force-run SQL initialization

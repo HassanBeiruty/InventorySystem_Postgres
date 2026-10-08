@@ -30,6 +30,7 @@ describe('Section 10: Stock Movements', () => {
 			const timer = perfMonitor.start('get-recent-stock-movements');
 			const response = await request(app)
 				.get('/api/stock-movements/recent/20')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);

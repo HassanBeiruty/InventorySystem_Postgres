@@ -23,7 +23,8 @@ const SECTIONS = {
 	'product-prices': '11-product-prices.test.js',
 	'export': '12-export.test.js',
 	'admin': '13-admin.test.js',
-	'performance': '14-performance.test.js'
+	'performance': '14-performance.test.js',
+	'access': '15-access.test.js'
 };
 
 const sectionArg = process.argv[2] || 'all';

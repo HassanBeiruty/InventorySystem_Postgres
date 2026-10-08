@@ -52,6 +52,7 @@ describe('Section 5: Products', () => {
 			const timer = perfMonitor.start('create-product-no-name');
 			const response = await request(app)
 				.post('/api/products')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.send({
 					barcode: 'BAR123',
 					description: 'Test product'
@@ -69,6 +70,7 @@ describe('Section 5: Products', () => {
 			const timer = perfMonitor.start('list-products');
 			const response = await request(app)
 				.get('/api/products')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			// The list is paginated: { data: [...], pagination: { limit, offset, total, hasMore } }

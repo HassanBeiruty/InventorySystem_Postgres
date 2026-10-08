@@ -108,6 +108,7 @@ describe('Section 6: Invoices', () => {
 			const timer = perfMonitor.start('list-invoices');
 			const response = await request(app)
 				.get('/api/invoices')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);
@@ -134,6 +135,7 @@ describe('Section 6: Invoices', () => {
 			const invoiceId = createdInvoices[0];
 			const response = await request(app)
 				.get(`/api/invoices/${invoiceId}`)
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			expect(response.body).toHaveProperty('id', invoiceId);
@@ -150,6 +152,7 @@ describe('Section 6: Invoices', () => {
 			const timer = perfMonitor.start('invoice-stats');
 			const response = await request(app)
 				.get('/api/invoices/stats')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			expect(response.body).toHaveProperty('invoicesCount');
@@ -168,6 +171,7 @@ describe('Section 6: Invoices', () => {
 			const timer = perfMonitor.start('recent-invoices');
 			const response = await request(app)
 				.get('/api/invoices/recent/10')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);
@@ -183,6 +187,7 @@ describe('Section 6: Invoices', () => {
 			const timer = perfMonitor.start('overdue-invoices');
 			const response = await request(app)
 				.get('/api/invoices/overdue')
+				.set('Authorization', `Bearer ${apiClient.token}`)
 				.expect(200);
 
 			expect(Array.isArray(response.body)).toBe(true);
