@@ -661,28 +661,27 @@ router.get('/products', async (req, res) => {
 			queryParams.push(limit, offset);
 		}
 		
-		const result = await query(queryText, queryParams);
-		
-		// Get total count for pagination info (calculate for all pages to ensure accurate pagination)
-		let totalCount = null;
-			if (search) {
-				// Normalize search term for barcode/SKU matching (same as main query)
-				// Performance optimized: Direct comparison first, REPLACE for backward compatibility
-				const normalizedSearch = normalizeBarcodeOrSku(search) || '';
-				const searchPattern = `%${search.trim()}%`;
-				const normalizedPattern = `%${normalizedSearch}%`;
-				const countResult = await query(
-					`SELECT COUNT(*) as count FROM products 
-					 WHERE name ILIKE $1 
-					 OR (barcode IS NOT NULL AND (barcode ILIKE $2 OR REPLACE(barcode, ' ', '') ILIKE $3))
-					 OR (sku IS NOT NULL AND (sku ILIKE $2 OR REPLACE(sku, ' ', '') ILIKE $3))`,
-					[searchPattern, normalizedPattern, normalizedPattern]
-				);
-				totalCount = parseInt(countResult.recordset[0].count);
-			} else {
-				const countResult = await query('SELECT COUNT(*) as count FROM products', []);
-				totalCount = parseInt(countResult.recordset[0].count);
+		// Total count for pagination info (calculated for all pages to ensure accurate pagination).
+		// It does not depend on the page query, so both run together.
+		let countPromise;
+		if (search) {
+			// Normalize search term for barcode/SKU matching (same as main query)
+			// Performance optimized: Direct comparison first, REPLACE for backward compatibility
+			const normalizedSearch = normalizeBarcodeOrSku(search) || '';
+			const searchPattern = `%${search.trim()}%`;
+			const normalizedPattern = `%${normalizedSearch}%`;
+			countPromise = query(
+				`SELECT COUNT(*) as count FROM products
+				 WHERE name ILIKE $1
+				 OR (barcode IS NOT NULL AND (barcode ILIKE $2 OR REPLACE(barcode, ' ', '') ILIKE $3))
+				 OR (sku IS NOT NULL AND (sku ILIKE $2 OR REPLACE(sku, ' ', '') ILIKE $3))`,
+				[searchPattern, normalizedPattern, normalizedPattern]
+			);
+		} else {
+			countPromise = query('SELECT COUNT(*) as count FROM products', []);
 		}
+		const [result, countResult] = await Promise.all([query(queryText, queryParams), countPromise]);
+		const totalCount = parseInt(countResult.recordset[0].count);
 		
 		const response = {
 			data: result.recordset,
@@ -1216,16 +1215,17 @@ router.get('/invoices', async (req, res) => {
 	try {
 		const { start_date, end_date } = req.query;
 
-		// Build WHERE clause for date filtering
+		// Build WHERE clause for date filtering. Comparing the raw timestamp (instead of casting it
+		// to a date) lets Postgres use the invoice_date index; "< end + 1 day" keeps the end day inclusive.
 		const conditions = [];
 		const params = [];
 		if (start_date) {
 			params.push(start_date);
-			conditions.push(`CAST(i.invoice_date AS DATE) >= $${params.length}::DATE`);
+			conditions.push(`i.invoice_date >= $${params.length}::DATE`);
 		}
 		if (end_date) {
 			params.push(end_date);
-			conditions.push(`CAST(i.invoice_date AS DATE) <= $${params.length}::DATE`);
+			conditions.push(`i.invoice_date < $${params.length}::DATE + 1`);
 		}
 		const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -1242,7 +1242,7 @@ router.get('/invoices', async (req, res) => {
 			LEFT JOIN customers c ON i.customer_id = c.id
 			LEFT JOIN suppliers s ON i.supplier_id = s.id
 			${whereClause}
-			ORDER BY i.invoice_date DESC, i.created_at DESC`;
+			ORDER BY i.invoice_date DESC, i.created_at DESC, i.id DESC`;
 			sqlParams = params;
 		} else {
 			const limit = Math.min(parseInt(req.query.limit) || 100, 500);
@@ -1254,7 +1254,7 @@ router.get('/invoices', async (req, res) => {
 			FROM invoices i
 			LEFT JOIN customers c ON i.customer_id = c.id
 			LEFT JOIN suppliers s ON i.supplier_id = s.id
-			ORDER BY i.invoice_date DESC, i.created_at DESC
+			ORDER BY i.invoice_date DESC, i.created_at DESC, i.id DESC
 			LIMIT $1 OFFSET $2`;
 			sqlParams = [limit, offset];
 		}
@@ -1262,22 +1262,21 @@ router.get('/invoices', async (req, res) => {
 		// Optimized query - only load invoice items for returned invoices
 		const invoicesResult = await query(sqlQuery, sqlParams);
 		
-		// Only fetch invoice items for the invoices we're returning (much faster)
+		// Items and payments only for the invoices we're returning; the two lookups are
+		// independent, so they run together (one database round trip instead of two).
 		const invoiceIds = invoicesResult.recordset.map(inv => inv.id);
-		const idToItems = await loadInvoiceItemsByInvoice(invoiceIds);
-		
-		// Fetch payments for all invoices to calculate amount_paid accurately
-		let paymentsResult = { recordset: [] };
-		if (invoiceIds.length > 0) {
-			const placeholders = invoiceIds.map((_, i) => `$${i + 1}`).join(',');
-			paymentsResult = await query(
-				`SELECT invoice_id, COALESCE(SUM(usd_equivalent_amount), 0) as total_paid 
-				 FROM invoice_payments 
-				 WHERE invoice_id IN (${placeholders})
-				 GROUP BY invoice_id`,
-				invoiceIds
-			);
-		}
+		const [idToItems, paymentsResult] = await Promise.all([
+			loadInvoiceItemsByInvoice(invoiceIds),
+			invoiceIds.length > 0
+				? query(
+					`SELECT invoice_id, COALESCE(SUM(usd_equivalent_amount), 0) as total_paid
+					 FROM invoice_payments
+					 WHERE invoice_id = ANY($1::int[])
+					 GROUP BY invoice_id`,
+					[invoiceIds]
+				)
+				: { recordset: [] },
+		]);
 		
 		// Create a map of invoice_id to total paid amount
 		const idToAmountPaid = new Map();
@@ -1346,36 +1345,33 @@ router.get('/invoices/recent/:limit', async (req, res) => {
 		const limit = parseInt(req.params.limit) || 10;
 		
 		// Use a subquery to get only the needed invoices with JOINs
-		// This avoids loading all customers, suppliers, and invoice_items
-		const invoicesResult = await query(
-			`SELECT 
-				i.*,
-				c.id as customer_id_val, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, c.credit_limit as customer_credit_limit, c.created_at as customer_created_at,
-				s.id as supplier_id_val, s.name as supplier_name, s.phone as supplier_phone, s.address as supplier_address, s.created_at as supplier_created_at
-			FROM (
-				SELECT * FROM invoices ORDER BY id DESC LIMIT $1
-			) i
-			LEFT JOIN customers c ON i.customer_id = c.id
-			LEFT JOIN suppliers s ON i.supplier_id = s.id
-			ORDER BY i.id DESC`,
-			[{ limit }]
-		);
-		
+		// This avoids loading all customers, suppliers, and invoice_items.
+		// The items query selects the same latest invoices itself, so both run together.
+		const [invoicesResult, invoiceItemsResult] = await Promise.all([
+			query(
+				`SELECT
+					i.*,
+					c.id as customer_id_val, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, c.credit_limit as customer_credit_limit, c.created_at as customer_created_at,
+					s.id as supplier_id_val, s.name as supplier_name, s.phone as supplier_phone, s.address as supplier_address, s.created_at as supplier_created_at
+				FROM (
+					SELECT * FROM invoices ORDER BY id DESC LIMIT $1
+				) i
+				LEFT JOIN customers c ON i.customer_id = c.id
+				LEFT JOIN suppliers s ON i.supplier_id = s.id
+				ORDER BY i.id DESC`,
+				[limit]
+			),
+			query(
+				`SELECT * FROM invoice_items
+				WHERE invoice_id IN (SELECT id FROM invoices ORDER BY id DESC LIMIT $1)
+				ORDER BY invoice_id, id`,
+				[limit]
+			),
+		]);
+
 		if (invoicesResult.recordset.length === 0) {
 			return res.json([]);
 		}
-		
-		const invoiceIds = invoicesResult.recordset.map(r => r.id);
-		
-		// Fetch invoice items only for these specific invoices
-		// Build query with proper parameterization
-		const placeholders = invoiceIds.map((_, i) => `$${i + 1}`).join(',');
-		const invoiceItemsResult = await query(
-			`SELECT * FROM invoice_items 
-			WHERE invoice_id IN (${placeholders})
-			ORDER BY invoice_id, id`,
-			invoiceIds.map(id => ({ invoice_id: id }))
-		);
 		
 		// Group invoice items by invoice_id
 		const idToItems = new Map();
@@ -1446,70 +1442,40 @@ router.get('/invoices/stats', async (req, res) => {
 	try {
 		const today = getTodayLocal();
 		
-		// Run all queries in parallel for better performance
-		const [
-			todayInvoices,
-			todayStock,
-			invoicesCount,
-			productsCount,
-			customersCount,
-			suppliersCount,
-			totalRevenueResult,
-			totalPurchasesResult,
-			stockValueResult
-		] = await Promise.all([
-			// Today's invoices - only count and sum revenue
-			query(
-				`SELECT 
-					COUNT(*) as invoice_count,
-					COALESCE(SUM(CASE WHEN invoice_type = 'sell' THEN total_amount ELSE 0 END), 0) as today_revenue
-				FROM invoices 
-				WHERE CAST(invoice_date AS DATE) = $1`, 
-				[{ today }]
-			),
-			// Today's inventory - READ FROM DAILY_STOCK TABLE (today's records only)
-			query(
-				'SELECT COUNT(DISTINCT product_id) as product_count, COALESCE(SUM(available_qty), 0) as total_qty FROM daily_stock WHERE date = $1', 
-				[{ today }]
-			),
-			// All time counts - use COUNT(*) instead of loading all records
-			query('SELECT COUNT(*) as count FROM invoices', []),
-			query('SELECT COUNT(*) as count FROM products', []),
-			query('SELECT COUNT(*) as count FROM customers', []),
-			query('SELECT COUNT(*) as count FROM suppliers', []),
-			// Total revenue (all-time sell invoices) - use SUM directly in SQL
-			query(
-				`SELECT COALESCE(SUM(total_amount), 0) as revenue
-				FROM invoices
-				WHERE invoice_type = 'sell'`,
-				[]
-			),
-			// Total purchases (all-time buy invoices) - use SUM directly in SQL
-			query(
-				`SELECT COALESCE(SUM(total_amount), 0) as purchases
-				FROM invoices
-				WHERE invoice_type = 'buy'`,
-				[]
-			),
-			// Total stock value (at cost) - today's snapshot
-			query(
-				'SELECT COALESCE(SUM(available_qty * avg_cost), 0) as stock_value FROM daily_stock WHERE date = $1',
-				[{ today }]
-			)
-		]);
-		
+		// One statement for every figure: a single connection and database round trip, where nine
+		// parallel queries each needed a connection of their own (opening one costs several round trips).
+		// "Today" compares the raw timestamp so the invoice_date index is used.
+		const statsResult = await query(
+			`SELECT
+				(SELECT COUNT(*) FROM invoices
+					WHERE invoice_date >= $1::DATE AND invoice_date < $1::DATE + 1) AS today_invoice_count,
+				(SELECT COALESCE(SUM(total_amount), 0) FROM invoices
+					WHERE invoice_type = 'sell' AND invoice_date >= $1::DATE AND invoice_date < $1::DATE + 1) AS today_revenue,
+				(SELECT COUNT(DISTINCT product_id) FROM daily_stock WHERE date = $1) AS today_product_count,
+				(SELECT COALESCE(SUM(available_qty), 0) FROM daily_stock WHERE date = $1) AS today_total_qty,
+				(SELECT COALESCE(SUM(available_qty * avg_cost), 0) FROM daily_stock WHERE date = $1) AS stock_value,
+				(SELECT COUNT(*) FROM invoices) AS invoices_count,
+				(SELECT COUNT(*) FROM products) AS products_count,
+				(SELECT COUNT(*) FROM customers) AS customers_count,
+				(SELECT COUNT(*) FROM suppliers) AS suppliers_count,
+				(SELECT COALESCE(SUM(total_amount), 0) FROM invoices WHERE invoice_type = 'sell') AS revenue,
+				(SELECT COALESCE(SUM(total_amount), 0) FROM invoices WHERE invoice_type = 'buy') AS purchases`,
+			[today]
+		);
+		const stats = statsResult.recordset[0] || {};
+
 		// Extract results
-		const todayInvoicesCount = parseInt(todayInvoices.recordset[0]?.invoice_count || 0);
-		const todayRevenue = parseFloat(todayInvoices.recordset[0]?.today_revenue || 0);
-		const todayProductsCount = parseInt(todayStock.recordset[0]?.product_count || 0);
-		const todayTotalQuantity = parseFloat(todayStock.recordset[0]?.total_qty || 0);
-		const invoicesCountAll = parseInt(invoicesCount.recordset[0]?.count || 0);
-		const productsCountAll = parseInt(productsCount.recordset[0]?.count || 0);
-		const customersCountAll = parseInt(customersCount.recordset[0]?.count || 0);
-		const suppliersCountAll = parseInt(suppliersCount.recordset[0]?.count || 0);
-		const totalRevenue = parseFloat(totalRevenueResult.recordset[0]?.revenue || 0);
-		const totalPurchases = parseFloat(totalPurchasesResult.recordset[0]?.purchases || 0);
-		const totalStockValue = parseFloat(stockValueResult.recordset[0]?.stock_value || 0);
+		const todayInvoicesCount = parseInt(stats.today_invoice_count || 0);
+		const todayRevenue = parseFloat(stats.today_revenue || 0);
+		const todayProductsCount = parseInt(stats.today_product_count || 0);
+		const todayTotalQuantity = parseFloat(stats.today_total_qty || 0);
+		const invoicesCountAll = parseInt(stats.invoices_count || 0);
+		const productsCountAll = parseInt(stats.products_count || 0);
+		const customersCountAll = parseInt(stats.customers_count || 0);
+		const suppliersCountAll = parseInt(stats.suppliers_count || 0);
+		const totalRevenue = parseFloat(stats.revenue || 0);
+		const totalPurchases = parseFloat(stats.purchases || 0);
+		const totalStockValue = parseFloat(stats.stock_value || 0);
 
 		res.json({
 			// All time stats (for reference)
@@ -2010,22 +1976,58 @@ router.post('/invoices', [
 router.get('/invoices/:id', async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
-		
-		// Get invoice - using plain array params
-		const invoiceResult = await query('SELECT * FROM invoices WHERE id = $1', [id]);
+
+		// The invoice (with its customer/supplier), its payments and its items only depend on the id,
+		// so the three queries run together: one database round trip instead of five in a row.
+		const [invoiceResult, paymentsResult, itemsResult] = await Promise.all([
+			query(
+				`SELECT i.*,
+					c.id as customer_id_val, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, c.credit_limit as customer_credit_limit, c.created_at as customer_created_at,
+					s.id as supplier_id_val, s.name as supplier_name, s.phone as supplier_phone, s.address as supplier_address, s.created_at as supplier_created_at
+				 FROM invoices i
+				 LEFT JOIN customers c ON c.id = i.customer_id
+				 LEFT JOIN suppliers s ON s.id = i.supplier_id
+				 WHERE i.id = $1`,
+				[id]
+			),
+			// Payments (with currency information)
+			query(
+				`SELECT id, invoice_id, paid_amount, currency_code, exchange_rate_on_payment, usd_equivalent_amount,
+				 payment_date, payment_method, notes, created_at
+				 FROM invoice_payments WHERE invoice_id = $1 ORDER BY payment_date DESC`,
+				[id]
+			),
+			// Invoice items with product details
+			query(
+				`SELECT ii.*, p.name as product_name, p.barcode as product_barcode, p.sku as product_sku
+				 FROM invoice_items ii
+				 LEFT JOIN products p ON ii.product_id = p.id
+				 WHERE ii.invoice_id = $1
+				 ORDER BY ii.id`,
+				[id]
+			),
+		]);
 		if (invoiceResult.recordset.length === 0) {
 			return res.status(404).json({ error: 'Invoice not found' });
 		}
-		
-		const invoice = invoiceResult.recordset[0];
-		
-		// Get payments (with currency information) - using plain array params
-		const paymentsResult = await query(
-			`SELECT id, invoice_id, paid_amount, currency_code, exchange_rate_on_payment, usd_equivalent_amount, 
-			 payment_date, payment_method, notes, created_at 
-			 FROM invoice_payments WHERE invoice_id = $1 ORDER BY payment_date DESC`,
-			[id]
-		);
+
+		const { customer_id_val, customer_name, customer_phone, customer_address, customer_credit_limit, customer_created_at,
+			supplier_id_val, supplier_name, supplier_phone, supplier_address, supplier_created_at, ...invoice } = invoiceResult.recordset[0];
+		const customer = customer_id_val ? {
+			id: customer_id_val,
+			name: customer_name,
+			phone: customer_phone,
+			address: customer_address,
+			credit_limit: customer_credit_limit,
+			created_at: customer_created_at
+		} : undefined;
+		const supplier = supplier_id_val ? {
+			id: supplier_id_val,
+			name: supplier_name,
+			phone: supplier_phone,
+			address: supplier_address,
+			created_at: supplier_created_at
+		} : undefined;
 		const payments = paymentsResult.recordset;
 		
 		// Calculate amount_paid from USD equivalents of all payments (for consistency)
@@ -2033,21 +2035,8 @@ router.get('/invoices/:id', async (req, res) => {
 			return sum + parseFloat(String(p.usd_equivalent_amount || 0));
 		}, 0);
 		
-		// Get invoice items with product details - using plain array params
-		const itemsResult = await query(
-			`SELECT ii.*, p.name as product_name, p.barcode as product_barcode, p.sku as product_sku
-			 FROM invoice_items ii
-			 LEFT JOIN products p ON ii.product_id = p.id
-			 WHERE ii.invoice_id = $1
-			 ORDER BY ii.id`,
-			[id]
-		);
 		const invoice_items = itemsResult.recordset;
-		
-		// Get customer/supplier details - using plain array params
-		const customersResult = await query('SELECT * FROM customers WHERE id = $1', [invoice.customer_id || 0]);
-		const suppliersResult = await query('SELECT * FROM suppliers WHERE id = $1', [invoice.supplier_id || 0]);
-		
+
 		// Convert DECIMAL strings to numbers
 		const amountPaid = totalPaidUsd; // Use calculated USD equivalent total
 		const totalAmount = parseFloat(String(invoice.total_amount || 0));
@@ -2069,8 +2058,8 @@ router.get('/invoices/:id', async (req, res) => {
 			remaining_balance: remainingBalance,
 			payments: payments,
 			invoice_items: invoice_items,
-			customers: customersResult.recordset[0] || undefined,
-			suppliers: suppliersResult.recordset[0] || undefined,
+			customers: customer,
+			suppliers: supplier,
 		};
 		
 		res.json(result);

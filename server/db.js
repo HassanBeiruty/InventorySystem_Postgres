@@ -1,5 +1,13 @@
 const { Pool } = require('pg');
 
+// Opening a connection to the hosted database costs several round trips (TCP, TLS, auth,
+// timezone), which users felt as a slow first click after a pause. Idle connections are
+// kept for 10 minutes instead of 30 seconds, with TCP keep-alive so they stay usable.
+const connectionReuse = {
+	idleTimeoutMillis: 10 * 60 * 1000,
+	keepAlive: true,
+};
+
 // Support both DATABASE_URL (from Render) and individual connection parameters
 let poolConfig;
 
@@ -19,7 +27,7 @@ if (process.env.DATABASE_URL) {
 			: false,
 		max: maxConnections,
 		min: 2, // Keep minimum connections ready
-		idleTimeoutMillis: 30000,
+		...connectionReuse,
 		connectionTimeoutMillis: 10000, // Faster timeout for production
 		allowExitOnIdle: false, // Keep pool alive
 		// Force IPv4 for Supabase if needed (connection pooler handles this better)
@@ -58,7 +66,7 @@ if (process.env.DATABASE_URL) {
 		ssl: process.env.PG_SSL === 'true' || isSupabase ? { rejectUnauthorized: false } : false,
 		max: maxConnections,
 		min: 2, // Keep minimum connections ready
-		idleTimeoutMillis: 30000,
+		...connectionReuse,
 		connectionTimeoutMillis: 10000, // Faster timeout for production
 		allowExitOnIdle: false, // Keep pool alive
 		// For Supabase, prefer IPv4 by using connection pooler port
@@ -116,9 +124,6 @@ pool.on('connect', async (client) => {
  * @param {Array} params - Array of parameter values (not objects)
  * @returns {Promise} Query result with rows property
  */
-// Track which clients have had timezone set
-const timezoneSetClients = new WeakSet();
-
 async function query(text, params = []) {
 	// Convert params array of objects to array of values
 	// SQL Server used [{name: value}, {name2: value2}] or [{name1: value1, name2: value2}]
@@ -145,11 +150,8 @@ async function query(text, params = []) {
 		// Get a client from the pool
 		const client = await pool.connect();
 		try {
-			// Set timezone for this client if not already set
-			if (!timezoneSetClients.has(client)) {
-				await client.query("SET TIMEZONE = 'Asia/Beirut'");
-				timezoneSetClients.add(client);
-			}
+			// The timezone is already set by the pool's 'connect' handler, which runs before a new
+			// client is handed out, so its SET is queued ahead of this query.
 			// Execute the query
 			const result = await client.query(text, paramValues);
 			// Return in a format similar to SQL Server (with recordset property for compatibility)
