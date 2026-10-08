@@ -227,7 +227,8 @@ describe('Complete User Flow Test Suite', () => {
 				.get('/api/products')
 				.expect(200);
 
-			expect(Array.isArray(response.body)).toBe(true);
+			// The list is paginated: { data: [...], pagination: {...} }
+			expect(Array.isArray(response.body.data)).toBe(true);
 
 			const duration = global.testUtils.performance.end('list-products');
 			performanceResults.push({ action: 'List Products', duration, status: 'success' });

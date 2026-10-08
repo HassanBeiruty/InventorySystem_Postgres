@@ -71,10 +71,12 @@ describe('Section 5: Products', () => {
 				.get('/api/products')
 				.expect(200);
 
-			expect(Array.isArray(response.body)).toBe(true);
-			if (response.body.length > 0) {
-				expect(response.body[0]).toHaveProperty('id');
-				expect(response.body[0]).toHaveProperty('name');
+			// The list is paginated: { data: [...], pagination: { limit, offset, total, hasMore } }
+			expect(Array.isArray(response.body.data)).toBe(true);
+			expect(response.body.pagination).toHaveProperty('total');
+			if (response.body.data.length > 0) {
+				expect(response.body.data[0]).toHaveProperty('id');
+				expect(response.body.data[0]).toHaveProperty('name');
 			}
 
 			const metric = perfMonitor.end(timer);

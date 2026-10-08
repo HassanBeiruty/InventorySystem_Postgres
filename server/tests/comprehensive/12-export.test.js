@@ -21,13 +21,12 @@ describe('Section 12: CSV Export', () => {
 	});
 
 	describe('12.1 Export Products', () => {
-		test('Should export products as CSV', async () => {
+		test('Should export products as an Excel file', async () => {
 			const timer = perfMonitor.start('export-products');
 			const response = await apiClient.get('/api/export/products');
 
-			expect(response.headers['content-type']).toContain('text/csv');
-			expect(response.headers['content-disposition']).toContain('products.csv');
-			expect(typeof response.text).toBe('string');
+			expect(response.headers['content-type']).toContain('spreadsheetml.sheet');
+			expect(response.headers['content-disposition']).toContain('products_export.xlsx');
 
 			const metric = perfMonitor.end(timer);
 			perfMonitor.assertPerformance('export-products', metric.duration, 3000);
@@ -35,12 +34,12 @@ describe('Section 12: CSV Export', () => {
 	});
 
 	describe('12.2 Export Invoices', () => {
-		test('Should export invoices as CSV', async () => {
+		test('Should export invoices as an Excel file', async () => {
 			const timer = perfMonitor.start('export-invoices');
 			const response = await apiClient.get('/api/export/invoices');
 
-			expect(response.headers['content-type']).toContain('text/csv');
-			expect(response.headers['content-disposition']).toContain('invoices.csv');
+			expect(response.headers['content-type']).toContain('spreadsheetml.sheet');
+			expect(response.headers['content-disposition']).toMatch(/invoices_export.*\.xlsx/);
 
 			const metric = perfMonitor.end(timer);
 			perfMonitor.assertPerformance('export-invoices', metric.duration, 3000);
