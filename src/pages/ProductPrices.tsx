@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
 import ProductCombobox from "@/components/ProductCombobox";
-import { useDebounce } from "@/hooks/useDebounce";
+import { useSearchText } from "@/hooks/useSearchText";
 
 const ProductPrices = () => {
   const { t } = useTranslation();
@@ -40,7 +40,7 @@ const ProductPrices = () => {
   const [addProductId, setAddProductId] = useState("");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const debouncedSearchQuery = useDebounce(searchQuery, 400);
+  const { applied: debouncedSearchQuery, searchOnEnter } = useSearchText(searchQuery);
 
   useEffect(() => {
     fetchData();
@@ -385,6 +385,7 @@ const ProductPrices = () => {
                     placeholder="Search prices (product name, ID)"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={searchOnEnter}
                     className="w-full ps-8 pe-8 h-8 text-[13px]"
                     autoFocus
                   />

@@ -22,7 +22,7 @@ import { summarizeInvoiceItems } from "@/utils/invoicePackageGroups";
 import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
 import { StatTile } from "@/components/page-ui/StatTile";
 import { StatusPill, PaymentStatusPill } from "@/components/page-ui/StatusPill";
-import { useDebounce } from "@/hooks/useDebounce";
+import { useSearchText } from "@/hooks/useSearchText";
 
 const NO_INVOICES: any[] = [];
 // Rows are drawn in batches as the list is scrolled; drawing a few hundred invoices at once
@@ -35,7 +35,7 @@ const InvoicesList = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const debouncedSearchQuery = useDebounce(searchQuery, 400);
+  const { applied: debouncedSearchQuery, searchOnEnter } = useSearchText(searchQuery);
 
   // Date filter state - default to 3 days ago to today (Lebanon timezone)
   const [startDate, setStartDate] = useState<string>(() => getNDaysAgoLebanon(3));
@@ -501,6 +501,7 @@ const InvoicesList = () => {
               placeholder={t('invoices.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={searchOnEnter}
               className="w-full ps-8 pe-8 h-9 sm:h-8 text-[13px]"
               autoFocus
             />

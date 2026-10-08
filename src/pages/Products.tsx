@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { categoriesQuery, invalidateProductData, queryKeys } from "@/integrations/api/queries";
+import { useSearchText } from "@/hooks/useSearchText";
 import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
 import { SectionCard } from "@/components/page-ui/SectionCard";
 import { StatTile } from "@/components/page-ui/StatTile";
@@ -28,8 +29,7 @@ const Products = () => {
   const [editOpen, setEditOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>("");
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { applied: debouncedSearchQuery, searchOnEnter } = useSearchText(searchQuery);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [formCategoryId, setFormCategoryId] = useState<string>("");
   const [editFormCategoryId, setEditFormCategoryId] = useState<string>("");
@@ -46,36 +46,19 @@ const Products = () => {
   const [previewData, setPreviewData] = useState<any>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [checkedExistingProducts, setCheckedExistingProducts] = useState<Set<number>>(new Set());
-  const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize] = useState<number>(50);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Debounce search: update debounced value only after user stops typing (fetch runs once per finished phrase).
-  // A new search starts at page 1 in the same update, so the old page is never requested for it.
-  useEffect(() => {
-    if (searchDebounceRef.current) {
-      clearTimeout(searchDebounceRef.current);
-      searchDebounceRef.current = null;
-    }
-    searchDebounceRef.current = setTimeout(() => {
-      searchDebounceRef.current = null;
-      setDebouncedSearchQuery(searchQuery);
-      if (searchQuery.trim()) {
-        setCurrentPage(1);
-      }
-    }, 600);
-    return () => {
-      if (searchDebounceRef.current) {
-        clearTimeout(searchDebounceRef.current);
-        searchDebounceRef.current = null;
-      }
-    };
-  }, [searchQuery]);
+  // The page number belongs to the search it was chosen for, so a new search starts at page 1
+  // in the same update and the old page is never requested for it.
+  const search = debouncedSearchQuery.trim();
+  const [pageState, setPageState] = useState({ search: "", page: 1 });
+  const currentPage = pageState.search === search ? pageState.page : 1;
+  const setCurrentPage = (page: number) => setPageState({ search, page });
 
   // Each page of results is cached: paging back, or coming back to this page, shows rows at once.
   // While another page or search loads, the current rows stay on screen instead of a full-page spinner.
-  const search = debouncedSearchQuery.trim();
   const offset = (currentPage - 1) * pageSize;
   const productsQuery = useQuery({
     queryKey: queryKeys.productPage(pageSize, offset, search),
@@ -126,9 +109,9 @@ const Products = () => {
   // Ensure currentPage doesn't exceed totalPages
   useEffect(() => {
     if (totalPages > 0 && currentPage > totalPages) {
-      setCurrentPage(1);
+      setPageState({ search, page: 1 });
     }
-  }, [totalPages, currentPage]);
+  }, [totalPages, currentPage, search]);
   
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
@@ -716,6 +699,7 @@ const Products = () => {
                     placeholder={t('products.searchPlaceholder')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={searchOnEnter}
                     className="w-full ps-8 pe-8 h-8 text-[13px]"
                     autoFocus
                   />

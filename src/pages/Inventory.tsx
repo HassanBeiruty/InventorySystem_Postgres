@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
-import { useDebounce } from "@/hooks/useDebounce";
+import { useSearchText } from "@/hooks/useSearchText";
 
 interface InventoryItem {
   id: string;
@@ -34,7 +34,7 @@ const Inventory = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const debouncedSearchQuery = useDebounce(searchQuery, 400);
+  const { applied: debouncedSearchQuery, searchOnEnter } = useSearchText(searchQuery);
 
   useEffect(() => {
     fetchInventory();
@@ -85,6 +85,7 @@ const Inventory = () => {
                 placeholder="Search inventory (name, barcode, SKU, ID)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={searchOnEnter}
                 autoFocus
                 className="w-full ps-8 pe-8 h-8 text-[13px]"
               />

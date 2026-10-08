@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { FileText, TrendingUp, TrendingDown, Package, Download, BarChart3, DollarSign, AlertCircle, Calendar, X, Warehouse } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
+import { formatDateTimeLebanon, getFirstOfMonthLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useTranslation } from "react-i18next";
@@ -68,8 +68,9 @@ const Reports = () => {
   const { t } = useTranslation();
   const { isAdmin, isLoading: isAdminLoading } = useAdmin();
   const [loading, setLoading] = useState(true);
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
+  // The report opens on the current month: from the 1st to today (Lebanon time)
+  const [startDate, setStartDate] = useState<string>(getFirstOfMonthLebanon);
+  const [endDate, setEndDate] = useState<string>(getTodayLebanon);
   const [chartPeriod, setChartPeriod] = useState<string>("month");
   const [summary, setSummary] = useState({
     totalSales: 0,
@@ -96,8 +97,7 @@ const Reports = () => {
   const [customerSalesDialogOpen, setCustomerSalesDialogOpen] = useState(false);
   const [customerSalesData, setCustomerSalesData] = useState<any[]>([]);
   const [customerSalesLoading, setCustomerSalesLoading] = useState(false);
-  const [dateFiltersInitialized, setDateFiltersInitialized] = useState(false);
-  
+
   // Memoize chart colors to avoid recalculating on every render
   const chartColors = useMemo(() => getChartColors(), []);
 
@@ -515,83 +515,10 @@ const Reports = () => {
     }
   }, [toast, t, startDate, endDate, chartPeriod, filterByDateRange, generateChartData, getProfitRange]);
 
-  // Initialize date filters: startDate = min sell invoice date, endDate = today
-  // If min date is more than 3 months ago, use 2.5 months before today instead
   useEffect(() => {
-    if (!isAdmin || isAdminLoading || dateFiltersInitialized) return;
-    
-    const initializeDateFilters = async () => {
-      try {
-        const API_BASE_URL = import.meta.env.VITE_API_URL || '';
-        const token = localStorage.getItem('auth_token');
-        
-        const url = API_BASE_URL 
-          ? `${API_BASE_URL.replace(/\/$/, '')}/api/reports/min-sell-date`
-          : '/api/reports/min-sell-date';
-        
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-        
-        const today = getTodayLebanon();
-        let finalStartDate = today;
-        
-        if (response.ok) {
-          const data = await response.json();
-          const minDate = data.min_date || today;
-          
-          // Calculate 3 months ago (approximately 90 days) and 2.5 months ago (approximately 75 days)
-          const todayDate = new Date(today);
-          const threeMonthsAgo = new Date(todayDate);
-          threeMonthsAgo.setDate(todayDate.getDate() - 90); // 3 months ≈ 90 days
-          
-          const twoAndHalfMonthsAgo = new Date(todayDate);
-          twoAndHalfMonthsAgo.setDate(todayDate.getDate() - 75); // 2.5 months ≈ 75 days
-          
-          const minDateObj = new Date(minDate);
-          
-          // If minimum date is more than 3 months ago, use 2.5 months ago instead
-          if (minDateObj < threeMonthsAgo) {
-            finalStartDate = formatDateForComparison(twoAndHalfMonthsAgo);
-          } else {
-            // Use the minimum sell invoice date
-            finalStartDate = minDate;
-          }
-        } else {
-          // Fallback: if API fails, use 2.5 months ago as start date
-          const todayDate = new Date(today);
-          const twoAndHalfMonthsAgo = new Date(todayDate);
-          twoAndHalfMonthsAgo.setDate(todayDate.getDate() - 75);
-          finalStartDate = formatDateForComparison(twoAndHalfMonthsAgo);
-        }
-        
-        setStartDate(finalStartDate);
-        // Always set endDate to today
-        setEndDate(today);
-        setDateFiltersInitialized(true);
-      } catch (error) {
-        console.error('Failed to fetch min sell date:', error);
-        // Fallback: set start date to 2.5 months ago, end date to today
-        const today = getTodayLebanon();
-        const todayDate = new Date(today);
-        const twoAndHalfMonthsAgo = new Date(todayDate);
-        twoAndHalfMonthsAgo.setDate(todayDate.getDate() - 75);
-        setStartDate(formatDateForComparison(twoAndHalfMonthsAgo));
-        setEndDate(today);
-        setDateFiltersInitialized(true);
-      }
-    };
-    
-    initializeDateFilters();
-  }, [isAdmin, isAdminLoading, dateFiltersInitialized, formatDateForComparison]);
-
-  useEffect(() => {
-    if (!isAdmin || isAdminLoading || !dateFiltersInitialized) return;
+    if (!isAdmin || isAdminLoading) return;
     fetchReports();
-  }, [isAdmin, isAdminLoading, fetchReports, startDate, endDate, dateFiltersInitialized]);
+  }, [isAdmin, isAdminLoading, fetchReports, startDate, endDate]);
 
   const exportToPDF = async () => {
     try {

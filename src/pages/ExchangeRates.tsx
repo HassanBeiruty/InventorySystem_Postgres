@@ -15,7 +15,7 @@ import { exchangeRatesRepo, ExchangeRateEntity } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useTranslation } from "react-i18next";
-import { useDebounce } from "@/hooks/useDebounce";
+import { useSearchText } from "@/hooks/useSearchText";
 
 const ExchangeRates = () => {
   const { t } = useTranslation();
@@ -33,7 +33,7 @@ const ExchangeRates = () => {
   const [editingRate, setEditingRate] = useState<ExchangeRateEntity | null>(null);
   const [formLoading, setFormLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const debouncedSearchQuery = useDebounce(searchQuery, 400);
+  const { applied: debouncedSearchQuery, searchOnEnter } = useSearchText(searchQuery);
 
   const fetchData = useCallback(async () => {
     // Only fetch if admin check is complete and user is admin
@@ -342,6 +342,7 @@ const ExchangeRates = () => {
               placeholder="Search exchange rates (currency, ID)"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={searchOnEnter}
               className="w-full ps-8 pe-8 h-8 text-[13px]"
               autoFocus
             />

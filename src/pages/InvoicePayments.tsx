@@ -16,7 +16,7 @@ import { useTranslation } from "react-i18next";
 import InvoicePaymentsSidePanel from "@/components/InvoicePaymentsSidePanel";
 import AddPaymentDialog from "@/components/AddPaymentDialog";
 import InvoiceCombobox from "@/components/InvoiceCombobox";
-import { useDebounce } from "@/hooks/useDebounce";
+import { useSearchText } from "@/hooks/useSearchText";
 
 interface Payment {
   id: number;
@@ -49,7 +49,7 @@ const InvoicePayments = () => {
     end_date: "",
     search: "",
   });
-  const debouncedSearch = useDebounce(filters.search, 400);
+  const { applied: debouncedSearch, searchOnEnter } = useSearchText(filters.search);
 
   const [showFilters, setShowFilters] = useState(false);
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
@@ -252,6 +252,7 @@ const InvoicePayments = () => {
                   placeholder="Search by invoice, customer, supplier, amount..."
                   value={filters.search}
                   onChange={(e) => setFilters({...filters, search: e.target.value})}
+                  onKeyDown={searchOnEnter}
                 />
               </div>
 

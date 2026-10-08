@@ -14,7 +14,7 @@ import { productCostsRepo, productsRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
 import ProductCombobox from "@/components/ProductCombobox";
-import { useDebounce } from "@/hooks/useDebounce";
+import { useSearchText } from "@/hooks/useSearchText";
 
 const ProductCosts = () => {
   const { toast } = useToast();
@@ -28,7 +28,7 @@ const ProductCosts = () => {
   });
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const debouncedSearchQuery = useDebounce(searchQuery, 400);
+  const { applied: debouncedSearchQuery, searchOnEnter } = useSearchText(searchQuery);
   const [stats, setStats] = useState({
     totalValue: 0,
     totalQuantity: 0,
@@ -249,6 +249,7 @@ const ProductCosts = () => {
                 placeholder="Search products (name, ID)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={searchOnEnter}
                 className="w-full ps-8 pe-8 h-8 text-[13px]"
                 autoFocus
               />

@@ -21,7 +21,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useTranslation } from "react-i18next";
-import { useDebounce } from "@/hooks/useDebounce";
+import { useSearchText } from "@/hooks/useSearchText";
 
 const Categories = () => {
   const { t } = useTranslation();
@@ -33,7 +33,7 @@ const Categories = () => {
   const [editingCategory, setEditingCategory] = useState<any>(null);
   const [deletingCategory, setDeletingCategory] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const debouncedSearchQuery = useDebounce(searchQuery, 400);
+  const { applied: debouncedSearchQuery, searchOnEnter } = useSearchText(searchQuery);
   const { toast } = useToast();
 
   const fetchCategories = async () => {
@@ -189,6 +189,7 @@ const Categories = () => {
                 placeholder="Search categories (name, description, ID)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={searchOnEnter}
                 className="w-full ps-8 pe-8 h-8 text-[13px]"
                 autoFocus
               />

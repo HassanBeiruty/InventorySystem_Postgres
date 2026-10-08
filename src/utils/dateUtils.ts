@@ -22,6 +22,13 @@ export function getTodayLebanon(): string {
 }
 
 /**
+ * Get the first day of the current month in Lebanon timezone (YYYY-MM-DD format)
+ */
+export function getFirstOfMonthLebanon(): string {
+  return `${getTodayLebanon().slice(0, 8)}01`;
+}
+
+/**
  * Get the date N days ago in Lebanon timezone (YYYY-MM-DD format)
  */
 export function getNDaysAgoLebanon(n: number): string {

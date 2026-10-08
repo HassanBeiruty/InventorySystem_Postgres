@@ -12,7 +12,7 @@ import { TrendingUp, Package, Search, X, Calendar, History, Filter } from "lucid
 import { formatDateTimeLebanon, getTodayLebanon, getNDaysAgoLebanon } from "@/utils/dateUtils";
 import { useTranslation } from "react-i18next";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
-import { useDebounce } from "@/hooks/useDebounce";
+import { useSearchText } from "@/hooks/useSearchText";
 
 interface StockMovement {
   id: string;
@@ -38,9 +38,9 @@ const StockMovements = () => {
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const debouncedSearchQuery = useDebounce(searchQuery, 400);
+  const { applied: debouncedSearchQuery, searchOnEnter } = useSearchText(searchQuery);
   const [productIdFilter, setProductIdFilter] = useState<string>("");
-  const debouncedProductIdFilter = useDebounce(productIdFilter, 400);
+  const { applied: debouncedProductIdFilter, searchOnEnter: productIdOnEnter } = useSearchText(productIdFilter);
 
   // Date filter state - default to 3 days ago to today (Lebanon timezone)
   const [startDate, setStartDate] = useState<string>(() => getNDaysAgoLebanon(3));
@@ -141,6 +141,7 @@ const StockMovements = () => {
                   placeholder="e.g. 42"
                   value={productIdFilter}
                   onChange={(e) => setProductIdFilter(e.target.value)}
+                  onKeyDown={productIdOnEnter}
                   className="h-8 text-[13px] w-28 pe-7"
                 />
                 {productIdFilter && (
@@ -171,6 +172,7 @@ const StockMovements = () => {
                 placeholder="Search movements (product, invoice ID)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={searchOnEnter}
                 className="w-full ps-8 pe-8 h-8 text-[13px]"
                 autoFocus
               />

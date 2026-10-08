@@ -3775,35 +3775,6 @@ router.get('/reports/supplier-purchases', authenticateToken, async (req, res) =>
 	}
 });
 
-// Get minimum invoice date for sell invoices
-router.get('/reports/min-sell-date', authenticateToken, async (req, res) => {
-	try {
-		const result = await query(
-			`SELECT MIN(CAST(invoice_date AS DATE)) as min_date
-			FROM invoices
-			WHERE invoice_type = 'sell'`,
-			[]
-		);
-		
-		const minDate = result.recordset[0]?.min_date;
-		if (minDate) {
-			// Format date as YYYY-MM-DD
-			const date = new Date(minDate);
-			const year = date.getFullYear();
-			const month = String(date.getMonth() + 1).padStart(2, '0');
-			const day = String(date.getDate()).padStart(2, '0');
-			res.json({ min_date: `${year}-${month}-${day}` });
-		} else {
-			// No sell invoices found, return today's date as fallback
-			const today = getTodayLocal();
-			res.json({ min_date: today });
-		}
-	} catch (err) {
-		console.error('Get min sell date error:', err);
-		res.status(500).json({ error: err.message });
-	}
-});
-
 // Get customer sales breakdown (all-time totals per customer)
 router.get('/reports/customer-sales', authenticateToken, async (req, res) => {
 	try {

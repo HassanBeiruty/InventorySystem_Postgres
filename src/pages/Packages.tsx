@@ -22,7 +22,7 @@ import {
 import ProductCombobox from "@/components/ProductCombobox";
 import { QtyStepper } from "@/components/page-ui/QtyStepper";
 import { parseMoney } from "@/utils/money";
-import { useDebounce } from "@/hooks/useDebounce";
+import { useSearchText } from "@/hooks/useSearchText";
 
 interface ProductLite {
   id: number | string;
@@ -47,7 +47,7 @@ const Packages = () => {
   const [products, setProducts] = useState<ProductLite[]>([]);
   const [retailPrices, setRetailPrices] = useState<Map<string, number>>(new Map());
   const [searchQuery, setSearchQuery] = useState("");
-  const debouncedSearchQuery = useDebounce(searchQuery, 400);
+  const { applied: debouncedSearchQuery, searchOnEnter } = useSearchText(searchQuery);
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -242,6 +242,7 @@ const Packages = () => {
                   placeholder={t("packages.searchPlaceholder", "Search packages (name or product)")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={searchOnEnter}
                   className="w-full ps-8 pe-8 h-8 text-sm"
                 />
                 {searchQuery && (

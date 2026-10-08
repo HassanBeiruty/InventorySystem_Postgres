@@ -10,7 +10,7 @@ import { suppliersRepo } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useTranslation } from "react-i18next";
-import { useDebounce } from "@/hooks/useDebounce";
+import { useSearchText } from "@/hooks/useSearchText";
 
 const Suppliers = () => {
   const { t } = useTranslation();
@@ -20,7 +20,7 @@ const Suppliers = () => {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [editingSupplier, setEditingSupplier] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const debouncedSearchQuery = useDebounce(searchQuery, 400);
+  const { applied: debouncedSearchQuery, searchOnEnter } = useSearchText(searchQuery);
   const { toast } = useToast();
 
   const fetchSuppliers = async () => {
@@ -159,6 +159,7 @@ const Suppliers = () => {
                 placeholder="Search suppliers (name, phone, address, ID)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={searchOnEnter}
                 className="w-full ps-8 pe-8 h-8 text-[13px]"
                 autoFocus
               />

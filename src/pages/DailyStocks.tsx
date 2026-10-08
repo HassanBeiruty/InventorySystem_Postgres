@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useTranslation } from "react-i18next";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
-import { useDebounce } from "@/hooks/useDebounce";
+import { useSearchText } from "@/hooks/useSearchText";
 
 interface DailyStockItem {
   id: string;
@@ -34,7 +34,7 @@ const DailyStocks = () => {
   const [dailyStocks, setDailyStocks] = useState<DailyStockItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const debouncedSearchTerm = useDebounce(searchTerm, 400);
+  const { applied: debouncedSearchTerm, searchOnEnter } = useSearchText(searchTerm);
   
   // Date filter state - default to 3 days ago to today
   const [startDate, setStartDate] = useState<string>(() => {
@@ -187,6 +187,7 @@ const DailyStocks = () => {
                 placeholder={t('dailyStocks.searchProducts')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={searchOnEnter}
                 className="w-full ps-8 pe-8 h-8 text-[13px]"
                 autoFocus
               />
