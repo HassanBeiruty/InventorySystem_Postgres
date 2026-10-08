@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
 import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
 import { SectionCard } from "@/components/page-ui/SectionCard";
 import { Button } from "@/components/ui/button";
@@ -212,7 +211,7 @@ const BarcodeGenerator = () => {
   };
 
   return (
-    <DashboardLayout>
+    <>
       <div className="space-y-4 animate-fade-in">
         <InvoicePageHeader
           icon={Scan}
@@ -333,7 +332,7 @@ const BarcodeGenerator = () => {
             </p>
         </SectionCard>
       </div>
-    </DashboardLayout>
+    </>
   );
 };
 

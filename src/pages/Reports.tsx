@@ -1,5 +1,4 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
 import { SectionCard } from "@/components/page-ui/SectionCard";
@@ -648,19 +647,19 @@ const Reports = () => {
   // While checking admin status, show skeleton layout (same style as Settings/ExchangeRates)
   if (isAdminLoading) {
     return (
-      <DashboardLayout>
+      <>
         <div className="space-y-6 p-4 sm:p-6">
           <div className="space-y-4">
             <Skeleton className="h-10 w-64" />
             <Skeleton className="h-64 w-full" />
           </div>
         </div>
-      </DashboardLayout>
+      </>
     );
   }
 
   return (
-    <DashboardLayout>
+    <>
       <div className="space-y-3 sm:space-y-4">
         <InvoicePageHeader
           icon={BarChart3}
@@ -1154,7 +1153,7 @@ const Reports = () => {
           </DialogContent>
         </Dialog>
       </div>
-    </DashboardLayout>
+    </>
   );
 };
 

@@ -1,6 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { inventoryRepo } from "@/integrations/api/repo";
-import DashboardLayout from "@/components/DashboardLayout";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
 import { SectionCard } from "@/components/page-ui/SectionCard";
@@ -125,7 +124,7 @@ const DailyStocks = () => {
   }, [groupedByDate, currentDate]);
 
   return (
-    <DashboardLayout>
+    <>
       <div className="space-y-3 sm:space-y-4 animate-fade-in">
         <InvoicePageHeader
           icon={CalendarDays}
@@ -343,7 +342,7 @@ const DailyStocks = () => {
             )}
         </SectionCard>
       </div>
-    </DashboardLayout>
+    </>
   );
 };
 

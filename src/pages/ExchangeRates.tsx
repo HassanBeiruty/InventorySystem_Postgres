@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
 import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
 import { StatusPill } from "@/components/page-ui/StatusPill";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -181,21 +180,21 @@ const ExchangeRates = () => {
   // This prevents the flash of content/access denied
   if (isAdminLoading) {
     return (
-      <DashboardLayout>
+      <>
         <div className="space-y-3 p-2 sm:p-3">
           <div className="space-y-2">
             <Skeleton className="h-8 w-48" />
             <Skeleton className="h-48 w-full" />
           </div>
         </div>
-      </DashboardLayout>
+      </>
     );
   }
 
   // Show access denied if not admin (only after loading is definitely complete)
   if (!isAdmin) {
     return (
-      <DashboardLayout>
+      <>
         <div className="space-y-3 sm:space-y-4">
           <InvoicePageHeader
             icon={DollarSign}
@@ -209,7 +208,7 @@ const ExchangeRates = () => {
             </CardContent>
           </Card>
         </div>
-      </DashboardLayout>
+      </>
     );
   }
 
@@ -226,7 +225,7 @@ const ExchangeRates = () => {
   });
 
   return (
-    <DashboardLayout>
+    <>
       <div className="space-y-3 sm:space-y-4">
         <InvoicePageHeader
           icon={DollarSign}
@@ -552,7 +551,7 @@ const ExchangeRates = () => {
           </DialogContent>
         </Dialog>
       </div>
-    </DashboardLayout>
+    </>
   );
 };
 

@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -211,7 +210,7 @@ const InvoicePayments = () => {
   }, [filteredPayments]);
 
   return (
-    <DashboardLayout>
+    <>
       <div className="space-y-3">
         {/* Header */}
         <InvoicePageHeader
@@ -456,7 +455,7 @@ const InvoicePayments = () => {
           onPaymentRecorded={handlePaymentUpdated}
         />
       </div>
-    </DashboardLayout>
+    </>
   );
 };
 

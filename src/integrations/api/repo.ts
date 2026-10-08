@@ -162,6 +162,10 @@ export const auth = {
   async getSession() {
     return getSession();
   },
+  /** The stored session, read synchronously so the app shell can render on its first frame. */
+  currentSession() {
+    return getSession();
+  },
 };
 
 export const customersRepo = {

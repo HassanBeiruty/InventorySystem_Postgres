@@ -1,6 +1,5 @@
 import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import DashboardLayout from "@/components/DashboardLayout";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -174,19 +173,19 @@ const Settings = () => {
   // This prevents the flash of content/access denied
   if (isAdminLoading) {
     return (
-      <DashboardLayout>
+      <>
         <div className="space-y-2 sm:space-y-3">
           <div className="space-y-2">
             <Skeleton className="h-6 w-48" />
             <Skeleton className="h-48 w-full" />
           </div>
         </div>
-      </DashboardLayout>
+      </>
     );
   }
 
   return (
-    <DashboardLayout>
+    <>
       <div className="space-y-3 sm:space-y-4">
         <InvoicePageHeader
           icon={SettingsIcon}
@@ -701,7 +700,7 @@ const Settings = () => {
           onOpenChange={setRecomputeDialogOpen}
         />
       </div>
-    </DashboardLayout>
+    </>
   );
 };
 

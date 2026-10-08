@@ -1,5 +1,4 @@
 import React, { useRef, useState } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
 import { SectionCard } from "@/components/page-ui/SectionCard";
@@ -170,18 +169,18 @@ const LandedCost = () => {
 
   if (isAdminLoading) {
     return (
-      <DashboardLayout>
+      <>
         <div className="space-y-3 p-2 sm:p-3">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-48 w-full" />
         </div>
-      </DashboardLayout>
+      </>
     );
   }
 
   if (!isAdmin) {
     return (
-      <DashboardLayout>
+      <>
         <div className="space-y-3 sm:space-y-4">
           <InvoicePageHeader
             icon={Calculator}
@@ -196,14 +195,14 @@ const LandedCost = () => {
             </CardContent>
           </Card>
         </div>
-      </DashboardLayout>
+      </>
     );
   }
 
   const summary = result?.summary;
 
   return (
-    <DashboardLayout>
+    <>
       <div className="space-y-3 sm:space-y-4">
         <InvoicePageHeader
           icon={Calculator}
@@ -476,7 +475,7 @@ const LandedCost = () => {
           </SectionCard>
         )}
       </div>
-    </DashboardLayout>
+    </>
   );
 };
 

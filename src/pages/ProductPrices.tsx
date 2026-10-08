@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
 import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
 import { SectionCard } from "@/components/page-ui/SectionCard";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -11,6 +10,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { DollarSign, TrendingUp, Filter, X, Plus, Pencil, Trash2, Search, Coins } from "lucide-react";
 import { formatDateTimeLebanon, getTodayLebanon } from "@/utils/dateUtils";
 import { productPricesRepo, productsRepo } from "@/integrations/api/repo";
+import { invalidateProductData } from "@/integrations/api/queries";
+import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import ProductNameWithCode from "@/components/ProductNameWithCode";
@@ -20,6 +21,8 @@ import { useDebounce } from "@/hooks/useDebounce";
 const ProductPrices = () => {
   const { t } = useTranslation();
   const { toast } = useToast();
+  // Price changes drop the cached prices the invoice form fills lines from
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(true);
   const [prices, setPrices] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -134,6 +137,7 @@ const ProductPrices = () => {
       setAddProductId("");
       (e.target as HTMLFormElement).reset();
       fetchData();
+      invalidateProductData(queryClient);
     } catch (error: any) {
       toast({
         title: t('common.error'),
@@ -168,6 +172,7 @@ const ProductPrices = () => {
       setIsEditOpen(false);
       setEditingPrice(null);
       fetchData();
+      invalidateProductData(queryClient);
     } catch (error: any) {
       toast({
         title: t('common.error'),
@@ -189,6 +194,7 @@ const ProductPrices = () => {
         description: t('productPrices.priceDeleted'),
       });
       fetchData();
+      invalidateProductData(queryClient);
     } catch (error: any) {
       toast({
         title: t('common.error'),
@@ -209,7 +215,7 @@ const ProductPrices = () => {
   });
 
   return (
-    <DashboardLayout>
+    <>
       <div className="space-y-3 sm:space-y-4 animate-fade-in">
         <InvoicePageHeader
           icon={Coins}
@@ -520,7 +526,7 @@ const ProductPrices = () => {
           </DialogContent>
         </Dialog>
       </div>
-    </DashboardLayout>
+    </>
   );
 };
 

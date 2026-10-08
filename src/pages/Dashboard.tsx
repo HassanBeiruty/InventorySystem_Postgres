@@ -1,69 +1,50 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Receipt, Package, Users, UserPlus, DollarSign } from "lucide-react";
-import DashboardLayout from "@/components/DashboardLayout";
 import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
 import { SectionCard } from "@/components/page-ui/SectionCard";
 import { StatusPill, PaymentStatusPill } from "@/components/page-ui/StatusPill";
 import { invoicesRepo } from "@/integrations/api/repo";
+import { queryKeys } from "@/integrations/api/queries";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
 import { useTranslation } from "react-i18next";
 
+const EMPTY_STATS = {
+  invoicesCount: 0,
+  productsCount: 0,
+  customersCount: 0,
+  suppliersCount: 0,
+  revenue: 0,
+  todayInvoicesCount: 0,
+  todayProductsCount: 0,
+  todayRevenue: 0,
+  todayTotalQuantity: 0,
+};
+
 const Dashboard = () => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    invoicesCount: 0,
-    productsCount: 0,
-    customersCount: 0,
-    suppliersCount: 0,
-    revenue: 0,
-    todayInvoicesCount: 0,
-    todayProductsCount: 0,
-    todayRevenue: 0,
-    todayTotalQuantity: 0,
-  });
-  const [recentInvoices, setRecentInvoices] = useState<any[]>([]);
+  // Cached between visits: coming back shows the last figures at once while they refresh
+  const statsQuery = useQuery({ queryKey: queryKeys.dashboardStats, queryFn: () => invoicesRepo.stats() });
+  const recentQuery = useQuery({ queryKey: queryKeys.dashboardRecent(3), queryFn: () => invoicesRepo.listRecent(3) as Promise<any[]> });
+  const loading = statsQuery.isPending || recentQuery.isPending;
+  const stats = { ...EMPTY_STATS, ...statsQuery.data };
+  const recentInvoices = recentQuery.data || [];
 
+  const error = statsQuery.error || recentQuery.error;
   useEffect(() => {
-    let cancelled = false;
-    
-    const fetchStats = async () => {
-      setLoading(true);
-      try {
-        const [statsData, recentData] = await Promise.all([
-          invoicesRepo.stats(),
-          invoicesRepo.listRecent(3),
-        ]);
-
-        if (cancelled) return;
-
-        setStats(statsData);
-        setRecentInvoices(recentData || []);
-      } catch (error: any) {
-        if (cancelled) return;
-        toast({
-          title: "Error",
-          description: error.message,
-          variant: "destructive",
-        });
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchStats();
-    
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  }, [error, toast]);
 
   const statsDisplay = [
     {
@@ -104,7 +85,7 @@ const Dashboard = () => {
   ];
 
   return (
-    <DashboardLayout>
+    <>
       <div className="space-y-3 sm:space-y-4 animate-fade-in">
         <InvoicePageHeader
           icon={Receipt}
@@ -213,7 +194,7 @@ const Dashboard = () => {
           </SectionCard>
         </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 };
 

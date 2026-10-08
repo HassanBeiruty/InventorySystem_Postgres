@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { inventoryRepo } from "@/integrations/api/repo";
-import DashboardLayout from "@/components/DashboardLayout";
 import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
 import { SectionCard } from "@/components/page-ui/SectionCard";
 import { StatusPill } from "@/components/page-ui/StatusPill";
@@ -66,7 +65,7 @@ const Inventory = () => {
   });
 
   return (
-    <DashboardLayout>
+    <>
       <div className="space-y-3 sm:space-y-4 animate-fade-in">
         <InvoicePageHeader
           icon={Warehouse}
@@ -182,7 +181,7 @@ const Inventory = () => {
             )}
         </SectionCard>
       </div>
-    </DashboardLayout>
+    </>
   );
 };
 

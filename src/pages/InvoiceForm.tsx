@@ -1,13 +1,21 @@
 import { Fragment, useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
-import DashboardLayout from "@/components/DashboardLayout";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  customersQuery,
+  invalidateInvoiceData,
+  invoiceDetailQuery,
+  latestPricesQuery,
+  packagesQuery,
+  productsAllQuery,
+  suppliersQuery,
+} from "@/integrations/api/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Trash2, AlertTriangle, User, Truck, CalendarDays, ScanBarcode, Wallet, TrendingUp, TrendingDown } from "lucide-react";
-import { productsRepo, customersRepo, suppliersRepo, invoicesRepo, productPricesRepo, inventoryRepo, packagesRepo, type PackageEntity } from "@/integrations/api/repo";
+import { customersRepo, invoicesRepo, inventoryRepo, packagesRepo, type PackageEntity } from "@/integrations/api/repo";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -30,6 +38,15 @@ import {
 } from "@/utils/invoicePackageLines";
 
 type InvoiceItem = InvoiceFormItem;
+type LatestPrices = Record<string, { wholesale_price: number | null; retail_price: number | null }>;
+
+const NONE: any[] = [];
+const NO_PACKAGES: PackageEntity[] = [];
+// Packages are optional on the form: if they fail to load, the form still works without them
+const formPackagesQuery = {
+  ...packagesQuery,
+  queryFn: () => packagesRepo.list().catch(() => NO_PACKAGES),
+};
 
 /** Grid columns of an invoice line and of the column headings above the lines (lg and up). */
 const LINE_COLUMNS = {
@@ -48,7 +65,6 @@ const InvoiceForm = () => {
   
   const [invoiceType, setInvoiceType] = useState<'buy' | 'sell'>(location.pathname.includes('/buy') ? 'buy' : 'sell');
   const [loading, setLoading] = useState(false);
-  const [pageLoading, setPageLoading] = useState(true);
   const [hasPayments, setHasPayments] = useState(false);
   
   // Update invoice type when URL changes
@@ -64,12 +80,35 @@ const InvoiceForm = () => {
       searchInputRef.current?.focus();
     }, 50);
   }, [location.pathname, isEditMode]);
-  const [products, setProducts] = useState<any[]>([]);
+  // Reference lists come from the shared cache: a repeat visit opens at once and the lists refresh
+  // in the background. Prices are dropped from the cache whenever they change in this browser
+  // (invalidateProductData), so a line is never filled from a price changed here.
+  const productsQ = useQuery(productsAllQuery);
+  const customersQ = useQuery(customersQuery);
+  const suppliersQ = useQuery(suppliersQuery);
+  const pricesQ = useQuery(latestPricesQuery);
+  const packagesQ = useQuery(formPackagesQuery);
+  const products: any[] = productsQ.data ?? NONE;
   // Named packages; offered in the product search on SELL invoices only
-  const [packages, setPackages] = useState<PackageEntity[]>([]);
-  const [latestPrices, setLatestPrices] = useState<Record<string, { wholesale_price: number | null; retail_price: number | null }>>({});
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const packages = packagesQ.data ?? NO_PACKAGES;
+  const customers: any[] = customersQ.data ?? NONE;
+  const suppliers: any[] = suppliersQ.data ?? NONE;
+  const latestPrices = useMemo(() => {
+    const lp: LatestPrices = {};
+    (pricesQ.data || []).forEach((row: any) => {
+      // Store with string key for consistency
+      lp[String(row.product_id)] = { wholesale_price: row.wholesale_price ?? null, retail_price: row.retail_price ?? null };
+    });
+    return lp;
+  }, [pricesQ.data]);
+
+  // Edit mode: the invoice loads alongside the lists (it used to wait for all of them first).
+  // The form is filled once per invoice, and only from a copy fetched on this visit, never from
+  // an older cached one, so an invoice is never edited from outdated lines or payments.
+  const invoiceQ = useQuery({ ...invoiceDetailQuery(id ?? ""), enabled: isEditMode });
+  const [loadedInvoiceId, setLoadedInvoiceId] = useState<string | null>(null);
+  const referenceLoading = productsQ.isPending || customersQ.isPending || suppliersQ.isPending || pricesQ.isPending || packagesQ.isPending;
+  const pageLoading = referenceLoading || (isEditMode && loadedInvoiceId !== id);
   const [availableStock, setAvailableStock] = useState<Map<string, number>>(new Map());
   // False until today's stock has loaded, so the search doesn't show every product as out of stock
   const [stockReady, setStockReady] = useState(false);
@@ -85,100 +124,78 @@ const InvoiceForm = () => {
   const [flash, setFlash] = useState<{ index: number; tick: number } | null>(null);
   const lineRefs = useRef<Record<number, HTMLElement | null>>({});
 
+  // Ensure "Unknown Customer" exists for sell invoices, and preselect it on a new sell invoice.
+  // Runs once, as soon as the customer list is available (from the cache or the server).
+  const customerDefaultsDoneRef = useRef(false);
   useEffect(() => {
-    let cancelled = false;
-    
-    const initializeData = async () => {
-      try {
-        const [prodsResponse, custs, supps, latest, pkgs] = await Promise.all([
-          productsRepo.list({ limit: 1000 }),
-          customersRepo.list(),
-          suppliersRepo.list(),
-          productPricesRepo.latestAll(),
-          packagesRepo.list().catch(() => [] as PackageEntity[]),
-        ]);
-        const prods = Array.isArray(prodsResponse) ? prodsResponse : prodsResponse.data;
+    if (customerDefaultsDoneRef.current || !customersQ.data) return;
+    customerDefaultsDoneRef.current = true;
+    if (invoiceType !== 'sell') return;
 
-                // Don't update state if component unmounted
-        if (cancelled) return;
-
-        // Ensure "Unknown Customer" exists for sell invoices
-        let customersList = custs || [];
-        if (invoiceType === 'sell') {
-          let unknownCustomer = customersList.find((c: any) => 
-            c.name && c.name.toLowerCase().trim() === 'unknown customer'
-          );
-          
-          // If "Unknown Customer" doesn't exist, create it
-          if (!unknownCustomer) {
-            try {
-              await customersRepo.add({
-                name: 'Unknown Customer',
-                phone: null,
-                address: null,
-                credit_limit: 0
-              });
-              // Reload customers to get the new one
-              const updatedCustomers = await customersRepo.list();
-              customersList = updatedCustomers || [];
-              unknownCustomer = customersList.find((c: any) => 
-                c.name && c.name.toLowerCase().trim() === 'unknown customer'
-              );
-            } catch (error: any) {
-              console.warn('Could not create Unknown Customer:', error);
-            }
-          }
-          
-          // Set "Unknown Customer" as default for new sell invoices
-          if (!isEditMode && unknownCustomer) {
-            setSelectedEntity(String(unknownCustomer.id));
-          }
-        }
-
-        setProducts(prods || []);
-        setPackages(pkgs || []);
-        setCustomers(customersList);
-        setSuppliers(supps || []);
-        
-        // Data loaded successfully
-        
-        const lp: Record<string, { wholesale_price: number | null; retail_price: number | null }> = {};
-        (latest || []).forEach((row: any) => {
-          // Store with string key for consistency
-          const productIdStr = String(row.product_id);
-          lp[productIdStr] = { wholesale_price: row.wholesale_price ?? null, retail_price: row.retail_price ?? null };
-        });
-        // Latest prices loaded
-        
-        if (cancelled) return;
-        setLatestPrices(lp);
-        
-        // Now load invoice data if in edit mode, with the fresh data
-        if (isEditMode && id && !cancelled) {
-          await loadInvoiceData(id, prods || [], custs || [], supps || []);
-        }
-        
-        if (cancelled) return;
-        setPageLoading(false);
-      } catch (error: any) {
-        if (cancelled) return;
-        console.error('Error fetching data:', error);
-        setPageLoading(false);
-        toast({
-          title: "Error",
-          description: `Failed to load data. ${error.message}`,
-          variant: "destructive",
-        });
+    const findUnknown = (list: any[]) => list.find((c: any) =>
+      c.name && c.name.toLowerCase().trim() === 'unknown customer'
+    );
+    // Set "Unknown Customer" as default for new sell invoices
+    const preselect = (customer: any) => {
+      if (!isEditMode && customer) {
+        setSelectedEntity(String(customer.id));
       }
     };
-    
-    initializeData();
-    
-    // Cleanup function
-    return () => {
-      cancelled = true;
-    };
-  }, [isEditMode, id]);
+
+    const unknownCustomer = findUnknown(customersQ.data);
+    if (unknownCustomer) {
+      preselect(unknownCustomer);
+      return;
+    }
+    // If "Unknown Customer" doesn't exist, create it
+    (async () => {
+      try {
+        await customersRepo.add({
+          name: 'Unknown Customer',
+          phone: null,
+          address: null,
+          credit_limit: 0
+        });
+        // Reload customers (this also updates the cached list) to get the new one
+        const updatedCustomers = await queryClient.fetchQuery(customersQuery);
+        preselect(findUnknown(updatedCustomers || []));
+      } catch (error: any) {
+        console.warn('Could not create Unknown Customer:', error);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customersQ.data]);
+
+  const referenceError = productsQ.error || customersQ.error || suppliersQ.error || pricesQ.error;
+  useEffect(() => {
+    if (referenceError) {
+      console.error('Error fetching data:', referenceError);
+      toast({
+        title: "Error",
+        description: `Failed to load data. ${referenceError.message}`,
+        variant: "destructive",
+      });
+    }
+  }, [referenceError, toast]);
+
+  // Edit mode: fill the form once the lists and a freshly fetched copy of the invoice are in
+  useEffect(() => {
+    if (!isEditMode || !id || loadedInvoiceId === id) return;
+    if (invoiceQ.error) {
+      console.error('Error loading invoice:', invoiceQ.error);
+      toast({
+        title: "Error",
+        description: `Failed to load invoice. ${invoiceQ.error.message}`,
+        variant: "destructive",
+      });
+      navigate("/invoices");
+      return;
+    }
+    if (referenceLoading || !invoiceQ.isFetchedAfterMount || !invoiceQ.data) return;
+    applyInvoiceData(invoiceQ.data, products);
+    setLoadedInvoiceId(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditMode, id, loadedInvoiceId, invoiceQ.error, invoiceQ.isFetchedAfterMount, invoiceQ.data, referenceLoading]);
   
   // Available stock: sell invoices enforce it, buy invoices only show it in the product search.
   // Reloaded whenever the invoice type changes: the same form instance is reused when navigating
@@ -220,20 +237,16 @@ const InvoiceForm = () => {
     }
   }, [selectedEntity, invoiceType, customers, suppliers]);
 
-  const loadInvoiceData = async (invoiceId: string, prods: any[] = [], custs: any[] = [], supps: any[] = []) => {
+  /** Fills the form from a loaded invoice (edit mode). */
+  const applyInvoiceData = (invoiceData: any, productsList: any[]) => {
     try {
-      setLoading(true);
-      const invoiceData = await invoicesRepo.getInvoiceDetails(invoiceId);
-      
       // Check if invoice has payments
       const payments = invoiceData.payments || [];
       setHasPayments(payments.length > 0);
-      
-      // Use passed data or fallback to state
-      const productsList = prods.length > 0 ? prods : products;
-      const customersList = custs.length > 0 ? custs : customers;
-      const suppliersList = supps.length > 0 ? supps : suppliers;
-      
+
+      const customersList = customers;
+      const suppliersList = suppliers;
+
       // Set invoice type from loaded data
       if (invoiceData.invoice_type) {
         setInvoiceType(invoiceData.invoice_type);
@@ -333,8 +346,6 @@ const InvoiceForm = () => {
         variant: "destructive",
       });
       navigate("/invoices");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -851,33 +862,18 @@ const InvoiceForm = () => {
           title: "Success",
           description: "Invoice updated successfully",
         });
-        // Invalidate all related queries to force immediate refresh
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ["invoices"] }),
-          queryClient.invalidateQueries({ queryKey: ["inventory"] }),
-          queryClient.invalidateQueries({ queryKey: ["daily-stock"] }),
-          queryClient.invalidateQueries({ queryKey: ["stock-movements"] }),
-          queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
-        ]);
       } else {
         await invoicesRepo.createInvoice(invoiceData);
         toast({
           title: "Success",
           description: "Invoice created successfully",
         });
-        // Invalidate all related queries to force immediate refresh
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ["invoices"] }),
-          queryClient.invalidateQueries({ queryKey: ["inventory"] }),
-          queryClient.invalidateQueries({ queryKey: ["daily-stock"] }),
-          queryClient.invalidateQueries({ queryKey: ["stock-movements"] }),
-          queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
-        ]);
       }
 
-       // Small delay to allow stored procedure to complete
-       await new Promise(resolve => setTimeout(resolve, 500));
-       navigate("/invoices");
+      // Mark everything the save changed as outdated and leave right away: the server commits the
+      // invoice and the stock recalculation before it answers, and the list page refreshes itself.
+      invalidateInvoiceData(queryClient);
+      navigate("/invoices");
     } catch (error: any) {
       toast({
         title: "Error",
@@ -891,7 +887,7 @@ const InvoiceForm = () => {
 
   if (pageLoading) {
     return (
-      <DashboardLayout>
+      <>
         <div className="space-y-8 animate-fade-in">
           <div className="flex items-center justify-center min-h-[400px]">
             <div className="text-center space-y-4">
@@ -900,12 +896,12 @@ const InvoiceForm = () => {
             </div>
           </div>
         </div>
-      </DashboardLayout>
+      </>
     );
   }
 
   return (
-    <DashboardLayout>
+    <>
       <div className="space-y-3">
         <InvoicePageHeader
           icon={invoiceType === 'sell' ? TrendingUp : TrendingDown}
@@ -1258,13 +1254,15 @@ const InvoiceForm = () => {
             <Button type="button" variant="outline" onClick={() => navigate("/invoices")} className="w-full sm:w-auto h-9 px-4 text-[13px] border-2 hover:bg-muted">
               {t('invoiceForm.cancel')}
             </Button>
-            <Button type="submit" disabled={loading} className="w-full sm:w-auto h-9 px-5 text-[13px] font-semibold shadow-md hover:shadow-lg transition-all">
+            {/* A sell invoice can't be checked against stock until today's stock has loaded (until then
+                every product counts as 0 available), so saving waits for it; it normally takes a moment. */}
+            <Button type="submit" disabled={loading || (invoiceType === 'sell' && !stockReady)} className="w-full sm:w-auto h-9 px-5 text-[13px] font-semibold shadow-md hover:shadow-lg transition-all">
               {loading ? (isEditMode ? t('invoiceForm.updating') : t('invoiceForm.creating')) : (isEditMode ? t('invoiceForm.updateInvoice') : t('invoiceForm.createInvoice'))}
             </Button>
           </div>
         </form>
       </div>
-    </DashboardLayout>
+    </>
   );
 };
 

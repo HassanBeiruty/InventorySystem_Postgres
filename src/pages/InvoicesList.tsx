@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
-import DashboardLayout from "@/components/DashboardLayout";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateInvoiceData, queryKeys } from "@/integrations/api/queries";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import PaymentDialog from "@/components/PaymentDialog";
 import InvoiceItemsSidePanel from "@/components/InvoiceItemsSidePanel";
 import { Button } from "@/components/ui/button";
@@ -23,13 +24,16 @@ import { StatTile } from "@/components/page-ui/StatTile";
 import { StatusPill, PaymentStatusPill } from "@/components/page-ui/StatusPill";
 import { useDebounce } from "@/hooks/useDebounce";
 
+const NO_INVOICES: any[] = [];
+// Rows are drawn in batches as the list is scrolled; drawing a few hundred invoices at once
+// froze the page for seconds on slower PCs.
+const ROW_BATCH = 50;
+
 const InvoicesList = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [loading, setLoading] = useState(true);
-  const [invoices, setInvoices] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const debouncedSearchQuery = useDebounce(searchQuery, 400);
 
@@ -50,53 +54,36 @@ const InvoicesList = () => {
   const importInProgressRef = useRef(false);
   const idempotencyKeyRef = useRef<string | null>(null);
 
-  // A background refresh keeps the current rows on screen until the new data arrives. Swapping
-  // them for skeletons made a click that also re-focused the window land on a skeleton, so
-  // "View details" / row clicks did nothing.
-  const fetchData = useCallback(async (sd?: string, ed?: string, background = false) => {
-    if (!background) setLoading(true);
-    try {
-      const invoicesData = await invoicesRepo.listWithRelations(sd, ed);
-      const invoices = invoicesData || [];
-      setInvoices(invoices);
-    } catch (error: any) {
+  // Cached per date range: coming back to the page shows the last rows at once and refreshes
+  // them in the background (also when the window regains focus). A background refresh keeps the
+  // current rows on screen until the new data arrives; swapping them for skeletons made a click
+  // that also re-focused the window land on a skeleton, so "View details" / row clicks did nothing.
+  const invoicesQuery = useQuery({
+    queryKey: queryKeys.invoiceList(startDate, endDate),
+    queryFn: async () => (await invoicesRepo.listWithRelations(startDate, endDate)) || [],
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: true,
+  });
+  const invoices = invoicesQuery.data ?? NO_INVOICES;
+  const loading = invoicesQuery.isPending;
+
+  useEffect(() => {
+    if (invoicesQuery.error) {
       toast({
         title: t('common.error'),
-        description: error.message,
+        description: invoicesQuery.error.message,
         variant: "destructive",
       });
-    } finally {
-      if (!background) setLoading(false);
     }
-  }, [toast]);
+  }, [invoicesQuery.error, toast, t]);
 
-  useEffect(() => {
-    fetchData(startDate, endDate);
-  }, [fetchData, startDate, endDate]);
+  const refreshInvoices = useCallback(() => invalidateInvoiceData(queryClient), [queryClient]);
 
-  // Refetch when navigating back to this page (using focus event)
-  useEffect(() => {
-    const handleFocus = () => {
-      // Only refetch if we've been away for more than 1 second
-      const lastFetch = (window as any).__lastInvoiceFetch || 0;
-      const now = Date.now();
-      if (now - lastFetch > 1000) {
-        fetchData(startDate, endDate, true);
-        (window as any).__lastInvoiceFetch = now;
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [fetchData, startDate, endDate]);
-
-
-  const handleRecordPayment = useCallback((invoiceId: string) => {
-    setSelectedInvoiceId(invoiceId);
-    setPaymentDialogOpen(true);
-  }, []);
+  // The handlers below are stable, so selecting a row re-renders only the rows whose
+  // selection changed instead of the whole list. The ref lets the row toggle read the
+  // panel state without becoming a new function each time it changes.
+  const sidePanelOpenRef = useRef(sidePanelOpen);
+  sidePanelOpenRef.current = sidePanelOpen;
 
   const handleViewDetails = useCallback((invoiceId: string, event?: React.MouseEvent) => {
     if (event) {
@@ -108,7 +95,7 @@ const InvoicesList = () => {
 
   const handleRowClick = useCallback((invoiceId: string) => {
     setSelectedInvoiceId(prev => {
-      if (prev === invoiceId && sidePanelOpen) {
+      if (prev === invoiceId && sidePanelOpenRef.current) {
         setSidePanelOpen(false);
         return "";
       } else {
@@ -116,11 +103,15 @@ const InvoicesList = () => {
         return invoiceId;
       }
     });
-  }, [sidePanelOpen]);
+  }, []);
+
+  const handleEditInvoice = useCallback((invoiceId: string) => {
+    navigate(`/invoices/edit/${invoiceId}`);
+  }, [navigate]);
 
   const handlePaymentRecorded = useCallback(() => {
-    fetchData(startDate, endDate);
-  }, [fetchData, startDate, endDate]);
+    refreshInvoices();
+  }, [refreshInvoices]);
 
   const handleImportExcel = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -232,9 +223,8 @@ const InvoicesList = () => {
       setPreviewData(null);
       setCheckedInvoices(new Set());
 
-      // Refresh invoices list
-      await queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      fetchData(startDate, endDate);
+      // Refresh invoices list (and the stock and dashboard figures the import changed)
+      refreshInvoices();
     } catch (error: any) {
       toast({
         title: t('invoices.importFailed') || "Import Failed",
@@ -245,7 +235,7 @@ const InvoicesList = () => {
       setImportLoading(false);
       importInProgressRef.current = false;
     }
-  }, [pendingFile, previewData, checkedInvoices, toast, t, queryClient, fetchData, startDate, endDate]);
+  }, [pendingFile, previewData, checkedInvoices, toast, t, refreshInvoices]);
 
   const triggerFileInput = useCallback(() => {
     fileInputRef.current?.click();
@@ -262,17 +252,9 @@ const InvoicesList = () => {
         title: t('invoices.deleteSuccess') || "Success",
         description: t('invoices.invoiceDeleted') || "Invoice deleted successfully",
       });
-      // Invalidate all related queries to force immediate refresh
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["invoices"] }),
-        queryClient.invalidateQueries({ queryKey: ["inventory"] }),
-        queryClient.invalidateQueries({ queryKey: ["daily-stock"] }),
-        queryClient.invalidateQueries({ queryKey: ["stock-movements"] }),
-        queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
-      ]);
-       // Small delay to allow stored procedure to complete
-       await new Promise(resolve => setTimeout(resolve, 500));
-       fetchData(startDate, endDate);
+      // Refresh the list and everything else the deletion changed. The server commits the
+      // stock recalculation before it answers, so no extra wait is needed.
+      refreshInvoices();
     } catch (error: any) {
       toast({
         title: t('invoices.deleteError') || "Error",
@@ -280,7 +262,7 @@ const InvoicesList = () => {
         variant: "destructive",
       });
     }
-  }, [t, toast, queryClient, fetchData]);
+  }, [t, toast, refreshInvoices]);
 
   // Memoize filtered invoices to avoid recalculating on every render
   const filteredInvoices = useMemo(() => {
@@ -413,6 +395,29 @@ const InvoicesList = () => {
     }
   }, [startDate, endDate, filteredInvoices, toast, t]);
 
+  // Draw the first batch of rows, then the next one whenever the end of the list scrolls near.
+  // A background refresh keeps how far the user has scrolled; a new search or date range starts over.
+  const [visibleCount, setVisibleCount] = useState(ROW_BATCH);
+  useEffect(() => {
+    setVisibleCount(ROW_BATCH);
+  }, [startDate, endDate, debouncedSearchQuery]);
+  const visibleInvoices = useMemo(() => filteredInvoices.slice(0, visibleCount), [filteredInvoices, visibleCount]);
+  const hasMoreRows = visibleCount < filteredInvoices.length;
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const sentinel = loadMoreRef.current;
+    if (!sentinel || !hasMoreRows) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) setVisibleCount((count) => count + ROW_BATCH);
+    }, { rootMargin: "800px 0px" });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMoreRows, visibleCount]);
+
+  // Only the layout that fits the screen is mounted (the other one used to be built and hidden)
+  const isTableLayout = useMediaQuery("(min-width: 768px)");
+  const isLargeScreen = useMediaQuery("(min-width: 1024px)");
+
   // Memoize summary stats to avoid recalculating on every render
   const stats = useMemo(() => ({
     total: filteredInvoices.length,
@@ -427,7 +432,7 @@ const InvoicesList = () => {
   }), [filteredInvoices]);
 
   return (
-    <DashboardLayout>
+    <>
       <div className="space-y-3">
         {/* Header */}
         <InvoicePageHeader
@@ -570,6 +575,9 @@ const InvoicesList = () => {
         <div className="flex gap-4">
           {/* Table Section */}
           <div className={`flex-1 min-w-0 transition-all duration-300 ${sidePanelOpen ? 'lg:mr-[420px]' : ''}`}>
+            {/* Phone / small-tablet view: the 8-column table cannot fit under
+                768px without cutting off, so the same rows render as cards there. */}
+            {isTableLayout ? (
             <div className="hidden md:block border-2 border-border rounded-xl overflow-hidden bg-card">
               <div className="scroll-x">
                 <Table>
@@ -606,158 +614,23 @@ const InvoicesList = () => {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredInvoices.map((invoice, idx) => {
-                        const isSelected = selectedInvoiceId === String(invoice.id);
-                        const items = invoice.invoice_items || [];
-                        const entries = summarizeInvoiceItems(items);
-                        const itemsPreview = entries.slice(0, 2);
-                        const remainingCount = entries.length > 2 ? entries.length - 2 : 0;
-                        
-                        return (
-                          <TableRow 
-                            key={invoice.id}
-                            className={`hover:bg-primary/5 transition-colors cursor-pointer ${isSelected ? 'bg-primary/10 border-l-4 border-l-primary' : ''}`}
-                            onClick={() => handleRowClick(String(invoice.id))}
-                          >
-                            <TableCell className="font-bold text-primary p-1 pl-2 text-[12px]">
-                              #{invoice.id}
-                            </TableCell>
-                            <TableCell className="p-1 text-[12px]">
-                              {formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}
-                            </TableCell>
-                            <TableCell className="p-1">
-                              <StatusPill tone={invoice.invoice_type === 'sell' ? 'sell' : 'buy'}>
-                                {invoice.invoice_type === 'sell' ? t('invoices.sell') : t('invoices.buy')}
-                              </StatusPill>
-                            </TableCell>
-                            <TableCell className="font-medium p-1 pr-0.5 text-xs max-w-[120px] truncate">
-                              {invoice.customers?.name || invoice.suppliers?.name || "N/A"}
-                            </TableCell>
-                            <TableCell className="p-1 pl-0.5 pr-0.5">
-                              {items.length > 0 ? (
-                                <div className="space-y-0.5">
-                                  {itemsPreview.map((entry, itemIdx: number) => {
-                                    if (entry.kind === 'package') {
-                                      return (
-                                        <div key={`package-${entry.key}`} className="text-[12px] bg-primary/10 rounded px-1 py-0.5">
-                                          <div className="font-semibold text-xs truncate text-primary flex items-center gap-1">
-                                            <Package className="w-3 h-3 shrink-0" aria-hidden="true" />
-                                            {entry.name}
-                                          </div>
-                                          <div className="text-muted-foreground text-[11px] font-mono tabular-nums truncate">
-                                            Qty: {entry.qty} × ${entry.price.toFixed(2)} · {entry.lineCount} products
-                                          </div>
-                                        </div>
-                                      );
-                                    }
-                                    const item: any = entry.item;
-                                    // Use private_price_amount if it's a private price, otherwise use unit_price
-                                    const displayUnitPrice = item.is_private_price && item.private_price_amount 
-                                      ? item.private_price_amount 
-                                      : item.unit_price || 0;
-                                    
-                                    return (
-                                      <div key={itemIdx} className="text-[12px] bg-muted/30 rounded px-1 py-0.5">
-                                        <div className="font-semibold text-xs truncate">
-                                          <ProductNameWithCode 
-                                            product={item}
-                                            nameClassName="font-semibold"
-                                            codeClassName="text-[11px] text-muted-foreground font-mono tabular-nums ml-1"
-                                          />
-                                        </div>
-                                        <div className="text-muted-foreground text-[11px] font-mono tabular-nums truncate">
-                                          Qty: {item.quantity} × ${Number(displayUnitPrice).toFixed(2)}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                  {remainingCount > 0 && (
-                                    <div className="text-[11px] text-muted-foreground italic px-1">
-                                      +{remainingCount} more item{remainingCount !== 1 ? 's' : ''}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-muted-foreground text-[12px] italic">No items</span>
-                              )}
-                            </TableCell>
-                            <TableCell className={`text-right font-bold p-1 pl-0.5 ${
-                              invoice.payment_status === 'paid' 
-                                ? 'text-success' 
-                                : invoice.payment_status === 'partial'
-                                ? 'text-warning'
-                                : 'text-muted-foreground'
-                            }`}>
-                              <span className="text-xs">${Number(invoice.total_amount).toFixed(2)}</span>
-                            </TableCell>
-                            <TableCell className="text-center p-1">
-                              <PaymentStatusPill status={invoice.payment_status}>
-                                {invoice.payment_status === 'paid' ? t('invoices.paid') :
-                                 invoice.payment_status === 'partial' ? t('invoices.partial') :
-                                 t('invoices.pending')}
-                              </PaymentStatusPill>
-                            </TableCell>
-                            <TableCell className="text-center p-1" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center justify-center gap-0.5">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => handleViewDetails(String(invoice.id), e)}
-                                  className="h-7 w-7 p-0"
-                                  title="View Details"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                </Button>
-                                {invoice.payment_status !== 'paid' ? (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      navigate(`/invoices/edit/${invoice.id}`);
-                                    }}
-                                    className="h-7 w-7 p-0"
-                                    title="Edit"
-                                  >
-                                    <Pencil className="w-3.5 h-3.5" />
-                                  </Button>
-                                ) : (
-                                  <div className="h-7 w-7" />
-                                )}
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteInvoice(String(invoice.id));
-                                  }}
-                                  disabled={Number(invoice.amount_paid || 0) > 0}
-                                  className={`h-7 w-7 p-0 ${
-                                    Number(invoice.amount_paid || 0) > 0
-                                      ? 'text-warning hover:text-warning hover:bg-warning/10 cursor-not-allowed opacity-60'
-                                      : 'text-destructive hover:text-destructive hover:bg-destructive/10'
-                                  }`}
-                                  title={
-                                    Number(invoice.amount_paid || 0) > 0
-                                      ? "Cannot delete invoice with payments. Remove all payments first."
-                                      : "Delete"
-                                  }
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
+                      visibleInvoices.map((invoice) => (
+                        <InvoiceTableRow
+                          key={invoice.id}
+                          invoice={invoice}
+                          isSelected={selectedInvoiceId === String(invoice.id)}
+                          onRowClick={handleRowClick}
+                          onViewDetails={handleViewDetails}
+                          onEdit={handleEditInvoice}
+                          onDelete={handleDeleteInvoice}
+                        />
+                      ))
                     )}
                   </TableBody>
                 </Table>
               </div>
             </div>
-
-            {/* Phone / small-tablet view: the 8-column table cannot fit under
-                768px without cutting off, so the same rows render as cards. */}
+            ) : (
             <div className="md:hidden space-y-2">
               {loading ? (
                 Array(6).fill(0).map((_, i) => (
@@ -777,150 +650,25 @@ const InvoicesList = () => {
                   {searchQuery || startDate || endDate ? t('invoices.noInvoicesMatch') : t('invoices.noInvoices')}
                 </div>
               ) : (
-                filteredInvoices.map((invoice) => {
-                  const isSelected = selectedInvoiceId === String(invoice.id);
-                  const items = invoice.invoice_items || [];
-                  const entries = summarizeInvoiceItems(items);
-                  const itemsPreview = entries.slice(0, 2);
-                  const remainingCount = entries.length > 2 ? entries.length - 2 : 0;
-                  const isPaid = invoice.payment_status === 'paid';
-                  const hasPayments = Number(invoice.amount_paid || 0) > 0;
-
-                  return (
-                    <div
-                      key={invoice.id}
-                      onClick={() => handleRowClick(String(invoice.id))}
-                      className={`border-2 rounded-xl p-3 bg-card transition-colors cursor-pointer active:bg-primary/10 ${
-                        isSelected ? 'border-primary bg-primary/5' : 'hover:border-primary/40'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-bold text-primary text-xs">#{invoice.id}</span>
-                            <StatusPill tone={invoice.invoice_type === 'sell' ? 'sell' : 'buy'}>
-                              {invoice.invoice_type === 'sell' ? t('invoices.sell') : t('invoices.buy')}
-                            </StatusPill>
-                            <span className="text-[12px] text-muted-foreground">
-                              {formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}
-                            </span>
-                          </div>
-                          <p className="font-medium text-xs mt-1 truncate">
-                            {invoice.customers?.name || invoice.suppliers?.name || "N/A"}
-                          </p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p className={`font-bold text-sm whitespace-nowrap ${
-                            isPaid ? 'text-success' : invoice.payment_status === 'partial' ? 'text-warning' : 'text-foreground'
-                          }`}>
-                            ${Number(invoice.total_amount).toFixed(2)}
-                          </p>
-                          <PaymentStatusPill status={invoice.payment_status} className="mt-1">
-                            {isPaid ? t('invoices.paid') :
-                             invoice.payment_status === 'partial' ? t('invoices.partial') :
-                             t('invoices.pending')}
-                          </PaymentStatusPill>
-                        </div>
-                      </div>
-
-                      {items.length > 0 && (
-                        <div className="mt-2 space-y-0.5">
-                          {itemsPreview.map((entry, itemIdx: number) => {
-                            if (entry.kind === 'package') {
-                              return (
-                                <div key={`package-${entry.key}`} className="text-[12px] bg-primary/10 rounded px-1.5 py-1 flex items-center justify-between gap-2">
-                                  <div className="min-w-0 truncate font-semibold text-primary flex items-center gap-1">
-                                    <Package className="w-3 h-3 shrink-0" aria-hidden="true" />
-                                    {entry.name}
-                                  </div>
-                                  <span className="text-muted-foreground text-[11px] font-mono tabular-nums whitespace-nowrap shrink-0">
-                                    {entry.qty} x ${entry.price.toFixed(2)}
-                                  </span>
-                                </div>
-                              );
-                            }
-                            const item: any = entry.item;
-                            const displayUnitPrice = item.is_private_price && item.private_price_amount
-                              ? item.private_price_amount
-                              : item.unit_price || 0;
-
-                            return (
-                              <div key={itemIdx} className="text-[12px] bg-muted/30 rounded px-1.5 py-1 flex items-center justify-between gap-2">
-                                <div className="min-w-0 truncate">
-                                  <ProductNameWithCode
-                                    product={item}
-                                    nameClassName="font-semibold"
-                                    codeClassName="text-[11px] text-muted-foreground font-mono tabular-nums ml-1"
-                                  />
-                                </div>
-                                <span className="text-muted-foreground text-[11px] font-mono tabular-nums whitespace-nowrap shrink-0">
-                                  {item.quantity} x ${Number(displayUnitPrice).toFixed(2)}
-                                </span>
-                              </div>
-                            );
-                          })}
-                          {remainingCount > 0 && (
-                            <div className="text-[11px] text-muted-foreground italic px-1">
-                              +{remainingCount} more item{remainingCount !== 1 ? 's' : ''}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-end gap-1 mt-2 pt-1.5 border-t" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => handleViewDetails(String(invoice.id), e)}
-                          className="h-8 px-2 text-[11px] gap-1"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          {t('invoices.view')}
-                        </Button>
-                        {!isPaid && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/invoices/edit/${invoice.id}`);
-                            }}
-                            className="h-8 px-2 text-[11px] gap-1"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                            {t('invoices.edit')}
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteInvoice(String(invoice.id));
-                          }}
-                          disabled={hasPayments}
-                          className={`h-8 w-8 p-0 ${
-                            hasPayments
-                              ? 'text-warning cursor-not-allowed opacity-60'
-                              : 'text-destructive hover:text-destructive hover:bg-destructive/10'
-                          }`}
-                          title={
-                            hasPayments
-                              ? "Cannot delete invoice with payments. Remove all payments first."
-                              : "Delete"
-                          }
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })
+                visibleInvoices.map((invoice) => (
+                  <InvoiceCard
+                    key={invoice.id}
+                    invoice={invoice}
+                    isSelected={selectedInvoiceId === String(invoice.id)}
+                    onRowClick={handleRowClick}
+                    onViewDetails={handleViewDetails}
+                    onEdit={handleEditInvoice}
+                    onDelete={handleDeleteInvoice}
+                  />
+                ))
               )}
             </div>
+            )}
+            {hasMoreRows && !loading && <div ref={loadMoreRef} className="h-px" aria-hidden="true" />}
           </div>
 
           {/* Fixed Side Panel */}
+          {isLargeScreen && (
           <div className={`hidden lg:block fixed right-4 top-20 bottom-4 w-[400px] transition-transform duration-300 z-30 ${
             sidePanelOpen ? 'translate-x-0' : 'translate-x-[420px]'
           }`}>
@@ -930,6 +678,7 @@ const InvoicesList = () => {
               invoiceId={selectedInvoiceId}
             />
           </div>
+          )}
         </div>
 
         {/* Payment Dialog */}
@@ -941,6 +690,7 @@ const InvoicesList = () => {
         />
 
         {/* Invoice Items Side Panel (Mobile/Tablet - Overlay) */}
+        {!isLargeScreen && (
         <div className="lg:hidden">
           <InvoiceItemsSidePanel
             open={sidePanelOpen}
@@ -948,6 +698,7 @@ const InvoicesList = () => {
             invoiceId={selectedInvoiceId}
           />
         </div>
+        )}
 
         {/* Import Preview Dialog */}
         <Dialog open={previewOpen} onOpenChange={(open) => {
@@ -1134,9 +885,303 @@ const InvoicesList = () => {
           </DialogContent>
         </Dialog>
       </div>
-    </DashboardLayout>
+    </>
   );
 };
+
+interface InvoiceRowProps {
+  invoice: any;
+  isSelected: boolean;
+  onRowClick: (invoiceId: string) => void;
+  onViewDetails: (invoiceId: string, event?: React.MouseEvent) => void;
+  onEdit: (invoiceId: string) => void;
+  onDelete: (invoiceId: string) => void;
+}
+
+/** One invoice in the desktop table. Memoized: it re-renders only when its invoice or selection changes. */
+const InvoiceTableRow = memo(function InvoiceTableRow({ invoice, isSelected, onRowClick, onViewDetails, onEdit, onDelete }: InvoiceRowProps) {
+  const { t } = useTranslation();
+  const items = invoice.invoice_items || [];
+  const entries = summarizeInvoiceItems(items);
+  const itemsPreview = entries.slice(0, 2);
+  const remainingCount = entries.length > 2 ? entries.length - 2 : 0;
+  
+  return (
+    <TableRow
+      className={`hover:bg-primary/5 transition-colors cursor-pointer ${isSelected ? 'bg-primary/10 border-l-4 border-l-primary' : ''}`}
+      onClick={() => onRowClick(String(invoice.id))}
+    >
+      <TableCell className="font-bold text-primary p-1 pl-2 text-[12px]">
+        #{invoice.id}
+      </TableCell>
+      <TableCell className="p-1 text-[12px]">
+        {formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}
+      </TableCell>
+      <TableCell className="p-1">
+        <StatusPill tone={invoice.invoice_type === 'sell' ? 'sell' : 'buy'}>
+          {invoice.invoice_type === 'sell' ? t('invoices.sell') : t('invoices.buy')}
+        </StatusPill>
+      </TableCell>
+      <TableCell className="font-medium p-1 pr-0.5 text-xs max-w-[120px] truncate">
+        {invoice.customers?.name || invoice.suppliers?.name || "N/A"}
+      </TableCell>
+      <TableCell className="p-1 pl-0.5 pr-0.5">
+        {items.length > 0 ? (
+          <div className="space-y-0.5">
+            {itemsPreview.map((entry, itemIdx: number) => {
+              if (entry.kind === 'package') {
+                return (
+                  <div key={`package-${entry.key}`} className="text-[12px] bg-primary/10 rounded px-1 py-0.5">
+                    <div className="font-semibold text-xs truncate text-primary flex items-center gap-1">
+                      <Package className="w-3 h-3 shrink-0" aria-hidden="true" />
+                      {entry.name}
+                    </div>
+                    <div className="text-muted-foreground text-[11px] font-mono tabular-nums truncate">
+                      Qty: {entry.qty} × ${entry.price.toFixed(2)} · {entry.lineCount} products
+                    </div>
+                  </div>
+                );
+              }
+              const item: any = entry.item;
+              // Use private_price_amount if it's a private price, otherwise use unit_price
+              const displayUnitPrice = item.is_private_price && item.private_price_amount 
+                ? item.private_price_amount 
+                : item.unit_price || 0;
+              
+              return (
+                <div key={itemIdx} className="text-[12px] bg-muted/30 rounded px-1 py-0.5">
+                  <div className="font-semibold text-xs truncate">
+                    <ProductNameWithCode 
+                      product={item}
+                      nameClassName="font-semibold"
+                      codeClassName="text-[11px] text-muted-foreground font-mono tabular-nums ml-1"
+                    />
+                  </div>
+                  <div className="text-muted-foreground text-[11px] font-mono tabular-nums truncate">
+                    Qty: {item.quantity} × ${Number(displayUnitPrice).toFixed(2)}
+                  </div>
+                </div>
+              );
+            })}
+            {remainingCount > 0 && (
+              <div className="text-[11px] text-muted-foreground italic px-1">
+                +{remainingCount} more item{remainingCount !== 1 ? 's' : ''}
+              </div>
+            )}
+          </div>
+        ) : (
+          <span className="text-muted-foreground text-[12px] italic">No items</span>
+        )}
+      </TableCell>
+      <TableCell className={`text-right font-bold p-1 pl-0.5 ${
+        invoice.payment_status === 'paid' 
+          ? 'text-success' 
+          : invoice.payment_status === 'partial'
+          ? 'text-warning'
+          : 'text-muted-foreground'
+      }`}>
+        <span className="text-xs">${Number(invoice.total_amount).toFixed(2)}</span>
+      </TableCell>
+      <TableCell className="text-center p-1">
+        <PaymentStatusPill status={invoice.payment_status}>
+          {invoice.payment_status === 'paid' ? t('invoices.paid') :
+           invoice.payment_status === 'partial' ? t('invoices.partial') :
+           t('invoices.pending')}
+        </PaymentStatusPill>
+      </TableCell>
+      <TableCell className="text-center p-1" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => onViewDetails(String(invoice.id), e)}
+            className="h-7 w-7 p-0"
+            title="View Details"
+          >
+            <Eye className="w-3.5 h-3.5" />
+          </Button>
+          {invoice.payment_status !== 'paid' ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(String(invoice.id));
+              }}
+              className="h-7 w-7 p-0"
+              title="Edit"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
+          ) : (
+            <div className="h-7 w-7" />
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(String(invoice.id));
+            }}
+            disabled={Number(invoice.amount_paid || 0) > 0}
+            className={`h-7 w-7 p-0 ${
+              Number(invoice.amount_paid || 0) > 0
+                ? 'text-warning hover:text-warning hover:bg-warning/10 cursor-not-allowed opacity-60'
+                : 'text-destructive hover:text-destructive hover:bg-destructive/10'
+            }`}
+            title={
+              Number(invoice.amount_paid || 0) > 0
+                ? "Cannot delete invoice with payments. Remove all payments first."
+                : "Delete"
+            }
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+});
+
+/** The same invoice as a card for phones and small tablets. */
+const InvoiceCard = memo(function InvoiceCard({ invoice, isSelected, onRowClick, onViewDetails, onEdit, onDelete }: InvoiceRowProps) {
+  const { t } = useTranslation();
+  const items = invoice.invoice_items || [];
+  const entries = summarizeInvoiceItems(items);
+  const itemsPreview = entries.slice(0, 2);
+  const remainingCount = entries.length > 2 ? entries.length - 2 : 0;
+  const isPaid = invoice.payment_status === 'paid';
+  const hasPayments = Number(invoice.amount_paid || 0) > 0;
+
+  return (
+    <div
+      onClick={() => onRowClick(String(invoice.id))}
+      className={`border-2 rounded-xl p-3 bg-card transition-colors cursor-pointer active:bg-primary/10 ${
+        isSelected ? 'border-primary bg-primary/5' : 'hover:border-primary/40'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-bold text-primary text-xs">#{invoice.id}</span>
+            <StatusPill tone={invoice.invoice_type === 'sell' ? 'sell' : 'buy'}>
+              {invoice.invoice_type === 'sell' ? t('invoices.sell') : t('invoices.buy')}
+            </StatusPill>
+            <span className="text-[12px] text-muted-foreground">
+              {formatDateTimeLebanon(invoice.invoice_date, "MMM dd, yyyy")}
+            </span>
+          </div>
+          <p className="font-medium text-xs mt-1 truncate">
+            {invoice.customers?.name || invoice.suppliers?.name || "N/A"}
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className={`font-bold text-sm whitespace-nowrap ${
+            isPaid ? 'text-success' : invoice.payment_status === 'partial' ? 'text-warning' : 'text-foreground'
+          }`}>
+            ${Number(invoice.total_amount).toFixed(2)}
+          </p>
+          <PaymentStatusPill status={invoice.payment_status} className="mt-1">
+            {isPaid ? t('invoices.paid') :
+             invoice.payment_status === 'partial' ? t('invoices.partial') :
+             t('invoices.pending')}
+          </PaymentStatusPill>
+        </div>
+      </div>
+
+      {items.length > 0 && (
+        <div className="mt-2 space-y-0.5">
+          {itemsPreview.map((entry, itemIdx: number) => {
+            if (entry.kind === 'package') {
+              return (
+                <div key={`package-${entry.key}`} className="text-[12px] bg-primary/10 rounded px-1.5 py-1 flex items-center justify-between gap-2">
+                  <div className="min-w-0 truncate font-semibold text-primary flex items-center gap-1">
+                    <Package className="w-3 h-3 shrink-0" aria-hidden="true" />
+                    {entry.name}
+                  </div>
+                  <span className="text-muted-foreground text-[11px] font-mono tabular-nums whitespace-nowrap shrink-0">
+                    {entry.qty} x ${entry.price.toFixed(2)}
+                  </span>
+                </div>
+              );
+            }
+            const item: any = entry.item;
+            const displayUnitPrice = item.is_private_price && item.private_price_amount
+              ? item.private_price_amount
+              : item.unit_price || 0;
+
+            return (
+              <div key={itemIdx} className="text-[12px] bg-muted/30 rounded px-1.5 py-1 flex items-center justify-between gap-2">
+                <div className="min-w-0 truncate">
+                  <ProductNameWithCode
+                    product={item}
+                    nameClassName="font-semibold"
+                    codeClassName="text-[11px] text-muted-foreground font-mono tabular-nums ml-1"
+                  />
+                </div>
+                <span className="text-muted-foreground text-[11px] font-mono tabular-nums whitespace-nowrap shrink-0">
+                  {item.quantity} x ${Number(displayUnitPrice).toFixed(2)}
+                </span>
+              </div>
+            );
+          })}
+          {remainingCount > 0 && (
+            <div className="text-[11px] text-muted-foreground italic px-1">
+              +{remainingCount} more item{remainingCount !== 1 ? 's' : ''}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="flex items-center justify-end gap-1 mt-2 pt-1.5 border-t" onClick={(e) => e.stopPropagation()}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => onViewDetails(String(invoice.id), e)}
+          className="h-8 px-2 text-[11px] gap-1"
+        >
+          <Eye className="w-3.5 h-3.5" />
+          {t('invoices.view')}
+        </Button>
+        {!isPaid && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(String(invoice.id));
+            }}
+            className="h-8 px-2 text-[11px] gap-1"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            {t('invoices.edit')}
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(String(invoice.id));
+          }}
+          disabled={hasPayments}
+          className={`h-8 w-8 p-0 ${
+            hasPayments
+              ? 'text-warning cursor-not-allowed opacity-60'
+              : 'text-destructive hover:text-destructive hover:bg-destructive/10'
+          }`}
+          title={
+            hasPayments
+              ? "Cannot delete invoice with payments. Remove all payments first."
+              : "Delete"
+          }
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+});
 
 export default InvoicesList;
 

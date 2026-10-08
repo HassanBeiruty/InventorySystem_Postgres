@@ -1,5 +1,5 @@
-import { ReactNode, useEffect, useState } from "react";
-import { useNavigate, Link, useLocation } from "react-router-dom";
+import { Suspense, useEffect, useState } from "react";
+import { useNavigate, Link, useLocation, Navigate, Outlet } from "react-router-dom";
 import { auth } from "@/integrations/api/repo";
 import { Button } from "@/components/ui/button";
 import { 
@@ -17,14 +17,24 @@ import { LiveClock } from "@/components/LiveClock";
 import { useTranslation } from "react-i18next";
 type LocalUser = { email: string } | null;
 
-interface DashboardLayoutProps {
-  children: ReactNode;
-}
+/** Shown in the content area while a page's code is downloading; the menus stay in place. */
+const PageLoading = () => (
+  <div className="flex items-center justify-center py-24">
+    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+  </div>
+);
 
-const DashboardLayout = ({ children }: DashboardLayoutProps) => {
+/**
+ * The signed-in app shell (header and menus), rendered once for every page route. Pages render
+ * into <Outlet />, so moving between them no longer tears down and rebuilds the navigation.
+ */
+const DashboardLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [user, setUser] = useState<LocalUser>(null);
+  const [user, setUser] = useState<LocalUser>(() => {
+    const session = auth.currentSession();
+    return session ? { email: session.email } : null;
+  });
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -32,11 +42,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       setUser(session ? { email: session.email } : null);
       if (!session) navigate("/auth");
     });
-    (async () => {
-      const session = await auth.getSession();
-      setUser(session ? { email: session.email } : null);
-      if (!session) navigate("/auth");
-    })();
     return () => { unsub(); };
   }, [navigate]);
 
@@ -47,21 +52,23 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   };
 
   if (!user) {
-    return null;
+    return <Navigate to="/auth" replace />;
   }
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Top Navigation */}
-      <header className="sticky top-0 z-50 border-b-2 border-border/50 glass shadow-elegant backdrop-blur-xl">
+      {/* Top Navigation. Solid (not frosted) and without looping animations: a blurred sticky bar
+          has to be re-blurred on every scroll frame, and the moving gradient repainted it nonstop,
+          which made scrolling and typing lag on slower PCs. */}
+      <header className="sticky top-0 z-50 border-b-2 border-border/50 bg-background shadow-elegant">
         <div className="container mx-auto px-2 sm:px-3 py-1.5 sm:py-0 sm:h-12 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1.5 sm:gap-3">
           <div className="flex items-center gap-2 min-w-0 sm:flex-1">
-            <div className="relative w-8 h-8 sm:w-10 sm:h-10 gradient-primary rounded-xl flex items-center justify-center shadow-glow animate-float flex-shrink-0">
+            <div className="relative w-8 h-8 sm:w-10 sm:h-10 gradient-primary rounded-xl flex items-center justify-center shadow-glow flex-shrink-0">
               <Receipt className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
               <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent rounded-xl" />
             </div>
             <div className="min-w-0 flex-1">
-              <h1 className="text-sm sm:text-lg font-bold bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent animate-gradient truncate">
+              <h1 className="text-sm sm:text-lg font-bold bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent truncate">
                 Invoice System
               </h1>
               <p className="text-[10px] sm:text-xs text-muted-foreground font-medium truncate">{user.email}</p>
@@ -85,7 +92,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       </header>
 
       {/* Navigation Menu */}
-      <nav className="border-b-2 border-border/50 glass backdrop-blur-md relative z-10">
+      <nav className="border-b-2 border-border/50 bg-background relative z-10">
         <div className="container mx-auto px-2 sm:px-3 py-1.5 sm:py-2">
           <div className="flex flex-wrap sm:flex-nowrap gap-1 sm:gap-1.5 sm:overflow-x-auto pb-0.5 sm:pb-1 scrollbar-hide items-center snap-x">
             {/* Dashboard */}
@@ -369,7 +376,9 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
       {/* Main Content */}
       <main className="container mx-auto w-full max-w-full px-3 sm:px-4 py-3 sm:py-4">
-        {children}
+        <Suspense fallback={<PageLoading />}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   );

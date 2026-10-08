@@ -1,25 +1,32 @@
-import React, { lazy, Suspense } from "react";
+import React, { lazy, Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import DashboardLayout from "@/components/DashboardLayout";
+import { createQueryClient } from "@/integrations/api/queries";
 
-// Lazy load pages for better initial load performance
-const Dashboard = lazy(() => import("./pages/Dashboard"));
+// Page code is split per route; the busiest pages are also fetched ahead of time (see AppShell)
+const loadDashboard = () => import("./pages/Dashboard");
+const loadInvoicesList = () => import("./pages/InvoicesList");
+const loadInvoiceForm = () => import("./pages/InvoiceForm");
+const loadProducts = () => import("./pages/Products");
+
+const Dashboard = lazy(loadDashboard);
 const Auth = lazy(() => import("./pages/Auth"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
-const Products = lazy(() => import("./pages/Products"));
+const Products = lazy(loadProducts);
 const QuickAddProducts = lazy(() => import("./pages/QuickAddProducts"));
 const Categories = lazy(() => import("./pages/Categories"));
 const Packages = lazy(() => import("./pages/Packages"));
 const Customers = lazy(() => import("./pages/Customers"));
 const Suppliers = lazy(() => import("./pages/Suppliers"));
-const InvoicesList = lazy(() => import("./pages/InvoicesList"));
+const InvoicesList = lazy(loadInvoicesList);
 const InvoicePayments = lazy(() => import("./pages/InvoicePayments"));
 const OverdueInvoices = lazy(() => import("./pages/OverdueInvoices"));
-const InvoiceForm = lazy(() => import("./pages/InvoiceForm"));
+const InvoiceForm = lazy(loadInvoiceForm);
 const Reports = lazy(() => import("./pages/Reports"));
 const StockMovements = lazy(() => import("./pages/StockMovements"));
 const Inventory = lazy(() => import("./pages/Inventory"));
@@ -33,17 +40,7 @@ const BarcodeGenerator = lazy(() => import("./pages/BarcodeGenerator"));
 const LandedCost = lazy(() => import("./pages/LandedCost"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
-// Configure React Query with performance optimizations
-const queryClient = new QueryClient({
-	defaultOptions: {
-		queries: {
-			staleTime: 0, // Data is immediately stale - ensures fresh data after mutations
-			gcTime: 1000 * 60 * 30, // 30 minutes - garbage collection time (formerly cacheTime)
-			refetchOnWindowFocus: false, // Don't refetch on window focus
-			retry: 1, // Only retry once on failure
-		},
-	},
-});
+const queryClient = createQueryClient();
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -51,6 +48,23 @@ const LoadingFallback = () => (
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
   </div>
 );
+
+/** The signed-in shell. Once the first page is up, the main pages' code downloads in the background. */
+const AppShell = () => {
+  useEffect(() => {
+    const prefetch = () => {
+      [loadDashboard, loadInvoicesList, loadInvoiceForm, loadProducts].forEach((load) => load().catch(() => {}));
+    };
+    if ("requestIdleCallback" in window) {
+      const handle = window.requestIdleCallback(prefetch, { timeout: 3000 });
+      return () => window.cancelIdleCallback(handle);
+    }
+    const handle = setTimeout(prefetch, 1500);
+    return () => clearTimeout(handle);
+  }, []);
+
+  return <DashboardLayout />;
+};
 
 const App = () => (
     <QueryClientProvider client={queryClient}>
@@ -60,33 +74,35 @@ const App = () => (
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
-            <Route path="/" element={<Dashboard />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/products" element={<Products />} />
-            <Route path="/products/quick-add" element={<QuickAddProducts />} />
-            <Route path="/categories" element={<Categories />} />
-            <Route path="/packages" element={<Packages />} />
-            <Route path="/customers" element={<Customers />} />
-            <Route path="/suppliers" element={<Suppliers />} />
-            <Route path="/invoices" element={<InvoicesList />} />
-            <Route path="/invoices/payments" element={<InvoicePayments />} />
-            <Route path="/invoices/overdue" element={<OverdueInvoices />} />
-            <Route path="/invoices/new/sell" element={<InvoiceForm />} />
-            <Route path="/invoices/new/buy" element={<InvoiceForm />} />
-            <Route path="/invoices/edit/:id" element={<InvoiceForm />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/stock-movements" element={<StockMovements />} />
-            <Route path="/inventory" element={<Inventory />} />
-            <Route path="/daily-stocks" element={<DailyStocks />} />
-            <Route path="/product-costs" element={<ProductCosts />} />
-            <Route path="/product-prices" element={<ProductPrices />} />
-            <Route path="/exchange-rates" element={<ExchangeRates />} />
-            <Route path="/low-stock" element={<LowStock />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/barcode-generator" element={<BarcodeGenerator />} />
-            <Route path="/landed-cost" element={<LandedCost />} />
+            <Route element={<AppShell />}>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/products" element={<Products />} />
+              <Route path="/products/quick-add" element={<QuickAddProducts />} />
+              <Route path="/categories" element={<Categories />} />
+              <Route path="/packages" element={<Packages />} />
+              <Route path="/customers" element={<Customers />} />
+              <Route path="/suppliers" element={<Suppliers />} />
+              <Route path="/invoices" element={<InvoicesList />} />
+              <Route path="/invoices/payments" element={<InvoicePayments />} />
+              <Route path="/invoices/overdue" element={<OverdueInvoices />} />
+              <Route path="/invoices/new/sell" element={<InvoiceForm />} />
+              <Route path="/invoices/new/buy" element={<InvoiceForm />} />
+              <Route path="/invoices/edit/:id" element={<InvoiceForm />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/stock-movements" element={<StockMovements />} />
+              <Route path="/inventory" element={<Inventory />} />
+              <Route path="/daily-stocks" element={<DailyStocks />} />
+              <Route path="/product-costs" element={<ProductCosts />} />
+              <Route path="/product-prices" element={<ProductPrices />} />
+              <Route path="/exchange-rates" element={<ExchangeRates />} />
+              <Route path="/low-stock" element={<LowStock />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/barcode-generator" element={<BarcodeGenerator />} />
+              <Route path="/landed-cost" element={<LandedCost />} />
+            </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -1,5 +1,4 @@
 import { useEffect, useState, useMemo } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
 import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
 import { SectionCard } from "@/components/page-ui/SectionCard";
 import { StatTile } from "@/components/page-ui/StatTile";
@@ -138,7 +137,7 @@ const ProductCosts = () => {
   });
 
   return (
-    <DashboardLayout>
+    <>
       <div className="space-y-3 sm:space-y-4 animate-fade-in">
         <InvoicePageHeader
           icon={Wallet}
@@ -328,7 +327,7 @@ const ProductCosts = () => {
             )}
         </SectionCard>
       </div>
-    </DashboardLayout>
+    </>
   );
 };
 

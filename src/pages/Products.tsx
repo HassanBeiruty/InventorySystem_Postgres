@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { categoriesQuery, invalidateProductData, queryKeys } from "@/integrations/api/queries";
 import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
 import { SectionCard } from "@/components/page-ui/SectionCard";
 import { StatTile } from "@/components/page-ui/StatTile";
@@ -11,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Plus, Package, Pencil, Download, Trash2, Scan, Search, X, ArrowDown, ArrowUp, FileSpreadsheet, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
-import { productsRepo, categoriesRepo, productPricesRepo } from "@/integrations/api/repo";
+import { productsRepo, productPricesRepo } from "@/integrations/api/repo";
 import { getTodayLebanon } from "@/utils/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -26,9 +27,6 @@ const Products = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [pageLoading, setPageLoading] = useState(true);
-  const [products, setProducts] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>("");
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -50,72 +48,22 @@ const Products = () => {
   const [checkedExistingProducts, setCheckedExistingProducts] = useState<Set<number>>(new Set());
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize] = useState<number>(50);
-  const [totalProducts, setTotalProducts] = useState<number>(0);
-  const [paginationInfo, setPaginationInfo] = useState<{ limit: number; offset: number; total: number | null; hasMore: boolean | null } | null>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const fetchProducts = async (page: number, search: string) => {
-    try {
-      const offset = (page - 1) * pageSize;
-      const options: { limit: number; offset: number; search?: string } = {
-        limit: pageSize,
-        offset: offset
-      };
-      
-      // Use server-side search if search query exists
-      if (search.trim()) {
-        options.search = search.trim();
-      }
-      
-      const response = await productsRepo.list(options);
-      
-      // Handle both old format (array) and new format (object with data property)
-      const products = Array.isArray(response) ? response : (response.data || []);
-      setProducts(products);
-      
-      // Handle pagination info
-      if (!Array.isArray(response) && response.pagination) {
-        setPaginationInfo(response.pagination);
-        setTotalProducts(response.pagination.total || products.length);
-      } else {
-        setPaginationInfo(null);
-        setTotalProducts(products.length);
-      }
-    } catch (error: any) {
-      console.error('Error fetching products:', error);
-      toast({ 
-        title: t('common.error'), 
-        description: error.message || t('products.failedToLoadProducts'), 
-        variant: "destructive" 
-      });
-      setProducts([]);
-      setTotalProducts(0);
-      setPaginationInfo(null);
-    } finally {
-      setPageLoading(false);
-    }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      const data = await categoriesRepo.list();
-      setCategories(data || []);
-    } catch (error: any) {
-      console.error('Error fetching categories:', error);
-      // Don't show toast for categories - just log
-      setCategories([]);
-    }
-  };
-
-  // Debounce search: update debounced value only after user stops typing (fetch runs once per finished phrase)
+  // Debounce search: update debounced value only after user stops typing (fetch runs once per finished phrase).
+  // A new search starts at page 1 in the same update, so the old page is never requested for it.
   useEffect(() => {
     if (searchDebounceRef.current) {
       clearTimeout(searchDebounceRef.current);
       searchDebounceRef.current = null;
     }
-    searchDebounceRef.current = window.setTimeout(() => {
+    searchDebounceRef.current = setTimeout(() => {
       searchDebounceRef.current = null;
       setDebouncedSearchQuery(searchQuery);
+      if (searchQuery.trim()) {
+        setCurrentPage(1);
+      }
     }, 600);
     return () => {
       if (searchDebounceRef.current) {
@@ -125,23 +73,44 @@ const Products = () => {
     };
   }, [searchQuery]);
 
-  // Reset to page 1 when debounced search query changes
-  useEffect(() => {
-    if (debouncedSearchQuery.trim() && currentPage !== 1) {
-      setCurrentPage(1);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearchQuery]);
+  // Each page of results is cached: paging back, or coming back to this page, shows rows at once.
+  // While another page or search loads, the current rows stay on screen instead of a full-page spinner.
+  const search = debouncedSearchQuery.trim();
+  const offset = (currentPage - 1) * pageSize;
+  const productsQuery = useQuery({
+    queryKey: queryKeys.productPage(pageSize, offset, search),
+    // Use server-side search if search query exists
+    queryFn: () => productsRepo.list({ limit: pageSize, offset, ...(search ? { search } : {}) }),
+    placeholderData: keepPreviousData,
+  });
+  const categoriesQ = useQuery(categoriesQuery);
+  const pageLoading = productsQuery.isPending;
+  const response = productsQuery.data;
+  // Handle both old format (array) and new format (object with data property)
+  const products = useMemo(
+    () => (!response ? [] : Array.isArray(response) ? response : (response.data || [])),
+    [response],
+  );
+  const totalProducts = !response
+    ? 0
+    : !Array.isArray(response) && response.pagination
+      ? (response.pagination.total || products.length)
+      : products.length;
+  const categories: any[] = categoriesQ.data ?? [];
 
-  // Fetch products when page or debounced search changes
   useEffect(() => {
-    const loadData = async () => {
-      setPageLoading(true);
-      await Promise.all([fetchProducts(currentPage, debouncedSearchQuery), fetchCategories()]);
-    };
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, debouncedSearchQuery]);
+    if (productsQuery.error) {
+      console.error('Error fetching products:', productsQuery.error);
+      toast({ 
+        title: t('common.error'), 
+        description: productsQuery.error.message || t('products.failedToLoadProducts'), 
+        variant: "destructive" 
+      });
+    }
+  }, [productsQuery.error, toast, t]);
+
+  // After an add, edit, delete or import: refresh the cached pages (and prices for the invoice form)
+  const refreshProducts = () => invalidateProductData(queryClient);
 
   // Products are already filtered server-side when searchQuery exists
   // No need for client-side filtering
@@ -224,7 +193,7 @@ const Products = () => {
     }
     setIsOpen(false);
     // Refresh current page
-    fetchProducts(currentPage, debouncedSearchQuery);
+    refreshProducts();
   };
 
   const handleEdit = async (product: any) => {
@@ -318,7 +287,7 @@ const Products = () => {
     setRetailPrice("");
     setLatestPrice(null);
     // Refresh current page
-    fetchProducts(currentPage, debouncedSearchQuery);
+    refreshProducts();
   };
 
   const handleDelete = async (product: any) => {
@@ -333,7 +302,7 @@ const Products = () => {
         description: t('products.productDeleted'),
       });
       // Refresh current page
-      fetchProducts(currentPage, debouncedSearchQuery);
+      refreshProducts();
     } catch (error: any) {
       toast({
         title: t('common.error'),
@@ -493,12 +462,8 @@ const Products = () => {
       }
       
       // Refresh products list and reset to page 1
-      if (currentPage !== 1) {
-        setCurrentPage(1);
-      } else {
-        // If already on page 1, fetch products directly
-        fetchProducts(1, debouncedSearchQuery);
-      }
+      refreshProducts();
+      setCurrentPage(1);
     } catch (error: any) {
       toast({
         title: t('products.importFailed'),
@@ -517,7 +482,7 @@ const Products = () => {
 
   if (pageLoading) {
     return (
-      <DashboardLayout>
+      <>
         <div className="space-y-8 animate-fade-in">
           <div className="flex items-center justify-center min-h-[400px]">
             <div className="text-center space-y-4">
@@ -526,12 +491,12 @@ const Products = () => {
             </div>
           </div>
         </div>
-      </DashboardLayout>
+      </>
     );
   }
 
   return (
-    <DashboardLayout>
+    <>
       <div className="space-y-3 sm:space-y-4 animate-fade-in">
         <InvoicePageHeader
           icon={Package}
@@ -1256,7 +1221,7 @@ const Products = () => {
           </DialogContent>
         </Dialog>
       </div>
-    </DashboardLayout>
+    </>
   );
 };
 

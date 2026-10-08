@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { InvoicePageHeader } from "@/components/page-ui/InvoicePageHeader";
 import { StatusPill } from "@/components/page-ui/StatusPill";
@@ -78,7 +77,7 @@ const LowStock = () => {
   });
 
   return (
-    <DashboardLayout>
+    <>
       <div className="space-y-3 sm:space-y-4 animate-fade-in">
         {/* Header */}
         <InvoicePageHeader
@@ -219,7 +218,7 @@ const LowStock = () => {
           </div>
         </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 };
 

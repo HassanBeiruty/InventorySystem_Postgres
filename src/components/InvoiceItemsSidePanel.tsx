@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { invoicesRepo } from "@/integrations/api/repo";
+import { invoiceDetailQuery } from "@/integrations/api/queries";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateTimeLebanon } from "@/utils/dateUtils";
 import { escapeHtml } from "@/utils/escapeHtml";
@@ -53,34 +54,25 @@ interface InvoiceItemsSidePanelProps {
 
 export default function InvoiceItemsSidePanel({ open, onOpenChange, invoiceId }: InvoiceItemsSidePanelProps) {
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
-  const [invoice, setInvoice] = useState<InvoiceDetails | null>(null);
+  // Cached per invoice: reopening one is instant, and saving a payment or edit refreshes it
+  const detailQuery = useQuery({
+    ...invoiceDetailQuery(invoiceId),
+    enabled: open && !!invoiceId,
+  });
+  const invoice: InvoiceDetails | null = open ? (detailQuery.data ?? null) : null;
+  const loading = open && !!invoiceId && detailQuery.isPending;
 
   useEffect(() => {
-    if (open && invoiceId) {
-      fetchInvoiceDetails();
-    } else if (!open) {
-      // Reset state when panel closes
-      setInvoice(null);
-    }
-  }, [open, invoiceId]);
-
-  const fetchInvoiceDetails = async () => {
-    setLoading(true);
-    try {
-      const data = await invoicesRepo.getInvoiceDetails(invoiceId);
-      setInvoice(data);
-    } catch (error: any) {
+    if (open && detailQuery.error) {
       toast({
         title: "Error",
-        description: error.message,
+        description: detailQuery.error.message,
         variant: "destructive",
       });
       onOpenChange(false);
-    } finally {
-      setLoading(false);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailQuery.error]);
 
   // Helper to get theme color as hex for print
   const getThemeColorHex = (varName: string): string => {

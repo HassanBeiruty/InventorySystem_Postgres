@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import DashboardLayout from "@/components/DashboardLayout";
+import { invalidateInvoiceData } from "@/integrations/api/queries";
 import PaymentDialog from "@/components/PaymentDialog";
 import InvoiceDetailDialog from "@/components/InvoiceDetailDialog";
 import { Button } from "@/components/ui/button";
@@ -73,17 +73,10 @@ const OverdueInvoices = () => {
         title: "Success",
         description: "Invoice deleted successfully",
       });
-      // Invalidate all related queries to force immediate refresh
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["invoices"] }),
-        queryClient.invalidateQueries({ queryKey: ["inventory"] }),
-        queryClient.invalidateQueries({ queryKey: ["daily-stock"] }),
-        queryClient.invalidateQueries({ queryKey: ["stock-movements"] }),
-        queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
-      ]);
-       // Small delay to allow stored procedure to complete
-       await new Promise(resolve => setTimeout(resolve, 500));
-       fetchData(); // Refresh the invoice list
+      // Mark cached invoice/stock data outdated; the server has already committed the deletion
+      // and the stock recalculation, so the list can refresh right away.
+      invalidateInvoiceData(queryClient);
+      fetchData(); // Refresh the invoice list
     } catch (error: any) {
       toast({
         title: "Error",
@@ -111,7 +104,7 @@ const OverdueInvoices = () => {
   };
 
   return (
-    <DashboardLayout>
+    <>
       <div className="space-y-3">
         {/* Header */}
         <InvoicePageHeader
@@ -292,7 +285,7 @@ const OverdueInvoices = () => {
           invoiceId={selectedInvoiceId}
         />
       </div>
-    </DashboardLayout>
+    </>
   );
 };
 
