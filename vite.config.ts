@@ -37,11 +37,12 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        // Manual chunk splitting for better caching
+        // Manual chunk splitting for better caching. Charts (recharts, ~110 KB gzipped) are left out
+        // on purpose: as a named chunk they were pulled into the startup download of every page,
+        // although only the Reports page draws charts. Unlisted, they load with that page.
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           'ui-vendor': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select'],
-          'chart-vendor': ['recharts'],
           'query-vendor': ['@tanstack/react-query'],
         },
       },
