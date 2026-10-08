@@ -43,11 +43,10 @@ const ProductCosts = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [costsData, prodsResponse] = await Promise.all([
+      const [costsData, prods] = await Promise.all([
         productCostsRepo.listAll({}),
-        productsRepo.list({ limit: 1000 }),
+        productsRepo.listAll(),
       ]);
-      const prods = Array.isArray(prodsResponse) ? prodsResponse : prodsResponse.data;
       
       setCosts(costsData || []);
       setProducts(prods || []);

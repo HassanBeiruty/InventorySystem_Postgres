@@ -77,10 +77,7 @@ export const invoiceDetailQuery = (id: string) => ({
 // Reference lists used by the invoice form (and shared with other pages through the cache)
 export const productsAllQuery = {
   queryKey: queryKeys.productsAll,
-  queryFn: async () => {
-    const response = await productsRepo.list({ limit: 1000 });
-    return Array.isArray(response) ? response : response.data;
-  },
+  queryFn: () => productsRepo.listAll(),
 };
 export const customersQuery = { queryKey: queryKeys.customers, queryFn: () => customersRepo.list() };
 export const suppliersQuery = { queryKey: queryKeys.suppliers, queryFn: () => suppliersRepo.list() };

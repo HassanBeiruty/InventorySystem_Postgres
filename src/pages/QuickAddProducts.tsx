@@ -71,7 +71,8 @@ const QuickAddProducts = () => {
 
   const fetchRecentProducts = async () => {
     try {
-      const productsResponse = await productsRepo.list({ limit: 1000 });
+      // The API lists newest first, so the first five are the recent ones
+      const productsResponse = await productsRepo.list({ limit: 5 });
       const products = Array.isArray(productsResponse) ? productsResponse : productsResponse.data;
       // Sort by ID descending (newest first) and get top 5
       const sorted = [...products].sort((a, b) => {

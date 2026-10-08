@@ -241,10 +241,20 @@ export const productsRepo = {
     }
     return response;
   },
-  // Helper method to get just the data array (for backward compatibility)
-  async listArray(): Promise<ProductEntity[]> {
-    const response = await this.list({ limit: 1000 });
-    return Array.isArray(response) ? response : response.data;
+  /**
+   * Every product, newest first. The API returns at most 1000 per request, so this keeps asking
+   * for the next page until it has them all (a single request while there are 1000 or fewer).
+   */
+  async listAll(): Promise<ProductEntity[]> {
+    const pageSize = 1000;
+    const all: ProductEntity[] = [];
+    for (let offset = 0; ; offset += pageSize) {
+      const response = await this.list({ limit: pageSize, offset });
+      const page = Array.isArray(response) ? response : response.data;
+      all.push(...page);
+      const hasMore = !Array.isArray(response) && response.pagination?.hasMore;
+      if (!hasMore || page.length === 0) return all;
+    }
   },
   async listWithoutPrices(): Promise<ProductEntity[]> {
     return fetchJson<ProductEntity[]>(`/api/products/without-prices`);

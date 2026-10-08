@@ -52,8 +52,7 @@ export default function ProductDetailsSidePanel({ open, onOpenChange, productId 
     
     try {
       // Fetch product details
-      const productsResponse = await productsRepo.list({ limit: 1000 });
-      const products = Array.isArray(productsResponse) ? productsResponse : productsResponse.data;
+      const products = await productsRepo.listAll();
       const foundProduct = products.find((p: any) => String(p.id) === productId);
       
       if (!foundProduct) {

@@ -398,14 +398,13 @@ const Reports = () => {
   const fetchReports = useCallback(async () => {
     setLoading(true);
     try {
-      const [all, productsResponse, customers, suppliers, invoiceStats] = await Promise.all([
+      const [all, products, customers, suppliers, invoiceStats] = await Promise.all([
         invoicesRepo.listWithRelations(),
-        productsRepo.list({ limit: 1000 }),
+        productsRepo.listAll(),
         customersRepo.list(),
         suppliersRepo.list(),
         invoicesRepo.stats(),
       ]);
-      const products = Array.isArray(productsResponse) ? productsResponse : productsResponse.data;
       
       // Total Sales and Total Purchases: Always all-time (since inception), NOT filtered by date.
       // These come from server-side SUM aggregation (invoicesRepo.stats) so they cover EVERY

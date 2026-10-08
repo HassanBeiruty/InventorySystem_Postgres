@@ -62,12 +62,11 @@ const Packages = () => {
   const [deletingPackage, setDeletingPackage] = useState<PackageEntity | null>(null);
 
   const fetchData = async () => {
-    const [pkgs, prodResponse, latest] = await Promise.all([
+    const [pkgs, prods, latest] = await Promise.all([
       packagesRepo.list(),
-      productsRepo.list({ limit: 1000 }),
+      productsRepo.listAll(),
       productPricesRepo.latestAll(),
     ]);
-    const prods = Array.isArray(prodResponse) ? prodResponse : prodResponse.data;
     const prices = new Map<string, number>();
     (latest || []).forEach((row) => {
       if (row.retail_price != null) prices.set(String(row.product_id), Number(row.retail_price));
